@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Agência — Meta Ads</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --card: #ffffff;
+    --border: #e2e1da;
+    --text-primary: #1a1a18;
+    --text-secondary: #5f5e5a;
+    --text-muted: #898781;
+    --green: #197a3f;
+    --amber: #8a5a0c;
+    --red: #a32d2d;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); padding: 2rem; }
+  .container { max-width: 980px; margin: 0 auto; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
+  .header-left h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
+  .header-left p { color: var(--text-secondary); font-size: 14px; }
+  .btn-refresh { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--card); font-size: 14px; cursor: pointer; color: var(--text-primary); font-family: inherit; transition: background 0.15s; }
+  .btn-refresh:hover { background: var(--bg); }
+  .btn-refresh svg { width: 15px; height: 15px; }
+  .btn-refresh.loading svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 4px; width: fit-content; }
+  .tab { padding: 6px 18px; border-radius: 7px; font-size: 14px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
+  .tab.active { background: var(--bg); color: var(--text-primary); font-weight: 500; border: 0.5px solid var(--border); }
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1rem; }
+  .card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1rem; }
+  .card .label { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
+  .card .value { font-size: 24px; font-weight: 500; }
+  .breakdown { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.25rem; display: flex; gap: 20px; }
+  .breakdown strong { color: var(--text-primary); font-weight: 500; }
+  .controls { display: flex; gap: 12px; margin-bottom: 0.5rem; }
+  input, select { height: 36px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 14px; background: var(--card); color: var(--text-primary); outline: none; font-family: inherit; }
+  input { flex: 1; }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-bottom: 0.5rem; }
+  .legend span { display: flex; align-items: center; gap: 5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .table-wrap { max-height: 520px; overflow-y: auto; border: 0.5px solid var(--border); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+  thead th { text-align: left; padding: 10px 8px; color: var(--text-secondary); font-weight: 500; background: var(--card); position: sticky; top: 0; border-bottom: 0.5px solid var(--border); }
+  th:nth-child(1) { width: 34%; }
+  th:nth-child(2), th:nth-child(3), th:nth-child(4), th:nth-child(5) { text-align: right; width: 16.5%; }
+  td { padding: 8px; border-top: 0.5px solid var(--border); }
+  td:nth-child(2), td:nth-child(3), td:nth-child(4), td:nth-child(5) { text-align: right; }
+  td:nth-child(1) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .status { font-size: 12px; color: var(--text-muted); margin-top: 1rem; text-align: right; }
+  .skeleton .value { background: var(--border); border-radius: 4px; color: transparent; animation: pulse 1.2s ease-in-out infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .error-msg { background: #fff0f0; border: 0.5px solid #f0c0c0; border-radius: var(--radius); padding: 12px 16px; color: var(--red); font-size: 14px; margin-bottom: 1rem; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="header-left">
+      <h1>Dashboard da agência — Meta Ads</h1>
+      <p id="last-updated">Carregando...</p>
+    </div>
+    <button class="btn-refresh" id="btn-refresh" onclick="loadData()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+        <path d="M21 3v5h-5"/>
+        <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+        <path d="M8 16H3v5"/>
+      </svg>
+      Atualizar
+    </button>
+  </div>
+
+  <div id="error-box" style="display:none" class="error-msg"></div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="setTab('30',this)">Últimos 30 dias</button>
+    <button class="tab" onclick="setTab('15',this)">Últimos 15 dias</button>
+    <button class="tab" onclick="setTab('7',this)">Últimos 7 dias</button>
+  </div>
+
+  <div class="cards">
+    <div class="card"><div class="label">Investimento total</div><div class="value" id="kpi-spend">—</div></div>
+    <div class="card"><div class="label">Resultados totais</div><div class="value" id="kpi-results">—</div></div>
+    <div class="card"><div class="label">CPL médio</div><div class="value" id="kpi-cpl">—</div></div>
+    <div class="card"><div class="label">Contas ativas</div><div class="value" id="kpi-active">—</div></div>
+  </div>
+
+  <div class="breakdown" id="breakdown">&nbsp;</div>
+
+  <div class="controls">
+    <input id="search" placeholder="Buscar conta..." oninput="render()">
+    <select id="sortby" onchange="render()">
+      <option value="spend">Ordenar por gasto</option>
+      <option value="results">Ordenar por resultados</option>
+      <option value="cpl">Ordenar por CPL</option>
+    </select>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--green)"></span>CPL até R$10</span>
+    <span><span class="dot" style="background:var(--amber)"></span>CPL R$10–20</span>
+    <span><span class="dot" style="background:var(--red)"></span>CPL acima de R$20</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Conta</th>
+          <th>Gasto</th>
+          <th>Leads</th>
+          <th>Conversas</th>
+          <th>CPL</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">Carregando...</td></tr></tbody>
+    </table>
+  </div>
+  <p class="status" id="status-line">Resultados = leads de formulário + conversas iniciadas</p>
+</div>
+
+<script>
+let currentPeriod = '30';
+let cache = {};
+let currentData = [];
+
+function fmt(v){ return v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}); }
+function fmtInt(v){ return Math.round(v).toLocaleString('pt-BR'); }
+function cplColor(cpl){
+  if(cpl===null) return 'var(--text-muted)';
+  if(cpl<=10) return 'var(--green)';
+  if(cpl<=20) return 'var(--amber)';
+  return 'var(--red)';
+}
+
+function setTab(period, el){
+  currentPeriod = period;
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('search').value = '';
+  if(cache[period]){
+    applyData(cache[period]);
+  } else {
+    loadData();
+  }
+}
+
+async function loadData(){
+  const btn = document.getElementById('btn-refresh');
+  btn.classList.add('loading');
+  document.getElementById('error-box').style.display = 'none';
+  try {
+    const res = await fetch(`/api/data?period=${currentPeriod}`);
+    const json = await res.json();
+    if(!json.ok) throw new Error(json.error || 'Erro desconhecido');
+    cache[currentPeriod] = json;
+    applyData(json);
+    const now = new Date().toLocaleString('pt-BR');
+    document.getElementById('last-updated').textContent = `Atualizado em ${now}`;
+    document.getElementById('status-line').textContent = `Resultados = leads de formulário + conversas iniciadas · ${now}`;
+  } catch(e){
+    document.getElementById('error-box').style.display = 'block';
+    document.getElementById('error-box').textContent = 'Erro ao buscar dados: ' + e.message;
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
+
+function applyData(json){
+  const k = json.kpis;
+  document.getElementById('kpi-spend').textContent = 'R$ ' + fmtInt(k.spend);
+  document.getElementById('kpi-results').textContent = fmtInt(k.results);
+  document.getElementById('kpi-cpl').textContent = 'R$ ' + fmt(k.cpl);
+  document.getElementById('kpi-active').textContent = k.active + ' / ' + k.total;
+  document.getElementById('breakdown').innerHTML = `<span><strong>${fmtInt(k.leads)}</strong> leads de formulário</span><span><strong>${fmtInt(k.msg)}</strong> conversas iniciadas</span>`;
+  currentData = json.accounts;
+  render();
+}
+
+function render(){
+  const q = document.getElementById('search').value.toLowerCase();
+  const sortKey = document.getElementById('sortby').value;
+  let rows = currentData.filter(d=>d.account_name.toLowerCase().includes(q));
+  if(sortKey==='spend') rows.sort((a,b)=>b.spend-a.spend);
+  if(sortKey==='results') rows.sort((a,b)=>b.total-a.total);
+  if(sortKey==='cpl') rows.sort((a,b)=>(a.cpl??99999)-(b.cpl??99999));
+  if(!rows.length){
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">Nenhuma conta encontrada</td></tr>';
+    return;
+  }
+  document.getElementById('tbody').innerHTML = rows.map(d=>`
+    <tr>
+      <td title="${d.account_name}">${d.account_name}</td>
+      <td>R$ ${fmt(d.spend)}</td>
+      <td>${fmtInt(d.leads)}</td>
+      <td>${fmtInt(d.msg)}</td>
+      <td style="color:${cplColor(d.cpl)};font-weight:500;">${d.cpl===null?'—':'R$ '+fmt(d.cpl)}</td>
+    </tr>
+  `).join('');
+}
+
+loadData();
+</script>
+</body>
+</html>
