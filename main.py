@@ -195,7 +195,7 @@ Use emojis moderadamente para facilitar a leitura. Nunca invente dados — use a
                 'content-type': 'application/json',
             },
             json={
-                'model': 'claude-sonnet-4-6',
+                'model': 'claude-haiku-4-5-20251001',
                 'max_tokens': 1024,
                 'system': system_prompt,
                 'messages': clean_messages,
