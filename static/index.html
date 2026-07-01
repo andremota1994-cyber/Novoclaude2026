@@ -22,111 +22,147 @@
     --radius: 12px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; }
+  html, body { height: 100%; overflow: hidden; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); display: flex; flex-direction: column; }
 
   /* TOPBAR */
-  .topbar { display: flex; justify-content: space-between; align-items: center; padding: 1rem 2rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
   .topbar-logo { font-size: 15px; font-weight: 500; color: var(--text-primary); display: flex; align-items: center; gap: 8px; }
   .topbar-logo span { color: var(--blue); }
-  .topbar-nav { display: flex; gap: 4px; }
-  .topbar-link { padding: 6px 14px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; border: none; background: transparent; font-family: inherit; transition: all 0.15s; text-decoration: none; }
+  .topbar-nav { display: flex; gap: 2px; }
+  .topbar-link { padding: 6px 14px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; border: none; background: transparent; font-family: inherit; transition: all 0.15s; text-decoration: none; display: inline-block; }
   .topbar-link:hover { color: var(--text-primary); background: var(--card); }
-  .topbar-link.active { color: var(--text-primary); background: var(--card); }
+  .topbar-link.active { color: var(--text-primary); }
 
-  /* PAGES */
-  .page { display: none; flex: 1; overflow: hidden; }
-  .page.active { display: flex; flex-direction: column; }
+  /* LAYOUT */
+  .main { flex: 1; display: flex; overflow: hidden; }
+  .page { display: none; flex: 1; flex-direction: column; overflow: hidden; }
+  .page.active { display: flex; }
 
-  /* ─── CHAT PAGE ─── */
+  /* ═══════════════════════════════
+     CHAT — igual Claude.ai
+  ═══════════════════════════════ */
   #page-chat { position: relative; }
 
-  /* Estado inicial: centralizado */
-  .chat-empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; text-align: center; transition: opacity 0.3s; }
-  .chat-empty.hidden { display: none; }
-  .greeting { font-size: 32px; font-weight: 300; color: var(--text-primary); margin-bottom: 2rem; line-height: 1.3; }
-  .greeting strong { font-weight: 600; }
-  .suggestions-grid { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 560px; margin-bottom: 2rem; }
-  .suggestion { font-size: 13px; padding: 8px 16px; border: 0.5px solid var(--border); border-radius: 20px; color: var(--text-secondary); cursor: pointer; background: var(--card); transition: all 0.15s; }
-  .suggestion:hover { color: var(--text-primary); border-color: var(--blue); }
+  /* Área scrollável de mensagens */
+  .chat-scroll { flex: 1; overflow-y: auto; scroll-behavior: smooth; }
+  .chat-scroll::-webkit-scrollbar { width: 4px; }
+  .chat-scroll::-webkit-scrollbar-track { background: transparent; }
+  .chat-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-  /* Estado com mensagens: scrollável */
-  .chat-messages { flex: 1; overflow-y: auto; padding: 2rem; display: flex; flex-direction: column; gap: 1.5rem; }
-  .chat-messages.hidden { display: none; }
-  .msg { display: flex; gap: 12px; max-width: 720px; width: 100%; }
-  .msg.user { align-self: flex-end; flex-direction: row-reverse; }
-  .msg.assistant { align-self: flex-start; }
-  .msg-avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 2px; }
-  .msg.assistant .msg-avatar { background: var(--blue); color: #fff; }
-  .msg.user .msg-avatar { background: var(--card); border: 0.5px solid var(--border); }
-  .msg-content { font-size: 15px; line-height: 1.7; color: var(--text-primary); }
-  .msg.user .msg-content { background: var(--card); border: 0.5px solid var(--border); padding: 10px 16px; border-radius: 18px; border-bottom-right-radius: 4px; font-size: 14px; }
-  .typing { display: flex; gap: 5px; align-items: center; padding: 4px 0; }
-  .typing span { width: 6px; height: 6px; background: var(--text-secondary); border-radius: 50%; animation: bounce 1.2s infinite; }
-  .typing span:nth-child(2) { animation-delay: 0.15s; }
-  .typing span:nth-child(3) { animation-delay: 0.3s; }
-  @keyframes bounce { 0%,60%,100%{transform:translateY(0);opacity:0.4} 30%{transform:translateY(-5px);opacity:1} }
+  /* Saudação centralizada */
+  .chat-greeting {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 100%; padding: 2rem;
+    transition: opacity 0.4s ease, transform 0.4s ease;
+  }
+  .chat-greeting.fade-out { opacity: 0; transform: translateY(-12px); pointer-events: none; }
+  .chat-greeting.gone { display: none; }
+  .greeting-title { font-size: 30px; font-weight: 300; text-align: center; line-height: 1.4; margin-bottom: 2rem; }
+  .greeting-title strong { font-weight: 600; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 520px; }
+  .chip { font-size: 13px; padding: 8px 16px; border: 0.5px solid var(--border); border-radius: 20px; color: var(--text-secondary); cursor: pointer; background: transparent; transition: all 0.15s; white-space: nowrap; }
+  .chip:hover { color: var(--text-primary); border-color: #374151; background: var(--card); }
 
-  /* INPUT */
-  .chat-input-area { padding: 1rem 2rem 1.5rem; flex-shrink: 0; display: flex; justify-content: center; }
-  .input-wrap { width: 100%; max-width: 720px; background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px; transition: border-color 0.15s; }
-  .input-wrap:focus-within { border-color: #374151; }
-  .chat-input { flex: 1; background: transparent; border: none; outline: none; font-size: 15px; color: var(--text-primary); font-family: inherit; resize: none; max-height: 120px; line-height: 1.5; padding: 2px 0; }
-  .chat-input::placeholder { color: var(--text-secondary); }
-  .btn-send { width: 32px; height: 32px; background: var(--text-secondary); border: none; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: background 0.15s; }
-  .btn-send:hover, .btn-send.has-text { background: var(--text-primary); }
-  .btn-send svg { width: 15px; height: 15px; fill: var(--bg); }
-  .btn-send:disabled { opacity: 0.3; cursor: not-allowed; }
+  /* Mensagens */
+  .chat-messages { display: none; flex-direction: column; padding: 1.5rem 0; }
+  .chat-messages.visible { display: flex; }
+  .msg-row { display: flex; justify-content: center; padding: 0.25rem 1rem; }
+  .msg-inner { width: 100%; max-width: 680px; }
+  .msg-user .msg-inner { display: flex; justify-content: flex-end; }
+  .msg-user .bubble {
+    background: var(--card); border: 0.5px solid var(--border);
+    padding: 10px 16px; border-radius: 18px; border-bottom-right-radius: 4px;
+    font-size: 15px; line-height: 1.6; max-width: 80%;
+  }
+  .msg-assistant .bubble {
+    font-size: 15px; line-height: 1.7; color: var(--text-primary); padding: 4px 0;
+  }
+  .msg-assistant .bubble p { margin-bottom: 0.5rem; }
+  .msg-assistant .bubble p:last-child { margin-bottom: 0; }
+  .msg-assistant .bubble strong { color: var(--blue-bright); font-weight: 600; }
+  .typing-dots { display: flex; gap: 4px; align-items: center; padding: 12px 0; }
+  .typing-dots span { width: 6px; height: 6px; background: var(--text-muted); border-radius: 50%; animation: pulse 1.4s infinite; }
+  .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes pulse { 0%,80%,100%{opacity:0.3;transform:scale(0.8)} 40%{opacity:1;transform:scale(1)} }
 
-  /* ─── OUTRAS PÁGINAS ─── */
-  .page-content { flex: 1; overflow-y: auto; padding: 2rem; max-width: 980px; width: 100%; margin: 0 auto; }
-  .section-title { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 8px; }
-  .badge-alert { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
-  .grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 1.5rem; }
-  .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 1.5rem; }
-  .kpi-card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.1rem; }
-  .kpi-card .label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
-  .kpi-card .value { font-size: 22px; font-weight: 600; }
-  .kpi-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  /* Input fixo em baixo */
+  .chat-input-bar { flex-shrink: 0; display: flex; justify-content: center; padding: 1rem 1rem 1.5rem; }
+  .input-box {
+    width: 100%; max-width: 680px;
+    background: var(--card); border: 0.5px solid #2a2a3e;
+    border-radius: 16px; display: flex; align-items: flex-end; gap: 8px;
+    padding: 10px 10px 10px 16px; transition: border-color 0.2s;
+  }
+  .input-box:focus-within { border-color: #374151; }
+  .chat-textarea {
+    flex: 1; background: transparent; border: none; outline: none;
+    font-size: 15px; color: var(--text-primary); font-family: inherit;
+    resize: none; line-height: 1.5; max-height: 140px; padding: 2px 0;
+  }
+  .chat-textarea::placeholder { color: var(--text-muted); }
+  .send-btn {
+    width: 34px; height: 34px; border-radius: 10px; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    background: #2a2a3e; transition: background 0.15s;
+  }
+  .send-btn.ready { background: var(--text-primary); }
+  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .send-btn svg { width: 15px; height: 15px; }
+  .send-btn svg path { fill: var(--bg); }
+
+  /* ═══════════════════════════════
+     OUTRAS PÁGINAS
+  ═══════════════════════════════ */
+  .page-scroll { flex: 1; overflow-y: auto; padding: 2rem; }
+  .page-inner { max-width: 920px; margin: 0 auto; }
+  .sec-title { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 8px; }
+  .badge-red { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+  .g4 { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 1.5rem; }
+  .g3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 1.5rem; }
+  .kcard { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 1.1rem; }
+  .kcard .lbl { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .kcard .val { font-size: 22px; font-weight: 600; }
+  .kcard .sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
   .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-top: 8px; }
-  .tag-prev { background: #1e1b4b; color: #a5b4fc; }
-  .tag-atual { background: #052e16; color: var(--green); }
-  .tag-next { background: #1c1400; color: var(--amber); }
-  .nivel-card { border-radius: var(--radius); padding: 1.1rem; }
-  .nivel-card.ouro { background: #1a1500; border: 0.5px solid #3d3000; }
-  .nivel-card.prata { background: #111827; border: 0.5px solid #1f2937; }
-  .nivel-card.bronze { background: #1a0f00; border: 0.5px solid #3d2000; }
-  .nivel-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .nivel-header .icon { font-size: 18px; }
-  .nivel-header h3 { font-size: 14px; font-weight: 600; }
-  .nivel-header p { font-size: 11px; color: var(--text-secondary); }
-  .nivel-stats { display: flex; gap: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 0.5px solid var(--border); }
-  .nivel-stat .n { font-size: 18px; font-weight: 600; }
-  .nivel-stat .l { font-size: 11px; color: var(--text-muted); }
-  .nivel-clients { display: flex; flex-direction: column; gap: 5px; max-height: 180px; overflow-y: auto; }
-  .nivel-client { display: flex; justify-content: space-between; font-size: 12px; }
-  .nivel-client .name { color: var(--text-secondary); }
-  .nivel-client .val { color: var(--blue-bright); font-weight: 500; }
+  .tag-p { background: #1e1b4b; color: #a5b4fc; }
+  .tag-a { background: #052e16; color: var(--green); }
+  .tag-n { background: #1c1400; color: var(--amber); }
+  .ncard { border-radius: var(--radius); padding: 1.1rem; }
+  .ncard.ouro { background: #1a1500; border: 0.5px solid #3d3000; }
+  .ncard.prata { background: #111827; border: 0.5px solid #1f2937; }
+  .ncard.bronze { background: #1a0f00; border: 0.5px solid #3d2000; }
+  .nh { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .nh h3 { font-size: 14px; font-weight: 600; }
+  .nh p { font-size: 11px; color: var(--text-secondary); }
+  .ns { display: flex; gap: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 0.5px solid var(--border); }
+  .ns .n { font-size: 18px; font-weight: 600; }
+  .ns .l { font-size: 11px; color: var(--text-muted); }
+  .nc { display: flex; flex-direction: column; gap: 5px; max-height: 180px; overflow-y: auto; }
+  .nc-row { display: flex; justify-content: space-between; font-size: 12px; }
+  .nc-row .nm { color: var(--text-secondary); }
+  .nc-row .vl { color: var(--blue-bright); font-weight: 500; }
   .alert-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 2rem; }
-  .alert-card { background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: var(--radius); padding: 1rem; }
-  .alert-card .name { font-size: 13px; font-weight: 500; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .alert-card .metrics { display: flex; gap: 12px; }
-  .alert-card .metric { font-size: 12px; color: var(--text-secondary); }
-  .alert-card .metric strong { display: block; font-size: 15px; color: var(--red); font-weight: 600; }
-  .no-alerts { background: #052e16; border: 0.5px solid #14532d; border-radius: var(--radius); padding: 1rem 1.25rem; font-size: 14px; color: var(--green); margin-bottom: 2rem; }
-  .period-tabs { display: flex; gap: 2px; margin-bottom: 1.5rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 4px; width: fit-content; }
-  .period-tab { padding: 6px 18px; border-radius: 7px; font-size: 13px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
-  .period-tab.active { background: var(--blue); color: #fff; }
-  .grid-kpi { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 1rem; }
+  .acard { background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: var(--radius); padding: 1rem; }
+  .acard .nm { font-size: 13px; font-weight: 500; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acard .mets { display: flex; gap: 12px; }
+  .acard .met { font-size: 12px; color: var(--text-secondary); }
+  .acard .met strong { display: block; font-size: 15px; color: var(--red); font-weight: 600; }
+  .no-alert { background: #052e16; border: 0.5px solid #14532d; border-radius: var(--radius); padding: 1rem 1.25rem; font-size: 14px; color: var(--green); margin-bottom: 2rem; }
+  .ptabs { display: flex; gap: 2px; margin-bottom: 1.5rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 4px; width: fit-content; }
+  .ptab { padding: 6px 18px; border-radius: 7px; font-size: 13px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
+  .ptab.active { background: var(--blue); color: #fff; }
+  .g4k { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 1rem; }
   .breakdown { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.25rem; display: flex; gap: 20px; }
   .breakdown strong { color: var(--blue-bright); }
-  .controls { display: flex; gap: 12px; margin-bottom: 0.5rem; }
+  .ctrls { display: flex; gap: 12px; margin-bottom: 0.5rem; }
   input[type=text], select { height: 36px; border: 0.5px solid var(--border); border-radius: 8px; padding: 0 12px; font-size: 13px; background: var(--card); color: var(--text-primary); outline: none; font-family: inherit; }
   input[type=text] { flex: 1; }
   .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-bottom: 0.5rem; }
   .legend span { display: flex; align-items: center; gap: 5px; }
   .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
-  .table-wrap { max-height: 520px; overflow-y: auto; border: 0.5px solid var(--border); border-radius: var(--radius); }
+  .twrap { max-height: 480px; overflow-y: auto; border: 0.5px solid var(--border); border-radius: var(--radius); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
   thead th { text-align: left; padding: 10px 8px; color: var(--text-secondary); font-weight: 500; background: #0f0f1a; position: sticky; top: 0; border-bottom: 0.5px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
   th:nth-child(1){width:34%;} th:nth-child(2),th:nth-child(3),th:nth-child(4),th:nth-child(5){text-align:right;width:16.5%;}
@@ -134,7 +170,7 @@
   td:nth-child(1){color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   td:nth-child(2),td:nth-child(3),td:nth-child(4),td:nth-child(5){text-align:right;}
   tr:hover td { background: #0f0f1a; }
-  .status-line { font-size: 12px; color: var(--text-muted); margin-top: 1rem; text-align: right; }
+  .sline { font-size: 12px; color: var(--text-muted); margin-top: 1rem; text-align: right; }
 </style>
 </head>
 <body>
@@ -149,327 +185,301 @@
   </div>
 </div>
 
-<!-- CHAT -->
-<div class="page active" id="page-chat">
+<div class="main">
 
-  <!-- Estado vazio (inicial) -->
-  <div class="chat-empty" id="chat-empty">
-    <div class="greeting">Bom dia, <strong>André</strong>.<br>Como posso te ajudar hoje?</div>
-    <div class="suggestions-grid">
-      <div class="suggestion" onclick="sendSuggestion(this)">📊 Briefing do dia</div>
-      <div class="suggestion" onclick="sendSuggestion(this)">🚨 Contas com CPL alto</div>
-      <div class="suggestion" onclick="sendSuggestion(this)">💰 Como está meu faturamento?</div>
-      <div class="suggestion" onclick="sendSuggestion(this)">🏆 Clientes mais rentáveis</div>
-      <div class="suggestion" onclick="sendSuggestion(this)">📋 3 prioridades para hoje</div>
-      <div class="suggestion" onclick="sendSuggestion(this)">📈 Performance dos últimos 7 dias</div>
-    </div>
-  </div>
+  <!-- ═══ CHAT ═══ -->
+  <div class="page active" id="page-chat">
 
-  <!-- Mensagens -->
-  <div class="chat-messages hidden" id="chat-messages"></div>
+    <div class="chat-scroll" id="chat-scroll">
 
-  <!-- Input -->
-  <div class="chat-input-area">
-    <div class="input-wrap">
-      <textarea class="chat-input" id="chat-input" placeholder="Pergunte sobre sua operação..." rows="1"
-        onkeydown="handleKey(event)" oninput="autoResize(this); updateSendBtn()"></textarea>
-      <button class="btn-send" id="btn-send" onclick="sendMessage()">
-        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- VISÃO GERAL -->
-<div class="page" id="page-overview">
-  <div class="page-content">
-    <div class="grid-4" style="margin-top:0.5rem">
-      <div class="kpi-card"><div class="label">Clientes ativos</div><div class="value">29</div><div class="sub">3 Ouro · 7 Prata · 19 Bronze</div></div>
-      <div class="kpi-card"><div class="label">Investimento total (30d)</div><div class="value" id="ov-spend">—</div><div class="sub">Todas as contas</div></div>
-      <div class="kpi-card"><div class="label">Resultados (30d)</div><div class="value" id="ov-results">—</div><div class="sub" id="ov-results-sub">leads + conversas</div></div>
-      <div class="kpi-card"><div class="label">CPL médio (30d)</div><div class="value" id="ov-cpl">—</div><div class="sub">Leads + mensagens</div></div>
-    </div>
-    <div class="grid-3">
-      <div class="kpi-card"><div class="label">Faturamento mês passado</div><div class="value">R$ 31.300</div><span class="tag tag-prev">Maio 2026</span></div>
-      <div class="kpi-card"><div class="label">Faturamento mês atual</div><div class="value">Em andamento</div><span class="tag tag-atual">Junho 2026</span></div>
-      <div class="kpi-card"><div class="label">Previsão próximo mês</div><div class="value">R$ 22.367</div><span class="tag tag-next">Estimativa Julho</span></div>
-    </div>
-    <div class="section-title" style="margin-bottom:0.75rem">🏆 Clientes por nível</div>
-    <div class="grid-3">
-      <div class="nivel-card ouro">
-        <div class="nivel-header"><div class="icon">🥇</div><div><h3>Ouro</h3><p>Acima de R$1.500/mês</p></div></div>
-        <div class="nivel-stats"><div class="nivel-stat"><div class="n">3</div><div class="l">clientes</div></div><div class="nivel-stat"><div class="n">R$ 7.000</div><div class="l">/mês</div></div></div>
-        <div class="nivel-clients">
-          <div class="nivel-client"><span class="name">BAHAMONDES</span><span class="val">R$ 2.500 ×2</span></div>
-          <div class="nivel-client"><span class="name">SHEIK</span><span class="val">R$ 2.000</span></div>
+      <!-- Saudação -->
+      <div class="chat-greeting" id="chat-greeting">
+        <div class="greeting-title">Bom dia, <strong>André</strong>.<br>Como posso te ajudar hoje?</div>
+        <div class="chips">
+          <div class="chip" onclick="quickSend('Me dê o briefing completo do dia com os dados atuais da Mobilli Digital.')">📊 Briefing do dia</div>
+          <div class="chip" onclick="quickSend('Quais contas estão com CPL alto e precisam de atenção agora?')">🚨 Contas com CPL alto</div>
+          <div class="chip" onclick="quickSend('Como está o faturamento da agência? Me dê um resumo.')">💰 Faturamento</div>
+          <div class="chip" onclick="quickSend('Quais são os clientes mais rentáveis da agência?')">🏆 Clientes rentáveis</div>
+          <div class="chip" onclick="quickSend('Me dê as 3 principais prioridades para eu focar hoje.')">📋 Prioridades do dia</div>
+          <div class="chip" onclick="quickSend('Como foi a performance das contas nos últimos 7 dias?')">📈 Performance 7 dias</div>
         </div>
       </div>
-      <div class="nivel-card prata">
-        <div class="nivel-header"><div class="icon">🥈</div><div><h3>Prata</h3><p>R$700 a R$1.500/mês</p></div></div>
-        <div class="nivel-stats"><div class="nivel-stat"><div class="n">7</div><div class="l">clientes</div></div><div class="nivel-stat"><div class="n">R$ 8.500</div><div class="l">/mês</div></div></div>
-        <div class="nivel-clients">
-          <div class="nivel-client"><span class="name">OTAVIO APEPROPRIO</span><span class="val">R$ 1.500</span></div>
-          <div class="nivel-client"><span class="name">GUTO</span><span class="val">R$ 1.500</span></div>
-          <div class="nivel-client"><span class="name">LUCCO</span><span class="val">R$ 1.500</span></div>
-          <div class="nivel-client"><span class="name">LBM</span><span class="val">R$ 1.000</span></div>
-          <div class="nivel-client"><span class="name">JIMY</span><span class="val">R$ 1.000</span></div>
-          <div class="nivel-client"><span class="name">ROJO</span><span class="val">R$ 1.000</span></div>
-          <div class="nivel-client"><span class="name">B&G (ROCHA)</span><span class="val">R$ 1.000</span></div>
-        </div>
-      </div>
-      <div class="nivel-card bronze">
-        <div class="nivel-header"><div class="icon">🥉</div><div><h3>Bronze</h3><p>Até R$700/mês</p></div></div>
-        <div class="nivel-stats"><div class="nivel-stat"><div class="n">19</div><div class="l">clientes</div></div><div class="nivel-stat"><div class="n">R$ 8.900</div><div class="l">/mês</div></div></div>
-        <div class="nivel-clients">
-          <div class="nivel-client"><span class="name">JOSIAS</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">JEGE</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">ALARICK</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">SARÇA</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">WENDY</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">DISLEIDE</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">CANUT</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">DICK LOURENÇO</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">CHAPOLIM</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">CLARICE</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">LUCAS PADRE</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">DISNEY</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">INFINITY</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">DOUGLAS</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">IMOB ADRIANO</span><span class="val">R$ 500</span></div>
-          <div class="nivel-client"><span class="name">OXFORD</span><span class="val">R$ 350</span></div>
-          <div class="nivel-client"><span class="name">EGITO</span><span class="val">R$ 350</span></div>
-          <div class="nivel-client"><span class="name">EDGARD</span><span class="val">R$ 350</span></div>
-          <div class="nivel-client"><span class="name">FUNARI</span><span class="val">R$ 350</span></div>
-        </div>
-      </div>
-    </div>
-    <div class="section-title">🚨 CPL acima de R$15 <span class="badge-alert" id="alert-count">—</span></div>
-    <div id="alert-container"><div style="color:var(--text-muted);font-size:14px;">Carregando...</div></div>
-  </div>
-</div>
 
-<!-- META ADS -->
-<div class="page" id="page-dashboard">
-  <div class="page-content">
-    <div class="period-tabs">
-      <button class="period-tab active" onclick="setPeriod('30',this)">30 dias</button>
-      <button class="period-tab" onclick="setPeriod('15',this)">15 dias</button>
-      <button class="period-tab" onclick="setPeriod('7',this)">7 dias</button>
+      <!-- Mensagens -->
+      <div class="chat-messages" id="chat-messages"></div>
+
     </div>
-    <div class="grid-kpi">
-      <div class="kpi-card"><div class="label">Investimento</div><div class="value" id="kpi-spend">—</div></div>
-      <div class="kpi-card"><div class="label">Resultados</div><div class="value" id="kpi-results">—</div></div>
-      <div class="kpi-card"><div class="label">CPL médio</div><div class="value" id="kpi-cpl">—</div></div>
-      <div class="kpi-card"><div class="label">Contas ativas</div><div class="value" id="kpi-active">—</div></div>
+
+    <!-- Input sempre fixo embaixo -->
+    <div class="chat-input-bar">
+      <div class="input-box">
+        <textarea class="chat-textarea" id="chat-textarea" placeholder="Pergunte sobre sua operação..." rows="1"
+          onkeydown="handleKey(event)" oninput="resizeTA(this); updateBtn()"></textarea>
+        <button class="send-btn" id="send-btn" onclick="sendMsg()" disabled>
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 19V5M5 12l7-7 7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          </svg>
+        </button>
+      </div>
     </div>
-    <div class="breakdown" id="breakdown">&nbsp;</div>
-    <div class="controls">
-      <input type="text" id="search" placeholder="Buscar conta..." oninput="renderTable()">
-      <select id="sortby" onchange="renderTable()">
-        <option value="spend">Por gasto</option>
-        <option value="results">Por resultados</option>
-        <option value="cpl">Por CPL</option>
-      </select>
-    </div>
-    <div class="legend">
-      <span><span class="dot" style="background:var(--green)"></span>até R$10</span>
-      <span><span class="dot" style="background:var(--amber)"></span>R$10–15</span>
-      <span><span class="dot" style="background:var(--red)"></span>acima de R$15</span>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>Conta</th><th>Gasto</th><th>Leads</th><th>Conversas</th><th>CPL</th></tr></thead>
-        <tbody id="tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted);">Carregando...</td></tr></tbody>
-      </table>
-    </div>
-    <p class="status-line" id="status-line">Resultados = leads + conversas iniciadas</p>
   </div>
-</div>
+
+  <!-- ═══ VISÃO GERAL ═══ -->
+  <div class="page" id="page-overview">
+    <div class="page-scroll">
+      <div class="page-inner">
+        <div class="g4">
+          <div class="kcard"><div class="lbl">Clientes ativos</div><div class="val">29</div><div class="sub">3 Ouro · 7 Prata · 19 Bronze</div></div>
+          <div class="kcard"><div class="lbl">Investimento total (30d)</div><div class="val" id="ov-spend">—</div><div class="sub">Todas as contas</div></div>
+          <div class="kcard"><div class="lbl">Resultados (30d)</div><div class="val" id="ov-results">—</div><div class="sub" id="ov-sub">leads + conversas</div></div>
+          <div class="kcard"><div class="lbl">CPL médio (30d)</div><div class="val" id="ov-cpl">—</div><div class="sub">leads + mensagens</div></div>
+        </div>
+        <div class="g3">
+          <div class="kcard"><div class="lbl">Faturamento mês passado</div><div class="val">R$ 31.300</div><span class="tag tag-p">Maio 2026</span></div>
+          <div class="kcard"><div class="lbl">Faturamento mês atual</div><div class="val">Em andamento</div><span class="tag tag-a">Junho 2026</span></div>
+          <div class="kcard"><div class="lbl">Previsão próximo mês</div><div class="val">R$ 22.367</div><span class="tag tag-n">Estimativa Julho</span></div>
+        </div>
+        <div class="sec-title" style="margin-bottom:.75rem">🏆 Clientes por nível</div>
+        <div class="g3">
+          <div class="ncard ouro">
+            <div class="nh"><span style="font-size:18px">🥇</span><div><h3>Ouro</h3><p>Acima de R$1.500/mês</p></div></div>
+            <div class="ns"><div><div class="n">3</div><div class="l">clientes</div></div><div><div class="n">R$ 7.000</div><div class="l">/mês</div></div></div>
+            <div class="nc">
+              <div class="nc-row"><span class="nm">BAHAMONDES</span><span class="vl">R$ 2.500 ×2</span></div>
+              <div class="nc-row"><span class="nm">SHEIK</span><span class="vl">R$ 2.000</span></div>
+            </div>
+          </div>
+          <div class="ncard prata">
+            <div class="nh"><span style="font-size:18px">🥈</span><div><h3>Prata</h3><p>R$700 a R$1.500/mês</p></div></div>
+            <div class="ns"><div><div class="n">7</div><div class="l">clientes</div></div><div><div class="n">R$ 8.500</div><div class="l">/mês</div></div></div>
+            <div class="nc">
+              <div class="nc-row"><span class="nm">OTAVIO APEPROPRIO</span><span class="vl">R$ 1.500</span></div>
+              <div class="nc-row"><span class="nm">GUTO</span><span class="vl">R$ 1.500</span></div>
+              <div class="nc-row"><span class="nm">LUCCO</span><span class="vl">R$ 1.500</span></div>
+              <div class="nc-row"><span class="nm">LBM</span><span class="vl">R$ 1.000</span></div>
+              <div class="nc-row"><span class="nm">JIMY</span><span class="vl">R$ 1.000</span></div>
+              <div class="nc-row"><span class="nm">ROJO</span><span class="vl">R$ 1.000</span></div>
+              <div class="nc-row"><span class="nm">B&G (ROCHA)</span><span class="vl">R$ 1.000</span></div>
+            </div>
+          </div>
+          <div class="ncard bronze">
+            <div class="nh"><span style="font-size:18px">🥉</span><div><h3>Bronze</h3><p>Até R$700/mês</p></div></div>
+            <div class="ns"><div><div class="n">19</div><div class="l">clientes</div></div><div><div class="n">R$ 8.900</div><div class="l">/mês</div></div></div>
+            <div class="nc">
+              <div class="nc-row"><span class="nm">JOSIAS</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">JEGE</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">ALARICK</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">SARÇA</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">WENDY</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">DISLEIDE</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">CANUT</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">DICK LOURENÇO</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">CHAPOLIM</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">CLARICE</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">LUCAS PADRE</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">DISNEY</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">INFINITY</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">DOUGLAS</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">IMOB ADRIANO</span><span class="vl">R$ 500</span></div>
+              <div class="nc-row"><span class="nm">OXFORD</span><span class="vl">R$ 350</span></div>
+              <div class="nc-row"><span class="nm">EGITO</span><span class="vl">R$ 350</span></div>
+              <div class="nc-row"><span class="nm">EDGARD</span><span class="vl">R$ 350</span></div>
+              <div class="nc-row"><span class="nm">FUNARI</span><span class="vl">R$ 350</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="sec-title">🚨 CPL acima de R$15 <span class="badge-red" id="alert-count">—</span></div>
+        <div id="alert-container"><div style="color:var(--text-muted);font-size:14px">Carregando...</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ META ADS ═══ -->
+  <div class="page" id="page-dashboard">
+    <div class="page-scroll">
+      <div class="page-inner">
+        <div class="ptabs">
+          <button class="ptab active" onclick="setPeriod('30',this)">30 dias</button>
+          <button class="ptab" onclick="setPeriod('15',this)">15 dias</button>
+          <button class="ptab" onclick="setPeriod('7',this)">7 dias</button>
+        </div>
+        <div class="g4k">
+          <div class="kcard"><div class="lbl">Investimento</div><div class="val" id="kpi-spend">—</div></div>
+          <div class="kcard"><div class="lbl">Resultados</div><div class="val" id="kpi-results">—</div></div>
+          <div class="kcard"><div class="lbl">CPL médio</div><div class="val" id="kpi-cpl">—</div></div>
+          <div class="kcard"><div class="lbl">Contas ativas</div><div class="val" id="kpi-active">—</div></div>
+        </div>
+        <div class="breakdown" id="breakdown">&nbsp;</div>
+        <div class="ctrls">
+          <input type="text" id="search" placeholder="Buscar conta..." oninput="renderTable()">
+          <select id="sortby" onchange="renderTable()">
+            <option value="spend">Por gasto</option>
+            <option value="results">Por resultados</option>
+            <option value="cpl">Por CPL</option>
+          </select>
+        </div>
+        <div class="legend">
+          <span><span class="dot" style="background:var(--green)"></span>até R$10</span>
+          <span><span class="dot" style="background:var(--amber)"></span>R$10–15</span>
+          <span><span class="dot" style="background:var(--red)"></span>acima R$15</span>
+        </div>
+        <div class="twrap">
+          <table>
+            <thead><tr><th>Conta</th><th>Gasto</th><th>Leads</th><th>Conversas</th><th>CPL</th></tr></thead>
+            <tbody id="tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">Carregando...</td></tr></tbody>
+          </table>
+        </div>
+        <p class="sline" id="sline">Resultados = leads + conversas iniciadas</p>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .main -->
 
 <script>
-let currentPeriod='30', cache={}, currentData=[], chatHistory=[], isTyping=false, chatStarted=false;
+let period='30', cache={}, tableData=[], history=[], busy=false, started=false;
 
-function fmt(v){return v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
-function fmtInt(v){return Math.round(v).toLocaleString('pt-BR');}
-function cplColor(cpl){
-  if(!cpl)return'var(--text-muted)';
-  if(cpl<=10)return'var(--green)';
-  if(cpl<=15)return'var(--amber)';
-  return'var(--red)';
-}
+// ── utils ──
+const fmt = v => v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtI = v => Math.round(v).toLocaleString('pt-BR');
+const cplColor = c => !c?'var(--text-muted)':c<=10?'var(--green)':c<=15?'var(--amber)':'var(--red)';
 
-function setPage(page,el){
-  document.querySelectorAll('.topbar-link').forEach(t=>t.classList.remove('active'));
+// ── nav ──
+function setPage(p,el){
+  document.querySelectorAll('.topbar-link').forEach(x=>x.classList.remove('active'));
   el.classList.add('active');
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
 }
 
-function setPeriod(period,el){
-  currentPeriod=period;
-  document.querySelectorAll('.period-tab').forEach(t=>t.classList.remove('active'));
+function setPeriod(p,el){
+  period=p;
+  document.querySelectorAll('.ptab').forEach(x=>x.classList.remove('active'));
   el.classList.add('active');
-  if(cache[period]){applyData(cache[period]);}else{loadAdsData();}
+  cache[p]?applyData(cache[p]):loadAds();
 }
 
-function autoResize(el){
-  el.style.height='auto';
-  el.style.height=Math.min(el.scrollHeight,120)+'px';
+// ── textarea ──
+function resizeTA(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,140)+'px';}
+function updateBtn(){
+  const v=document.getElementById('chat-textarea').value.trim();
+  const btn=document.getElementById('send-btn');
+  btn.disabled=!v||busy;
+  btn.classList.toggle('ready',!!v&&!busy);
 }
 
-function updateSendBtn(){
-  const btn=document.getElementById('btn-send');
-  const val=document.getElementById('chat-input').value.trim();
-  btn.classList.toggle('has-text',val.length>0);
+// ── chat ──
+function showGreeting(show){
+  const g=document.getElementById('chat-greeting');
+  const m=document.getElementById('chat-messages');
+  if(show){g.classList.remove('gone','fade-out');m.classList.remove('visible');}
+  else{g.classList.add('fade-out');setTimeout(()=>{g.classList.add('gone');m.classList.add('visible');},350);}
 }
 
-function startChat(){
-  if(!chatStarted){
-    chatStarted=true;
-    document.getElementById('chat-empty').classList.add('hidden');
-    document.getElementById('chat-messages').classList.remove('hidden');
-  }
-}
-
-function addMessage(role,text){
-  startChat();
-  const msgs=document.getElementById('chat-messages');
-  const div=document.createElement('div');
-  div.className=`msg ${role}`;
-  const avatar=role==='assistant'?'M':'A';
-  const formattedText=text.replace(/\n/g,'<br>').replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>');
-  div.innerHTML=`<div class="msg-avatar">${avatar}</div><div class="msg-content">${formattedText}</div>`;
-  msgs.appendChild(div);
-  msgs.scrollTop=msgs.scrollHeight;
+function addMsg(role,html){
+  if(!started){started=true;showGreeting(false);}
+  const m=document.getElementById('chat-messages');
+  const row=document.createElement('div');
+  row.className='msg-row msg-'+role;
+  row.innerHTML='<div class="msg-inner"><div class="bubble">'+html+'</div></div>';
+  m.appendChild(row);
+  const s=document.getElementById('chat-scroll');
+  s.scrollTop=s.scrollHeight;
 }
 
 function showTyping(){
-  startChat();
-  const msgs=document.getElementById('chat-messages');
-  const div=document.createElement('div');
-  div.className='msg assistant';
-  div.id='typing-indicator';
-  div.innerHTML=`<div class="msg-avatar">M</div><div class="msg-content"><div class="typing"><span></span><span></span><span></span></div></div>`;
-  msgs.appendChild(div);
-  msgs.scrollTop=msgs.scrollHeight;
+  if(!started){started=true;showGreeting(false);}
+  const m=document.getElementById('chat-messages');
+  const row=document.createElement('div');
+  row.className='msg-row msg-assistant';
+  row.id='typing';
+  row.innerHTML='<div class="msg-inner"><div class="bubble"><div class="typing-dots"><span></span><span></span><span></span></div></div></div>';
+  m.appendChild(row);
+  document.getElementById('chat-scroll').scrollTop=999999;
+}
+function hideTyping(){const t=document.getElementById('typing');if(t)t.remove();}
+
+function formatReply(text){
+  return text
+    .replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>')
+    .split('\n').map(l=>l.trim()?'<p>'+l+'</p>':'').join('');
 }
 
-function hideTyping(){
-  const t=document.getElementById('typing-indicator');
-  if(t)t.remove();
-}
-
-async function sendToChat(msg){
-  if(isTyping)return;
-  isTyping=true;
-  document.getElementById('btn-send').disabled=true;
-  chatHistory.push({role:'user',content:msg});
-  addMessage('user',msg);
+async function doSend(msg){
+  if(busy||!msg)return;
+  busy=true;
+  updateBtn();
+  history.push({role:'user',content:msg});
+  addMsg('user',msg.replace(/</g,'&lt;'));
   showTyping();
   try{
-    const res=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:chatHistory})});
-    const json=await res.json();
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history})});
+    const j=await r.json();
     hideTyping();
-    if(json.ok){
-      chatHistory.push({role:'assistant',content:json.reply});
-      addMessage('assistant',json.reply);
-    }else{
-      addMessage('assistant','❌ Erro: '+json.error);
-    }
-  }catch(e){
-    hideTyping();
-    addMessage('assistant','❌ Erro de conexão.');
-  }
-  isTyping=false;
-  document.getElementById('btn-send').disabled=false;
+    if(j.ok){history.push({role:'assistant',content:j.reply});addMsg('assistant',formatReply(j.reply));}
+    else addMsg('assistant','<p>❌ Erro: '+j.error+'</p>');
+  }catch(e){hideTyping();addMsg('assistant','<p>❌ Erro de conexão.</p>');}
+  busy=false;updateBtn();
 }
 
-function sendMessage(){
-  const input=document.getElementById('chat-input');
-  const msg=input.value.trim();
-  if(!msg)return;
-  input.value='';
-  input.style.height='auto';
-  updateSendBtn();
-  sendToChat(msg);
+function sendMsg(){
+  const ta=document.getElementById('chat-textarea');
+  const msg=ta.value.trim();
+  if(!msg||busy)return;
+  ta.value='';ta.style.height='auto';updateBtn();
+  doSend(msg);
 }
 
-function sendSuggestion(el){
-  const prompts={
-    '📊 Briefing do dia':'Me dê o briefing completo do dia com os dados atuais da Mobilli Digital.',
-    '🚨 Contas com CPL alto':'Quais contas estão com CPL alto e precisam de atenção agora?',
-    '💰 Como está meu faturamento?':'Como está o faturamento da agência? Me dê um resumo.',
-    '🏆 Clientes mais rentáveis':'Quais são os clientes mais rentáveis da agência?',
-    '📋 3 prioridades para hoje':'Me dê as 3 principais prioridades para eu focar hoje.',
-    '📈 Performance dos últimos 7 dias':'Como foi a performance das contas nos últimos 7 dias?'
-  };
-  sendToChat(prompts[el.textContent]||el.textContent);
-}
+function quickSend(msg){doSend(msg);}
+function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
 
-function handleKey(e){
-  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage();}
-}
-
-async function loadAdsData(){
+// ── ads ──
+async function loadAds(){
   try{
-    const res=await fetch(`/api/data?period=${currentPeriod}`);
-    const json=await res.json();
-    if(!json.ok)throw new Error(json.error);
-    cache[currentPeriod]=json;
-    applyData(json);
+    const r=await fetch('/api/data?period='+period);
+    const j=await r.json();
+    if(!j.ok)return;
+    cache[period]=j;applyData(j);
+    const now=new Date().toLocaleString('pt-BR');
+    document.getElementById('sline').textContent='Resultados = leads + conversas · '+now;
   }catch(e){console.error(e);}
 }
 
-function applyData(json){
-  const k=json.kpis;
-  document.getElementById('ov-spend').textContent='R$ '+fmtInt(k.spend);
-  document.getElementById('ov-results').textContent=fmtInt(k.results);
-  document.getElementById('ov-results-sub').textContent=fmtInt(k.leads)+' leads · '+fmtInt(k.msg)+' conversas';
+function applyData(j){
+  const k=j.kpis;
+  document.getElementById('ov-spend').textContent='R$ '+fmtI(k.spend);
+  document.getElementById('ov-results').textContent=fmtI(k.results);
+  document.getElementById('ov-sub').textContent=fmtI(k.leads)+' leads · '+fmtI(k.msg)+' conversas';
   document.getElementById('ov-cpl').textContent='R$ '+fmt(k.cpl);
-  document.getElementById('kpi-spend').textContent='R$ '+fmtInt(k.spend);
-  document.getElementById('kpi-results').textContent=fmtInt(k.results);
+  document.getElementById('kpi-spend').textContent='R$ '+fmtI(k.spend);
+  document.getElementById('kpi-results').textContent=fmtI(k.results);
   document.getElementById('kpi-cpl').textContent='R$ '+fmt(k.cpl);
   document.getElementById('kpi-active').textContent=k.active+' / '+k.total;
-  document.getElementById('breakdown').innerHTML=`<span><strong>${fmtInt(k.leads)}</strong> leads</span><span><strong>${fmtInt(k.msg)}</strong> conversas</span>`;
-  currentData=json.accounts;
-  renderAlerts(json.accounts);
-  renderTable();
+  document.getElementById('breakdown').innerHTML='<span><strong>'+fmtI(k.leads)+'</strong> leads</span><span><strong>'+fmtI(k.msg)+'</strong> conversas</span>';
+  tableData=j.accounts;
+  renderAlerts(j.accounts);renderTable();
 }
 
-function renderAlerts(accounts){
-  const alerts=accounts.filter(d=>d.cpl&&d.cpl>15&&d.spend>0).sort((a,b)=>b.cpl-a.cpl);
-  document.getElementById('alert-count').textContent=alerts.length+' contas';
+function renderAlerts(acc){
+  const al=acc.filter(d=>d.cpl&&d.cpl>15&&d.spend>0).sort((a,b)=>b.cpl-a.cpl);
+  document.getElementById('alert-count').textContent=al.length+' contas';
   const c=document.getElementById('alert-container');
-  if(!alerts.length){c.innerHTML='<div class="no-alerts">✅ Nenhuma conta com CPL acima de R$15.</div>';return;}
-  c.innerHTML=`<div class="alert-grid">${alerts.map(d=>`
-    <div class="alert-card">
-      <div class="name">${d.account_name}</div>
-      <div class="metrics">
-        <div class="metric"><strong>R$ ${fmt(d.cpl)}</strong>CPL</div>
-        <div class="metric"><strong>R$ ${fmt(d.spend)}</strong>Gasto</div>
-        <div class="metric"><strong>${fmtInt(d.total)}</strong>Resultados</div>
-      </div>
-    </div>`).join('')}</div>`;
+  if(!al.length){c.innerHTML='<div class="no-alert">✅ Nenhuma conta com CPL acima de R$15.</div>';return;}
+  c.innerHTML='<div class="alert-grid">'+al.map(d=>'<div class="acard"><div class="nm">'+d.account_name+'</div><div class="mets"><div class="met"><strong>R$ '+fmt(d.cpl)+'</strong>CPL</div><div class="met"><strong>R$ '+fmt(d.spend)+'</strong>Gasto</div><div class="met"><strong>'+fmtI(d.total)+'</strong>Resultados</div></div></div>').join('')+'</div>';
 }
 
 function renderTable(){
   const q=document.getElementById('search').value.toLowerCase();
   const s=document.getElementById('sortby').value;
-  let rows=currentData.filter(d=>d.account_name.toLowerCase().includes(q));
+  let rows=tableData.filter(d=>d.account_name.toLowerCase().includes(q));
   if(s==='spend')rows.sort((a,b)=>b.spend-a.spend);
   if(s==='results')rows.sort((a,b)=>b.total-a.total);
   if(s==='cpl')rows.sort((a,b)=>(a.cpl??99999)-(b.cpl??99999));
-  document.getElementById('tbody').innerHTML=rows.map(d=>`
-    <tr>
-      <td title="${d.account_name}">${d.account_name}</td>
-      <td>R$ ${fmt(d.spend)}</td>
-      <td>${fmtInt(d.leads)}</td>
-      <td>${fmtInt(d.msg)}</td>
-      <td style="color:${cplColor(d.cpl)};font-weight:500;">${d.cpl?'R$ '+fmt(d.cpl):'—'}</td>
-    </tr>`).join('');
+  document.getElementById('tbody').innerHTML=rows.map(d=>'<tr><td title="'+d.account_name+'">'+d.account_name+'</td><td>R$ '+fmt(d.spend)+'</td><td>'+fmtI(d.leads)+'</td><td>'+fmtI(d.msg)+'</td><td style="color:'+cplColor(d.cpl)+';font-weight:500">'+(d.cpl?'R$ '+fmt(d.cpl):'—')+'</td></tr>').join('');
 }
 
-loadAdsData();
+// ── init ──
+loadAds();
 </script>
 </body>
 </html>
