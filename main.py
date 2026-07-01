@@ -1,6 +1,6 @@
 import os
 import requests
-from flask import Flask, jsonify, send_from_directory
+from flask import Flask, jsonify, send_from_directory, request
 from flask_cors import CORS
 
 app = Flask(__name__, static_folder='static')
@@ -56,7 +56,6 @@ def fetch_data(preset):
 
 @app.route('/api/data')
 def api_data():
-    from flask import request
     period = request.args.get('period', '30')
     preset = PRESETS.get(period, 'last_30dT')
     try:
@@ -86,6 +85,10 @@ def api_data():
 @app.route('/')
 def index():
     return send_from_directory('static', 'index.html')
+
+@app.route('/faturamento')
+def faturamento():
+    return send_from_directory('static', 'faturamento.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
