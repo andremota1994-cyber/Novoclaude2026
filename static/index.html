@@ -3,68 +3,82 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard Agência — Meta Ads</title>
+<title>Mobilli Digital — Dashboard</title>
 <style>
   :root {
-    --bg: #f7f7f5;
-    --card: #ffffff;
-    --border: #e2e1da;
-    --text-primary: #1a1a18;
-    --text-secondary: #5f5e5a;
-    --text-muted: #898781;
-    --green: #197a3f;
-    --amber: #8a5a0c;
-    --red: #a32d2d;
-    --red-bg: #fff0f0;
-    --red-border: #f5c6c6;
-    --gold: #b8860b;
-    --gold-bg: #fffbeb;
-    --gold-border: #fde68a;
-    --silver: #6b7280;
-    --silver-bg: #f8fafc;
-    --silver-border: #cbd5e1;
-    --bronze: #92400e;
-    --bronze-bg: #fff7ed;
-    --bronze-border: #fed7aa;
+    --bg: #0a0a0f;
+    --bg2: #0f0f1a;
+    --card: #13131f;
+    --card2: #1a1a2e;
+    --border: #1e2040;
+    --border-blue: #2563eb44;
+    --blue: #3b82f6;
+    --blue-bright: #60a5fa;
+    --blue-glow: #3b82f622;
+    --text-primary: #f0f4ff;
+    --text-secondary: #8892b0;
+    --text-muted: #4a5568;
+    --green: #10b981;
+    --amber: #f59e0b;
+    --red: #ef4444;
+    --red-bg: #1a0a0a;
+    --red-border: #3d1515;
+    --gold: #f59e0b;
+    --gold-bg: #1a1500;
+    --gold-border: #3d3000;
+    --silver-bg: #111827;
+    --silver-border: #1f2937;
+    --bronze-bg: #1a0f00;
+    --bronze-border: #3d2000;
     --radius: 8px;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); padding: 2rem; }
   .container { max-width: 980px; margin: 0 auto; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; }
-  .header-left h1 { font-size: 22px; font-weight: 500; margin-bottom: 4px; }
-  .header-left p { color: var(--text-secondary); font-size: 14px; }
-  .btn-refresh { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--card); font-size: 14px; cursor: pointer; color: var(--text-primary); font-family: inherit; }
-  .btn-refresh svg { width: 15px; height: 15px; }
+
+  /* HEADER */
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 0.5px solid var(--border); }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 36px; height: 36px; background: var(--blue); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; box-shadow: 0 0 16px var(--blue-glow); }
+  .header-left h1 { font-size: 20px; font-weight: 600; color: var(--text-primary); letter-spacing: -0.3px; }
+  .header-left p { color: var(--text-secondary); font-size: 13px; margin-top: 2px; }
+  .btn-refresh { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: 0.5px solid var(--border-blue); border-radius: var(--radius); background: var(--card); font-size: 13px; cursor: pointer; color: var(--blue-bright); font-family: inherit; transition: all 0.15s; }
+  .btn-refresh:hover { background: var(--blue-glow); }
+  .btn-refresh svg { width: 14px; height: 14px; }
   .btn-refresh.loading svg { animation: spin 1s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .nav { display: flex; gap: 4px; margin-bottom: 2rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 4px; width: fit-content; }
-  .nav-tab { padding: 7px 20px; border-radius: 7px; font-size: 14px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
-  .nav-tab.active { background: var(--bg); color: var(--text-primary); font-weight: 500; border: 0.5px solid var(--border); }
+
+  /* NAV */
+  .nav { display: flex; gap: 2px; margin-bottom: 2rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 4px; width: fit-content; }
+  .nav-tab { padding: 7px 20px; border-radius: 7px; font-size: 13px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
+  .nav-tab.active { background: var(--blue); color: #fff; font-weight: 500; box-shadow: 0 0 12px var(--blue-glow); }
+
+  /* PAGES */
   .page { display: none; }
   .page.active { display: block; }
-  .section-title { font-size: 15px; font-weight: 500; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 8px; }
-  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; }
-  .badge-alert { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
 
   /* KPI CARDS */
   .overview-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.5rem; }
-  .ov-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.1rem; }
-  .ov-card .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px; }
-  .ov-card .value { font-size: 22px; font-weight: 500; margin-bottom: 2px; }
-  .ov-card .sub { font-size: 12px; color: var(--text-muted); }
+  .ov-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.1rem; position: relative; overflow: hidden; }
+  .ov-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--blue), transparent); }
+  .ov-card .label { font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .ov-card .value { font-size: 22px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+  .ov-card .sub { font-size: 11px; color: var(--text-muted); }
 
   /* FATURAMENTO */
-  .fat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+  .fat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 2rem; }
   .fat-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.1rem; }
-  .fat-card .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.4px; }
-  .fat-card .value { font-size: 22px; font-weight: 500; }
-  .fat-card .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-top: 6px; }
-  .tag-prev { background: #f0f4ff; color: #3a5bd9; }
-  .tag-atual { background: #f0fdf4; color: var(--green); }
-  .tag-next { background: #fffbeb; color: var(--amber); }
+  .fat-card .label { font-size: 11px; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .fat-card .value { font-size: 20px; font-weight: 600; color: var(--text-primary); }
+  .fat-card .tag { display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 20px; margin-top: 8px; }
+  .tag-prev { background: #1e1b4b; color: #a5b4fc; }
+  .tag-atual { background: #052e16; color: var(--green); }
+  .tag-next { background: #1c1400; color: var(--amber); }
 
   /* NÍVEIS */
+  .section-title { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.75rem; display: flex; align-items: center; gap: 8px; text-transform: uppercase; letter-spacing: 0.6px; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 20px; }
+  .badge-alert { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
   .niveis-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 2rem; }
   .nivel-card { border-radius: 12px; padding: 1.1rem; }
   .nivel-card.ouro { background: var(--gold-bg); border: 0.5px solid var(--gold-border); }
@@ -72,50 +86,54 @@
   .nivel-card.bronze { background: var(--bronze-bg); border: 0.5px solid var(--bronze-border); }
   .nivel-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
   .nivel-header .icon { font-size: 20px; }
-  .nivel-header .info h3 { font-size: 14px; font-weight: 600; }
-  .nivel-header .info p { font-size: 12px; color: var(--text-secondary); }
-  .nivel-stats { display: flex; gap: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 0.5px solid rgba(0,0,0,0.08); }
-  .nivel-stat .n { font-size: 20px; font-weight: 500; }
-  .nivel-stat .l { font-size: 11px; color: var(--text-secondary); }
-  .nivel-clients { display: flex; flex-direction: column; gap: 4px; }
+  .nivel-header .info h3 { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+  .nivel-header .info p { font-size: 11px; color: var(--text-secondary); }
+  .nivel-stats { display: flex; gap: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 0.5px solid var(--border); }
+  .nivel-stat .n { font-size: 18px; font-weight: 600; color: var(--text-primary); }
+  .nivel-stat .l { font-size: 11px; color: var(--text-muted); }
+  .nivel-clients { display: flex; flex-direction: column; gap: 5px; max-height: 200px; overflow-y: auto; }
   .nivel-client { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
-  .nivel-client .name { color: var(--text-primary); }
-  .nivel-client .val { color: var(--text-secondary); font-weight: 500; }
+  .nivel-client .name { color: var(--text-secondary); }
+  .nivel-client .val { color: var(--blue-bright); font-weight: 500; }
 
   /* ALERTAS */
   .alert-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 2rem; }
   .alert-card { background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: 12px; padding: 1rem; }
-  .alert-card .name { font-size: 13px; font-weight: 500; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .alert-card .name { font-size: 13px; font-weight: 500; margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); }
   .alert-card .metrics { display: flex; gap: 12px; }
   .alert-card .metric { font-size: 12px; color: var(--text-secondary); }
   .alert-card .metric strong { display: block; font-size: 15px; color: var(--red); font-weight: 600; }
-  .no-alerts { background: #f0fdf4; border: 0.5px solid #bbf7d0; border-radius: 12px; padding: 1rem 1.25rem; font-size: 14px; color: var(--green); margin-bottom: 2rem; }
+  .no-alerts { background: #052e16; border: 0.5px solid #14532d; border-radius: 12px; padding: 1rem 1.25rem; font-size: 14px; color: var(--green); margin-bottom: 2rem; }
   .error-msg { background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: var(--radius); padding: 12px 16px; color: var(--red); font-size: 14px; margin-bottom: 1rem; }
 
   /* DASHBOARD */
-  .period-tabs { display: flex; gap: 4px; margin-bottom: 1.5rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 4px; width: fit-content; }
-  .period-tab { padding: 6px 18px; border-radius: 7px; font-size: 14px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
-  .period-tab.active { background: var(--bg); color: var(--text-primary); font-weight: 500; border: 0.5px solid var(--border); }
+  .period-tabs { display: flex; gap: 2px; margin-bottom: 1.5rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 4px; width: fit-content; }
+  .period-tab { padding: 6px 18px; border-radius: 7px; font-size: 13px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
+  .period-tab.active { background: var(--blue); color: #fff; font-weight: 500; }
   .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1rem; }
-  .kpi-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1rem; }
-  .kpi-card .label { font-size: 13px; color: var(--text-secondary); margin-bottom: 4px; }
-  .kpi-card .value { font-size: 24px; font-weight: 500; }
+  .kpi-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1rem; position: relative; overflow: hidden; }
+  .kpi-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, var(--blue), transparent); }
+  .kpi-card .label { font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+  .kpi-card .value { font-size: 22px; font-weight: 600; }
   .breakdown { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.25rem; display: flex; gap: 20px; }
-  .breakdown strong { color: var(--text-primary); font-weight: 500; }
+  .breakdown strong { color: var(--blue-bright); font-weight: 500; }
   .controls { display: flex; gap: 12px; margin-bottom: 0.5rem; }
-  input, select { height: 36px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 14px; background: var(--card); color: var(--text-primary); outline: none; font-family: inherit; }
+  input, select { height: 36px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 13px; background: var(--card); color: var(--text-primary); outline: none; font-family: inherit; }
+  input:focus, select:focus { border-color: var(--blue); }
   input { flex: 1; }
   .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-bottom: 0.5rem; }
   .legend span { display: flex; align-items: center; gap: 5px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
   .table-wrap { max-height: 520px; overflow-y: auto; border: 0.5px solid var(--border); border-radius: 12px; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-  thead th { text-align: left; padding: 10px 8px; color: var(--text-secondary); font-weight: 500; background: var(--card); position: sticky; top: 0; border-bottom: 0.5px solid var(--border); }
+  thead th { text-align: left; padding: 10px 8px; color: var(--text-secondary); font-weight: 500; background: var(--card2); position: sticky; top: 0; border-bottom: 0.5px solid var(--border); font-size: 12px; text-transform: uppercase; letter-spacing: 0.4px; }
   th:nth-child(1) { width: 34%; }
   th:nth-child(2), th:nth-child(3), th:nth-child(4), th:nth-child(5) { text-align: right; width: 16.5%; }
-  td { padding: 8px; border-top: 0.5px solid var(--border); }
+  td { padding: 9px 8px; border-top: 0.5px solid var(--border); color: var(--text-secondary); }
+  td:nth-child(1) { color: var(--text-primary); }
   td:nth-child(2), td:nth-child(3), td:nth-child(4), td:nth-child(5) { text-align: right; }
   td:nth-child(1) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  tr:hover td { background: var(--card2); }
   .status-line { font-size: 12px; color: var(--text-muted); margin-top: 1rem; text-align: right; }
 </style>
 </head>
@@ -123,9 +141,12 @@
 <div class="container">
 
   <div class="header">
-    <div class="header-left">
-      <h1>Agência André Mota</h1>
-      <p id="last-updated">Carregando...</p>
+    <div class="logo">
+      <div class="logo-icon">📡</div>
+      <div class="header-left">
+        <h1>Mobilli Digital</h1>
+        <p id="last-updated">Carregando dados...</p>
+      </div>
     </div>
     <button class="btn-refresh" id="btn-refresh" onclick="refresh()">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -189,17 +210,12 @@
       </div>
     </div>
 
-    <!-- NÍVEIS -->
     <div class="section-title" style="margin-bottom:0.75rem;">🏆 Clientes por nível</div>
     <div class="niveis-grid">
-
       <div class="nivel-card ouro">
         <div class="nivel-header">
           <div class="icon">🥇</div>
-          <div class="info">
-            <h3>Ouro</h3>
-            <p>Acima de R$1.500/mês</p>
-          </div>
+          <div class="info"><h3>Ouro</h3><p>Acima de R$1.500/mês</p></div>
         </div>
         <div class="nivel-stats">
           <div class="nivel-stat"><div class="n">3</div><div class="l">clientes</div></div>
@@ -214,10 +230,7 @@
       <div class="nivel-card prata">
         <div class="nivel-header">
           <div class="icon">🥈</div>
-          <div class="info">
-            <h3>Prata</h3>
-            <p>R$700 a R$1.500/mês</p>
-          </div>
+          <div class="info"><h3>Prata</h3><p>R$700 a R$1.500/mês</p></div>
         </div>
         <div class="nivel-stats">
           <div class="nivel-stat"><div class="n">7</div><div class="l">clientes</div></div>
@@ -237,10 +250,7 @@
       <div class="nivel-card bronze">
         <div class="nivel-header">
           <div class="icon">🥉</div>
-          <div class="info">
-            <h3>Bronze</h3>
-            <p>Até R$700/mês</p>
-          </div>
+          <div class="info"><h3>Bronze</h3><p>Até R$700/mês</p></div>
         </div>
         <div class="nivel-stats">
           <div class="nivel-stat"><div class="n">19</div><div class="l">clientes</div></div>
@@ -268,10 +278,8 @@
           <div class="nivel-client"><span class="name">FUNARI</span><span class="val">R$ 350</span></div>
         </div>
       </div>
-
     </div>
 
-    <!-- ALERTAS -->
     <div class="section-title">
       🚨 Contas no radar — CPL acima de R$15
       <span class="badge badge-alert" id="alert-count">carregando...</span>
