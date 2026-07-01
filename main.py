@@ -177,6 +177,16 @@ Quando for o primeiro briefing do dia, faça um resumo executivo com: situação
 Para perguntas seguintes, responda de forma concisa com base nos dados acima.
 Use emojis moderadamente para facilitar a leitura. Nunca invente dados — use apenas os fornecidos acima.
 """
+        # Garante que messages tem alternância correta user/assistant
+        clean_messages = []
+        for m in messages:
+            if m.get('role') in ('user', 'assistant') and m.get('content'):
+                clean_messages.append({'role': m['role'], 'content': str(m['content'])})
+
+        # Garante que começa com user
+        if not clean_messages or clean_messages[0]['role'] != 'user':
+            clean_messages = [{'role': 'user', 'content': 'Olá'}] + clean_messages
+
         resp = requests.post(
             'https://api.anthropic.com/v1/messages',
             headers={
@@ -188,7 +198,7 @@ Use emojis moderadamente para facilitar a leitura. Nunca invente dados — use a
                 'model': 'claude-sonnet-4-6',
                 'max_tokens': 1024,
                 'system': system_prompt,
-                'messages': messages,
+                'messages': clean_messages,
             },
             timeout=30
         )
