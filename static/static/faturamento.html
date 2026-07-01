@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Faturamento - Mobilli Digital</title>
+<style>
+:root {
+  --bg: #0a0a0f; --bg2: #0f0f1a; --card: #13131f; --card2: #1a1a2e;
+  --border: #1e2040; --blue: #3b82f6; --blue-bright: #60a5fa; --blue-glow: #3b82f622;
+  --text-primary: #f0f4ff; --text-secondary: #8892b0; --text-muted: #4a5568;
+  --green: #10b981; --red: #ef4444; --amber: #f59e0b; --radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); padding: 2rem; }
+.container { max-width: 980px; margin: 0 auto; }
+.section-title { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 0.75rem; }
+
+/* GRÁFICO */
+.chart-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
+.chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.chart-header h3 { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+.chart-header span { font-size: 12px; color: var(--text-secondary); }
+.chart-wrap { position: relative; height: 120px; display: flex; align-items: flex-end; gap: 8px; }
+.bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--blue); transition: height 0.4s ease; position: relative; min-height: 4px; }
+.bar.current { background: var(--blue-bright); box-shadow: 0 0 12px var(--blue-glow); }
+.bar-label { font-size: 10px; color: var(--text-muted); }
+.bar-value { font-size: 10px; color: var(--blue-bright); font-weight: 500; }
+
+/* STATUS CARDS */
+.status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+.status-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.1rem; position: relative; overflow: hidden; }
+.status-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.status-card.receber::before { background: var(--amber); }
+.status-card.recebido::before { background: var(--green); }
+.status-card.total::before { background: var(--blue); }
+.status-card .label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
+.status-card .value { font-size: 24px; font-weight: 600; }
+.status-card.receber .value { color: var(--amber); }
+.status-card.recebido .value { color: var(--green); }
+.status-card.total .value { color: var(--blue-bright); }
+.status-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+/* CONTROLES */
+.controls-row { display: flex; gap: 10px; margin-bottom: 1rem; align-items: center; }
+.search-input { flex: 1; height: 36px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 13px; background: var(--card); color: var(--text-primary); outline: none; font-family: inherit; }
+.search-input:focus { border-color: var(--blue); }
+.btn { height: 36px; padding: 0 16px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: none; display: flex; align-items: center; gap: 6px; transition: all 0.15s; }
+.btn-primary { background: var(--blue); color: #fff; }
+.btn-primary:hover { background: var(--blue-bright); }
+.btn-ghost { background: var(--card); color: var(--text-secondary); border: 0.5px solid var(--border); }
+.btn-ghost:hover { color: var(--text-primary); border-color: var(--blue); }
+
+/* TABELA */
+.table-wrap { border: 0.5px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th { text-align: left; padding: 10px 12px; color: var(--text-secondary); font-weight: 500; background: var(--card2); border-bottom: 0.5px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+td { padding: 10px 12px; border-top: 0.5px solid var(--border); color: var(--text-secondary); vertical-align: middle; }
+td:first-child { color: var(--text-primary); font-weight: 500; }
+tr:hover td { background: var(--card2); }
+.nivel-badge { font-size: 10px; padding: 2px 7px; border-radius: 20px; margin-left: 6px; }
+.nivel-ouro { background: #1a1500; color: var(--amber); border: 0.5px solid #3d3000; }
+.nivel-prata { background: #111827; color: #94a3b8; border: 0.5px solid #1f2937; }
+.nivel-bronze { background: #1a0f00; color: #d97706; border: 0.5px solid #3d2000; }
+.valor-cell { color: var(--blue-bright); font-weight: 500; }
+
+/* TOGGLE PAGO */
+.toggle-wrap { display: flex; align-items: center; gap: 8px; }
+.toggle { width: 40px; height: 22px; background: var(--border); border-radius: 11px; cursor: pointer; position: relative; transition: background 0.2s; border: none; }
+.toggle.on { background: var(--green); }
+.toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: left 0.2s; }
+.toggle.on::after { left: 21px; }
+.toggle-label { font-size: 12px; }
+.toggle-label.on { color: var(--green); font-weight: 500; }
+.toggle-label.off { color: var(--text-muted); }
+
+/* AÇÕES */
+.btn-remove { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 4px; border-radius: 4px; transition: color 0.15s; }
+.btn-remove:hover { color: var(--red); }
+
+/* MODAL */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 1.5rem; width: 360px; }
+.modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 1.25rem; }
+.form-group { margin-bottom: 1rem; }
+.form-group label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block; text-transform: uppercase; letter-spacing: 0.4px; }
+.form-group input, .form-group select { width: 100%; height: 38px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 14px; background: var(--bg2); color: var(--text-primary); outline: none; font-family: inherit; }
+.form-group input:focus, .form-group select:focus { border-color: var(--blue); }
+.modal-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
+.modal-actions .btn { flex: 1; justify-content: center; height: 40px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- GRÁFICO -->
+  <div class="chart-card">
+    <div class="chart-header">
+      <h3>Evolução do faturamento 2026</h3>
+      <span id="chart-subtitle">Jan → Jun</span>
+    </div>
+    <div class="chart-wrap" id="chart"></div>
+  </div>
+
+  <!-- STATUS DO MÊS -->
+  <div class="section-title">Junho 2026 — Status do mês</div>
+  <div class="status-grid">
+    <div class="status-card receber">
+      <div class="label">A receber</div>
+      <div class="value" id="val-receber">—</div>
+      <div class="sub" id="sub-receber">clientes pendentes</div>
+    </div>
+    <div class="status-card recebido">
+      <div class="label">Recebido</div>
+      <div class="value" id="val-recebido">R$ 0</div>
+      <div class="sub" id="sub-recebido">clientes pagos</div>
+    </div>
+    <div class="status-card total">
+      <div class="label">Total esperado</div>
+      <div class="value" id="val-total">—</div>
+      <div class="sub">100% dos clientes</div>
+    </div>
+  </div>
+
+  <!-- CONTROLES -->
+  <div class="controls-row">
+    <input class="search-input" id="search" placeholder="Buscar cliente..." oninput="renderTable()">
+    <button class="btn btn-ghost" onclick="filterPendentes()">⚠️ Só pendentes</button>
+    <button class="btn btn-ghost" onclick="filterAll()">Todos</button>
+    <button class="btn btn-primary" onclick="openModal()">+ Adicionar cliente</button>
+  </div>
+
+  <!-- TABELA -->
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:35%">Cliente</th>
+          <th style="width:15%">Nível</th>
+          <th style="width:15%">Valor/mês</th>
+          <th style="width:20%">Status pagamento</th>
+          <th style="width:15%">Ação</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- MODAL ADICIONAR -->
+<div class="modal-overlay" id="modal" style="display:none">
+  <div class="modal">
+    <h3>Adicionar cliente</h3>
+    <div class="form-group">
+      <label>Nome do cliente</label>
+      <input id="f-nome" placeholder="Ex: João Corretor" />
+    </div>
+    <div class="form-group">
+      <label>Valor mensal (R$)</label>
+      <input id="f-valor" type="number" placeholder="Ex: 500" />
+    </div>
+    <div class="form-group">
+      <label>Nível</label>
+      <select id="f-nivel">
+        <option value="bronze">🥉 Bronze (até R$700)</option>
+        <option value="prata">🥈 Prata (R$700 a R$1.500)</option>
+        <option value="ouro">🥇 Ouro (acima de R$1.500)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="addClient()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY = 'mobilli_clientes_v1';
+const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const HISTORICO = [16000, 10500, 19250, 16550, 31300, 0];
+
+const DEFAULT_CLIENTS = [
+  {id:1, nome:'BAHAMONDES', valor:2500, nivel:'ouro', pago:false},
+  {id:2, nome:'BAHAMONDES 2', valor:2500, nivel:'ouro', pago:false},
+  {id:3, nome:'SHEIK', valor:2000, nivel:'ouro', pago:false},
+  {id:4, nome:'OTAVIO APEPROPRIO', valor:1500, nivel:'prata', pago:false},
+  {id:5, nome:'GUTO', valor:1500, nivel:'prata', pago:false},
+  {id:6, nome:'LUCCO', valor:1500, nivel:'prata', pago:false},
+  {id:7, nome:'LBM', valor:1000, nivel:'prata', pago:false},
+  {id:8, nome:'JIMY', valor:1000, nivel:'prata', pago:false},
+  {id:9, nome:'ROJO', valor:1000, nivel:'prata', pago:false},
+  {id:10, nome:'B&G (ROCHA)', valor:1000, nivel:'prata', pago:false},
+  {id:11, nome:'JOSIAS', valor:500, nivel:'bronze', pago:false},
+  {id:12, nome:'JEGE', valor:500, nivel:'bronze', pago:false},
+  {id:13, nome:'ALARICK', valor:500, nivel:'bronze', pago:false},
+  {id:14, nome:'SARÇA', valor:500, nivel:'bronze', pago:false},
+  {id:15, nome:'WENDY', valor:500, nivel:'bronze', pago:false},
+  {id:16, nome:'DISLEIDE', valor:500, nivel:'bronze', pago:false},
+  {id:17, nome:'CANUT', valor:500, nivel:'bronze', pago:false},
+  {id:18, nome:'DICK LOURENÇO', valor:500, nivel:'bronze', pago:false},
+  {id:19, nome:'CHAPOLIM', valor:500, nivel:'bronze', pago:false},
+  {id:20, nome:'CLARICE', valor:500, nivel:'bronze', pago:false},
+  {id:21, nome:'LUCAS PADRE', valor:500, nivel:'bronze', pago:false},
+  {id:22, nome:'DISNEY', valor:500, nivel:'bronze', pago:false},
+  {id:23, nome:'INFINITY', valor:500, nivel:'bronze', pago:false},
+  {id:24, nome:'DOUGLAS', valor:500, nivel:'bronze', pago:false},
+  {id:25, nome:'IMOB ADRIANO', valor:500, nivel:'bronze', pago:false},
+  {id:26, nome:'OXFORD', valor:350, nivel:'bronze', pago:false},
+  {id:27, nome:'EGITO', valor:350, nivel:'bronze', pago:false},
+  {id:28, nome:'EDGARD', valor:350, nivel:'bronze', pago:false},
+  {id:29, nome:'FUNARI', valor:350, nivel:'bronze', pago:false},
+];
+
+let clientes = [];
+let filterMode = 'all';
+
+function load() {
+  const saved = localStorage.getItem(STORAGE_KEY);
+  clientes = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_CLIENTS));
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(clientes));
+}
+
+function fmt(v) { return v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
+
+function nivelBadge(nivel) {
+  if(nivel==='ouro') return '<span class="nivel-badge nivel-ouro">🥇 Ouro</span>';
+  if(nivel==='prata') return '<span class="nivel-badge nivel-prata">🥈 Prata</span>';
+  return '<span class="nivel-badge nivel-bronze">🥉 Bronze</span>';
+}
+
+function updateKPIs() {
+  const total = clientes.reduce((s,c)=>s+c.valor, 0);
+  const recebido = clientes.filter(c=>c.pago).reduce((s,c)=>s+c.valor, 0);
+  const receber = total - recebido;
+  const pendentes = clientes.filter(c=>!c.pago).length;
+  const pagos = clientes.filter(c=>c.pago).length;
+
+  document.getElementById('val-receber').textContent = 'R$ ' + fmt(receber);
+  document.getElementById('val-recebido').textContent = 'R$ ' + fmt(recebido);
+  document.getElementById('val-total').textContent = 'R$ ' + fmt(total);
+  document.getElementById('sub-receber').textContent = pendentes + ' clientes pendentes';
+  document.getElementById('sub-recebido').textContent = pagos + ' clientes pagos';
+}
+
+function renderChart() {
+  const recebido = clientes.filter(c=>c.pago).reduce((s,c)=>s+c.valor, 0);
+  const dados = [...HISTORICO.slice(0,5), recebido];
+  const max = Math.max(...dados, 1);
+  const chart = document.getElementById('chart');
+  const mesAtual = new Date().getMonth();
+  chart.innerHTML = dados.map((v, i) => `
+    <div class="bar-group">
+      <div class="bar-value">R$${Math.round(v/1000)}k</div>
+      <div class="bar ${i === 5 ? 'current' : ''}" style="height:${Math.max((v/max)*100, 4)}px"></div>
+      <div class="bar-label">${MONTHS[i]}</div>
+    </div>
+  `).join('');
+}
+
+function renderTable() {
+  const q = document.getElementById('search').value.toLowerCase();
+  let rows = clientes.filter(c => c.nome.toLowerCase().includes(q));
+  if(filterMode === 'pendentes') rows = rows.filter(c => !c.pago);
+  rows.sort((a,b) => b.valor - a.valor);
+
+  document.getElementById('tbody').innerHTML = rows.map(c => `
+    <tr>
+      <td>${c.nome}</td>
+      <td>${nivelBadge(c.nivel)}</td>
+      <td class="valor-cell">R$ ${fmt(c.valor)}</td>
+      <td>
+        <div class="toggle-wrap">
+          <button class="toggle ${c.pago?'on':''}" onclick="togglePago(${c.id})"></button>
+          <span class="toggle-label ${c.pago?'on':'off'}">${c.pago?'Pago':'Pendente'}</span>
+        </div>
+      </td>
+      <td>
+        <button class="btn-remove" onclick="removeClient(${c.id})" title="Remover cliente">✕</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function togglePago(id) {
+  const c = clientes.find(x=>x.id===id);
+  if(c) { c.pago = !c.pago; save(); updateKPIs(); renderChart(); renderTable(); }
+}
+
+function removeClient(id) {
+  if(!confirm('Remover este cliente?')) return;
+  clientes = clientes.filter(x=>x.id!==id);
+  save(); updateKPIs(); renderChart(); renderTable();
+}
+
+function filterPendentes() { filterMode='pendentes'; renderTable(); }
+function filterAll() { filterMode='all'; renderTable(); }
+
+function openModal() { document.getElementById('modal').style.display='flex'; document.getElementById('f-nome').focus(); }
+function closeModal() { document.getElementById('modal').style.display='none'; document.getElementById('f-nome').value=''; document.getElementById('f-valor').value=''; }
+
+function addClient() {
+  const nome = document.getElementById('f-nome').value.trim().toUpperCase();
+  const valor = parseFloat(document.getElementById('f-valor').value);
+  const nivel = document.getElementById('f-nivel').value;
+  if(!nome || !valor || valor<=0) { alert('Preencha o nome e o valor corretamente.'); return; }
+  const newId = Math.max(0, ...clientes.map(c=>c.id)) + 1;
+  clientes.push({id:newId, nome, valor, nivel, pago:false});
+  save(); updateKPIs(); renderChart(); renderTable(); closeModal();
+}
+
+// Init
+load();
+updateKPIs();
+renderChart();
+renderTable();
+</script>
+</body>
+</html>
