@@ -176,7 +176,7 @@
 <body>
 
 <div class="topbar">
-  <div class="topbar-logo">📡 Mobilli <span>Digital</span></div>
+  <div class="topbar-logo" onclick="resetChat()" style="cursor:pointer;">📡 Mobilli <span>Digital</span></div>
   <div class="topbar-nav">
     <button class="topbar-link active" onclick="setPage('chat',this)">Início</button>
     <button class="topbar-link" onclick="setPage('overview',this)">Visão Geral</button>
@@ -478,8 +478,24 @@ function renderTable(){
   document.getElementById('tbody').innerHTML=rows.map(d=>'<tr><td title="'+d.account_name+'">'+d.account_name+'</td><td>R$ '+fmt(d.spend)+'</td><td>'+fmtI(d.leads)+'</td><td>'+fmtI(d.msg)+'</td><td style="color:'+cplColor(d.cpl)+';font-weight:500">'+(d.cpl?'R$ '+fmt(d.cpl):'—')+'</td></tr>').join('');
 }
 
+
+function resetChat(){
+  history=[];started=false;busy=false;
+  document.getElementById('chat-messages').innerHTML='';
+  document.getElementById('chat-messages').classList.remove('visible');
+  document.getElementById('chat-textarea').value='';
+  const g=document.getElementById('chat-greeting');
+  g.classList.remove('gone','fade-out');
+  document.querySelectorAll('.topbar-link').forEach(x=>x.classList.remove('active'));
+  document.querySelector('.topbar-link').classList.add('active');
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-chat').classList.add('active');
+  updateBtn();
+}
+
 // ── init ──
 loadAds();
+
 </script>
 </body>
 </html>
