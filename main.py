@@ -156,15 +156,30 @@ def delete_cliente(id):
 @app.route('/api/pagamentos/<mes>', methods=['GET'])
 def get_pagamentos(mes):
     try:
-        # Busca clientes ativos + pagamentos do mês
+        # Busca clientes ativos
         clientes_r = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&order=nivel.asc,valor.desc', headers=supa_headers())
         clientes = clientes_r.json()
+
+        # Pagamentos do mês atual
         pag_r = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=eq.' + mes, headers=supa_headers())
         pagamentos = {p['cliente_id']: p for p in pag_r.json()}
+
+        # Calcula mês anterior para buscar atrasados
+        ano, m = int(mes[:4]), int(mes[5:])
+        if m == 1:
+            mes_ant = str(ano-1) + '-12'
+        else:
+            mes_ant = str(ano) + '-' + str(m-1).zfill(2)
+
+        pag_ant_r = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=eq.' + mes_ant + '&atrasado=eq.true&pago=eq.false', headers=supa_headers())
+        atrasados_ant = {p['cliente_id']: p for p in pag_ant_r.json()}
+
         result = []
         for c in clientes:
             p = pagamentos.get(c['id'], {})
-            result.append({**c, 'pago': p.get('pago', False), 'atrasado': p.get('atrasado', False), 'pag_id': p.get('id')})
+            # Se nao tem pagamento no mes atual mas estava atrasado no mes anterior
+            is_atrasado = p.get('atrasado', False) or (c['id'] in atrasados_ant and not p)
+            result.append({**c, 'pago': p.get('pago', False), 'atrasado': is_atrasado, 'pag_id': p.get('id')})
         return jsonify({'ok': True, 'data': result})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
