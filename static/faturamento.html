@@ -8,48 +8,70 @@
   --bg: #0a0a0f; --bg2: #0f0f1a; --card: #13131f; --card2: #1a1a2e;
   --border: #1e2040; --blue: #3b82f6; --blue-bright: #60a5fa; --blue-glow: #3b82f622;
   --text-primary: #f0f4ff; --text-secondary: #8892b0; --text-muted: #4a5568;
-  --green: #10b981; --red: #ef4444; --amber: #f59e0b; --radius: 8px;
+  --green: #10b981; --red: #ef4444; --red-bg: #1a0a0a; --red-border: #3d1515;
+  --amber: #f59e0b; --radius: 8px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); padding: 2rem; }
 .container { max-width: 980px; margin: 0 auto; }
-.section-title { font-size: 11px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 0.75rem; }
+
+/* HEADER */
+.header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 0.5px solid var(--border); }
+.logo { display: flex; align-items: center; gap: 12px; }
+.logo-icon { width: 36px; height: 36px; background: var(--blue); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+.logo h1 { font-size: 20px; font-weight: 600; }
+.logo p { font-size: 13px; color: var(--text-secondary); }
+.back-btn { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--card); font-size: 13px; color: var(--text-secondary); text-decoration: none; }
+
+/* TABS */
+.tabs { display: flex; gap: 2px; margin-bottom: 1.5rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 4px; width: fit-content; }
+.tab { padding: 7px 20px; border-radius: 7px; font-size: 13px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
+.tab.active { background: var(--blue); color: #fff; font-weight: 500; }
+
+/* PAGE */
+.page { display: none; }
+.page.active { display: block; }
 
 /* GRÁFICO */
 .chart-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
 .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.chart-header h3 { font-size: 14px; font-weight: 500; color: var(--text-primary); }
+.chart-header h3 { font-size: 14px; font-weight: 500; }
 .chart-header span { font-size: 12px; color: var(--text-secondary); }
-.chart-wrap { position: relative; height: 120px; display: flex; align-items: flex-end; gap: 8px; }
-.bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-.bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--blue); transition: height 0.4s ease; position: relative; min-height: 4px; }
+.chart-wrap { height: 120px; display: flex; align-items: flex-end; gap: 8px; }
+.bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+.bar-group:hover .bar { opacity: 0.8; }
+.bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--blue); transition: height 0.4s ease; min-height: 4px; }
 .bar.current { background: var(--blue-bright); box-shadow: 0 0 12px var(--blue-glow); }
 .bar-label { font-size: 10px; color: var(--text-muted); }
 .bar-value { font-size: 10px; color: var(--blue-bright); font-weight: 500; }
 
 /* STATUS CARDS */
-.status-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+.status-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.5rem; }
 .status-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.1rem; position: relative; overflow: hidden; }
 .status-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.status-card.atrasado::before { background: var(--red); }
 .status-card.receber::before { background: var(--amber); }
 .status-card.recebido::before { background: var(--green); }
 .status-card.total::before { background: var(--blue); }
 .status-card .label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 8px; }
-.status-card .value { font-size: 24px; font-weight: 600; }
+.status-card .value { font-size: 22px; font-weight: 600; }
+.status-card.atrasado .value { color: var(--red); }
 .status-card.receber .value { color: var(--amber); }
 .status-card.recebido .value { color: var(--green); }
 .status-card.total .value { color: var(--blue-bright); }
 .status-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
 
 /* CONTROLES */
+.mes-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.mes-badge { font-size: 14px; font-weight: 600; }
 .controls-row { display: flex; gap: 10px; margin-bottom: 1rem; align-items: center; }
 .search-input { flex: 1; height: 36px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 13px; background: var(--card); color: var(--text-primary); outline: none; font-family: inherit; }
-.search-input:focus { border-color: var(--blue); }
 .btn { height: 36px; padding: 0 16px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: none; display: flex; align-items: center; gap: 6px; transition: all 0.15s; }
 .btn-primary { background: var(--blue); color: #fff; }
 .btn-primary:hover { background: var(--blue-bright); }
 .btn-ghost { background: var(--card); color: var(--text-secondary); border: 0.5px solid var(--border); }
-.btn-ghost:hover { color: var(--text-primary); border-color: var(--blue); }
+.btn-ghost:hover { color: var(--text-primary); }
+.btn-reset { height: 36px; padding: 0 14px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: 0.5px solid var(--red-border); background: var(--red-bg); color: var(--red); display: flex; align-items: center; gap: 6px; }
 
 /* TABELA */
 .table-wrap { border: 0.5px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
@@ -58,25 +80,44 @@ thead th { text-align: left; padding: 10px 12px; color: var(--text-secondary); f
 td { padding: 10px 12px; border-top: 0.5px solid var(--border); color: var(--text-secondary); vertical-align: middle; }
 td:first-child { color: var(--text-primary); font-weight: 500; }
 tr:hover td { background: var(--card2); }
+tr.row-atrasado td { background: var(--red-bg); }
+tr.row-atrasado td:first-child { color: var(--red); }
 .nivel-badge { font-size: 10px; padding: 2px 7px; border-radius: 20px; margin-left: 6px; }
 .nivel-ouro { background: #1a1500; color: var(--amber); border: 0.5px solid #3d3000; }
 .nivel-prata { background: #111827; color: #94a3b8; border: 0.5px solid #1f2937; }
 .nivel-bronze { background: #1a0f00; color: #d97706; border: 0.5px solid #3d2000; }
+.atrasado-badge { font-size: 10px; padding: 2px 7px; border-radius: 20px; background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); margin-left: 6px; }
 .valor-cell { color: var(--blue-bright); font-weight: 500; }
-
-/* TOGGLE PAGO */
+.section-separator { display: flex; align-items: center; gap: 12px; padding: 12px; }
+.sep-line { flex: 1; height: 0.5px; background: var(--red-border); }
+.sep-label { font-size: 11px; font-weight: 600; color: var(--red); text-transform: uppercase; letter-spacing: 0.8px; }
 .toggle-wrap { display: flex; align-items: center; gap: 8px; }
-.toggle { width: 40px; height: 22px; background: var(--border); border-radius: 11px; cursor: pointer; position: relative; transition: background 0.2s; border: none; }
+.toggle { width: 40px; height: 22px; background: var(--border); border-radius: 11px; cursor: pointer; position: relative; transition: background 0.2s; border: none; flex-shrink: 0; }
 .toggle.on { background: var(--green); }
+.toggle.red { background: #5a1515; }
+.toggle.red.on { background: var(--green); }
 .toggle::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; background: #fff; border-radius: 50%; transition: left 0.2s; }
 .toggle.on::after { left: 21px; }
 .toggle-label { font-size: 12px; }
 .toggle-label.on { color: var(--green); font-weight: 500; }
 .toggle-label.off { color: var(--text-muted); }
-
-/* AÇÕES */
-.btn-remove { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 4px; border-radius: 4px; transition: color 0.15s; }
+.toggle-label.late { color: var(--red); }
+.btn-remove { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 4px; border-radius: 4px; }
 .btn-remove:hover { color: var(--red); }
+
+/* HISTÓRICO */
+.hist-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 1.5rem; }
+.hist-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.1rem; cursor: pointer; transition: border-color 0.15s; }
+.hist-card:hover { border-color: var(--blue); }
+.hist-card .mes { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--blue-bright); }
+.hist-card .stats { display: flex; flex-direction: column; gap: 4px; }
+.hist-card .stat { display: flex; justify-content: space-between; font-size: 12px; }
+.hist-card .stat .lbl { color: var(--text-secondary); }
+.hist-card .stat .val { font-weight: 500; }
+.hist-card .stat .val.green { color: var(--green); }
+.hist-card .stat .val.red { color: var(--red); }
+.hist-card .stat .val.blue { color: var(--blue-bright); }
+.empty-hist { color: var(--text-muted); font-size: 14px; text-align: center; padding: 3rem; }
 
 /* MODAL */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
@@ -85,79 +126,71 @@ tr:hover td { background: var(--card2); }
 .form-group { margin-bottom: 1rem; }
 .form-group label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block; text-transform: uppercase; letter-spacing: 0.4px; }
 .form-group input, .form-group select { width: 100%; height: 38px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 14px; background: var(--bg2); color: var(--text-primary); outline: none; font-family: inherit; }
-.form-group input:focus, .form-group select:focus { border-color: var(--blue); }
 .modal-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
 .modal-actions .btn { flex: 1; justify-content: center; height: 40px; }
+.btn-danger { background: var(--red); color: #fff; border: none; }
+.loading { color: var(--text-muted); font-size: 14px; padding: 2rem; text-align: center; }
 </style>
 </head>
 <body>
 <div class="container">
 
-  <!-- HEADER -->
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:0.5px solid var(--border);">
-    <div style="display:flex;align-items:center;gap:12px;">
-      <div style="width:36px;height:36px;background:var(--blue);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;">📡</div>
-      <div>
-        <div style="font-size:20px;font-weight:600;">Mobilli Digital</div>
-        <div style="font-size:13px;color:var(--text-secondary);">Controle de Faturamento</div>
-      </div>
+  <div class="header">
+    <div class="logo">
+      <div class="logo-icon">📡</div>
+      <div><h1>Mobilli Digital</h1><p>Controle de Faturamento</p></div>
     </div>
-    <a href="/" style="display:flex;align-items:center;gap:6px;padding:8px 16px;border:0.5px solid var(--border);border-radius:var(--radius);background:var(--card);font-size:13px;color:var(--text-secondary);text-decoration:none;">
-      ← Voltar ao Dashboard
-    </a>
+    <a href="/" class="back-btn">← Voltar ao Dashboard</a>
   </div>
 
   <!-- GRÁFICO -->
   <div class="chart-card">
-    <div class="chart-header">
-      <h3>Evolução do faturamento 2026</h3>
-      <span id="chart-subtitle">Jan → Jun</span>
-    </div>
-    <div class="chart-wrap" id="chart"></div>
+    <div class="chart-header"><h3>Evolução do faturamento 2026</h3><span id="chart-sub">Carregando...</span></div>
+    <div class="chart-wrap" id="chart"><div class="loading">Carregando...</div></div>
   </div>
 
-  <!-- STATUS DO MÊS -->
-  <div class="section-title">Junho 2026 — Status do mês</div>
-  <div class="status-grid">
-    <div class="status-card receber">
-      <div class="label">A receber</div>
-      <div class="value" id="val-receber">—</div>
-      <div class="sub" id="sub-receber">clientes pendentes</div>
+  <!-- TABS -->
+  <div class="tabs">
+    <button class="tab active" onclick="setTab('mes',this)">📅 Mês Atual</button>
+    <button class="tab" onclick="setTab('historico',this)">🗂 Histórico</button>
+  </div>
+
+  <!-- MÊS ATUAL -->
+  <div class="page active" id="page-mes">
+    <div id="status-section">
+      <div class="status-grid">
+        <div class="status-card atrasado"><div class="label">⚠️ Atrasados</div><div class="value" id="val-atrasado">—</div><div class="sub" id="sub-atrasado">—</div></div>
+        <div class="status-card receber"><div class="label">A receber</div><div class="value" id="val-receber">—</div><div class="sub" id="sub-receber">—</div></div>
+        <div class="status-card recebido"><div class="label">Recebido</div><div class="value" id="val-recebido">—</div><div class="sub" id="sub-recebido">—</div></div>
+        <div class="status-card total"><div class="label">Total esperado</div><div class="value" id="val-total">—</div><div class="sub">todos os clientes</div></div>
+      </div>
     </div>
-    <div class="status-card recebido">
-      <div class="label">Recebido</div>
-      <div class="value" id="val-recebido">R$ 0</div>
-      <div class="sub" id="sub-recebido">clientes pagos</div>
+
+    <div class="mes-header">
+      <span class="mes-badge" id="mes-badge">📅 Julho 2026</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" onclick="filterPendentes()">⚠️ Só pendentes</button>
+        <button class="btn btn-ghost" onclick="filterAll()">Todos</button>
+        <button class="btn-reset" onclick="openConfirmReset()">🔄 Novo mês</button>
+        <button class="btn btn-primary" onclick="openModal()">+ Adicionar cliente</button>
+      </div>
     </div>
-    <div class="status-card total">
-      <div class="label">Total esperado</div>
-      <div class="value" id="val-total">—</div>
-      <div class="sub">100% dos clientes</div>
+
+    <div class="controls-row">
+      <input class="search-input" id="search" placeholder="Buscar cliente..." oninput="renderTable()">
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:38%">Cliente</th><th style="width:12%">Nível</th><th style="width:15%">Valor/mês</th><th style="width:22%">Status</th><th style="width:13%">Ação</th></tr></thead>
+        <tbody id="tbody"><tr><td colspan="5" class="loading">Carregando...</td></tr></tbody>
+      </table>
     </div>
   </div>
 
-  <!-- CONTROLES -->
-  <div class="controls-row">
-    <input class="search-input" id="search" placeholder="Buscar cliente..." oninput="renderTable()">
-    <button class="btn btn-ghost" onclick="filterPendentes()">⚠️ Só pendentes</button>
-    <button class="btn btn-ghost" onclick="filterAll()">Todos</button>
-    <button class="btn btn-primary" onclick="openModal()">+ Adicionar cliente</button>
-  </div>
-
-  <!-- TABELA -->
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th style="width:35%">Cliente</th>
-          <th style="width:15%">Nível</th>
-          <th style="width:15%">Valor/mês</th>
-          <th style="width:20%">Status pagamento</th>
-          <th style="width:15%">Ação</th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
+  <!-- HISTÓRICO -->
+  <div class="page" id="page-historico">
+    <div class="hist-grid" id="hist-grid"><div class="empty-hist">Nenhum histórico encontrado.</div></div>
   </div>
 
 </div>
@@ -166,171 +199,225 @@ tr:hover td { background: var(--card2); }
 <div class="modal-overlay" id="modal" style="display:none">
   <div class="modal">
     <h3>Adicionar cliente</h3>
-    <div class="form-group">
-      <label>Nome do cliente</label>
-      <input id="f-nome" placeholder="Ex: João Corretor" />
-    </div>
-    <div class="form-group">
-      <label>Valor mensal (R$)</label>
-      <input id="f-valor" type="number" placeholder="Ex: 500" />
-    </div>
-    <div class="form-group">
-      <label>Nível</label>
+    <div class="form-group"><label>Nome</label><input id="f-nome" placeholder="Ex: João Corretor"/></div>
+    <div class="form-group"><label>Valor mensal (R$)</label><input id="f-valor" type="number" placeholder="500"/></div>
+    <div class="form-group"><label>Nível</label>
       <select id="f-nivel">
         <option value="bronze">🥉 Bronze (até R$700)</option>
-        <option value="prata">🥈 Prata (R$700 a R$1.500)</option>
+        <option value="prata">🥈 Prata (R$700–R$1.500)</option>
         <option value="ouro">🥇 Ouro (acima de R$1.500)</option>
       </select>
     </div>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary" onclick="addClient()">Adicionar</button>
+      <button class="btn btn-primary" onclick="addCliente()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL RESET -->
+<div class="modal-overlay" id="modal-reset" style="display:none">
+  <div class="modal" style="border-color:var(--red-border)">
+    <h3>🔄 Virar para novo mês</h3>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem">Clientes que <strong>não pagaram</strong> este mês serão marcados como <strong style="color:var(--red)">Atrasados</strong> no próximo. Os que pagaram serão zerados. Confirma?</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeConfirmReset()">Cancelar</button>
+      <button class="btn btn-danger" onclick="resetMes()">Confirmar</button>
     </div>
   </div>
 </div>
 
 <script>
-const STORAGE_KEY = 'mobilli_clientes_v1';
-const MONTHS = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-const HISTORICO = [16000, 10500, 19250, 16550, 31300, 0];
-
-const DEFAULT_CLIENTS = [
-  {id:1, nome:'BAHAMONDES', valor:2500, nivel:'ouro', pago:false},
-  {id:2, nome:'BAHAMONDES 2', valor:2500, nivel:'ouro', pago:false},
-  {id:3, nome:'SHEIK', valor:2000, nivel:'ouro', pago:false},
-  {id:4, nome:'OTAVIO APEPROPRIO', valor:1500, nivel:'prata', pago:false},
-  {id:5, nome:'GUTO', valor:1500, nivel:'prata', pago:false},
-  {id:6, nome:'LUCCO', valor:1500, nivel:'prata', pago:false},
-  {id:7, nome:'LBM', valor:1000, nivel:'prata', pago:false},
-  {id:8, nome:'JIMY', valor:1000, nivel:'prata', pago:false},
-  {id:9, nome:'ROJO', valor:1000, nivel:'prata', pago:false},
-  {id:10, nome:'B&G (ROCHA)', valor:1000, nivel:'prata', pago:false},
-  {id:11, nome:'JOSIAS', valor:500, nivel:'bronze', pago:false},
-  {id:12, nome:'JEGE', valor:500, nivel:'bronze', pago:false},
-  {id:13, nome:'ALARICK', valor:500, nivel:'bronze', pago:false},
-  {id:14, nome:'SARÇA', valor:500, nivel:'bronze', pago:false},
-  {id:15, nome:'WENDY', valor:500, nivel:'bronze', pago:false},
-  {id:16, nome:'DISLEIDE', valor:500, nivel:'bronze', pago:false},
-  {id:17, nome:'CANUT', valor:500, nivel:'bronze', pago:false},
-  {id:18, nome:'DICK LOURENÇO', valor:500, nivel:'bronze', pago:false},
-  {id:19, nome:'CHAPOLIM', valor:500, nivel:'bronze', pago:false},
-  {id:20, nome:'CLARICE', valor:500, nivel:'bronze', pago:false},
-  {id:21, nome:'LUCAS PADRE', valor:500, nivel:'bronze', pago:false},
-  {id:22, nome:'DISNEY', valor:500, nivel:'bronze', pago:false},
-  {id:23, nome:'INFINITY', valor:500, nivel:'bronze', pago:false},
-  {id:24, nome:'DOUGLAS', valor:500, nivel:'bronze', pago:false},
-  {id:25, nome:'IMOB ADRIANO', valor:500, nivel:'bronze', pago:false},
-  {id:26, nome:'OXFORD', valor:350, nivel:'bronze', pago:false},
-  {id:27, nome:'EGITO', valor:350, nivel:'bronze', pago:false},
-  {id:28, nome:'EDGARD', valor:350, nivel:'bronze', pago:false},
-  {id:29, nome:'FUNARI', valor:350, nivel:'bronze', pago:false},
-];
+const MES_ATUAL = '2026-07';
+const HISTORICO_MESES = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06'];
+const MESES_NOMES = {
+  '2026-01':'Janeiro 2026','2026-02':'Fevereiro 2026','2026-03':'Março 2026',
+  '2026-04':'Abril 2026','2026-05':'Maio 2026','2026-06':'Junho 2026',
+  '2026-07':'Julho 2026','2026-08':'Agosto 2026','2026-09':'Setembro 2026',
+  '2026-10':'Outubro 2026','2026-11':'Novembro 2026','2026-12':'Dezembro 2026'
+};
+const HIST_VALORES = {'2026-01':16000,'2026-02':10500,'2026-03':19250,'2026-04':16550,'2026-05':31300};
 
 let clientes = [];
 let filterMode = 'all';
 
-function load() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  clientes = saved ? JSON.parse(saved) : JSON.parse(JSON.stringify(DEFAULT_CLIENTS));
+const fmt = v => v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function setTab(tab, el){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+tab).classList.add('active');
+  if(tab==='historico') loadHistorico();
 }
 
-function save() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(clientes));
-}
-
-function fmt(v) { return v.toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}); }
-
-function nivelBadge(nivel) {
+function nivelBadge(nivel){
   if(nivel==='ouro') return '<span class="nivel-badge nivel-ouro">🥇 Ouro</span>';
   if(nivel==='prata') return '<span class="nivel-badge nivel-prata">🥈 Prata</span>';
   return '<span class="nivel-badge nivel-bronze">🥉 Bronze</span>';
 }
 
-function updateKPIs() {
-  const total = clientes.reduce((s,c)=>s+c.valor, 0);
-  const recebido = clientes.filter(c=>c.pago).reduce((s,c)=>s+c.valor, 0);
-  const receber = total - recebido;
-  const pendentes = clientes.filter(c=>!c.pago).length;
-  const pagos = clientes.filter(c=>c.pago).length;
+function updateKPIs(){
+  const normais = clientes.filter(c=>!c.atrasado);
+  const atrasados = clientes.filter(c=>c.atrasado&&!c.pago);
+  const recebido = normais.filter(c=>c.pago).reduce((s,c)=>s+Number(c.valor),0);
+  const receber = normais.filter(c=>!c.pago).reduce((s,c)=>s+Number(c.valor),0);
+  const totalAtrasado = atrasados.reduce((s,c)=>s+Number(c.valor),0);
+  const total = normais.reduce((s,c)=>s+Number(c.valor),0);
 
-  document.getElementById('val-receber').textContent = 'R$ ' + fmt(receber);
-  document.getElementById('val-recebido').textContent = 'R$ ' + fmt(recebido);
-  document.getElementById('val-total').textContent = 'R$ ' + fmt(total);
-  document.getElementById('sub-receber').textContent = pendentes + ' clientes pendentes';
-  document.getElementById('sub-recebido').textContent = pagos + ' clientes pagos';
+  document.getElementById('val-atrasado').textContent = 'R$ '+fmt(totalAtrasado);
+  document.getElementById('val-receber').textContent = 'R$ '+fmt(receber);
+  document.getElementById('val-recebido').textContent = 'R$ '+fmt(recebido);
+  document.getElementById('val-total').textContent = 'R$ '+fmt(total);
+  document.getElementById('sub-atrasado').textContent = atrasados.length+' cliente(s)';
+  document.getElementById('sub-receber').textContent = normais.filter(c=>!c.pago).length+' pendentes';
+  document.getElementById('sub-recebido').textContent = normais.filter(c=>c.pago).length+' pagos';
 }
 
-function renderChart() {
-  const recebido = clientes.filter(c=>c.pago).reduce((s,c)=>s+c.valor, 0);
-  const dados = [...HISTORICO.slice(0,5), recebido];
-  const max = Math.max(...dados, 1);
-  const chart = document.getElementById('chart');
-  const mesAtual = new Date().getMonth();
-  chart.innerHTML = dados.map((v, i) => `
-    <div class="bar-group">
-      <div class="bar-value">R$${Math.round(v/1000)}k</div>
-      <div class="bar ${i === 5 ? 'current' : ''}" style="height:${Math.max((v/max)*100, 4)}px"></div>
-      <div class="bar-label">${MONTHS[i]}</div>
-    </div>
-  `).join('');
-}
-
-function renderTable() {
+function renderTable(){
   const q = document.getElementById('search').value.toLowerCase();
-  let rows = clientes.filter(c => c.nome.toLowerCase().includes(q));
-  if(filterMode === 'pendentes') rows = rows.filter(c => !c.pago);
-  rows.sort((a,b) => b.valor - a.valor);
+  const normais = clientes.filter(c=>!c.atrasado&&c.nome.toLowerCase().includes(q));
+  const atrasados = clientes.filter(c=>c.atrasado&&c.nome.toLowerCase().includes(q));
+  let rows = filterMode==='pendentes' ? normais.filter(c=>!c.pago) : normais;
+  rows.sort((a,b)=>b.valor-a.valor);
+  atrasados.sort((a,b)=>b.valor-a.valor);
 
-  document.getElementById('tbody').innerHTML = rows.map(c => `
+  let html = rows.map(c=>`
     <tr>
-      <td>${c.nome}</td>
-      <td>${nivelBadge(c.nivel)}</td>
-      <td class="valor-cell">R$ ${fmt(c.valor)}</td>
-      <td>
-        <div class="toggle-wrap">
-          <button class="toggle ${c.pago?'on':''}" onclick="togglePago(${c.id})"></button>
-          <span class="toggle-label ${c.pago?'on':'off'}">${c.pago?'Pago':'Pendente'}</span>
-        </div>
-      </td>
-      <td>
-        <button class="btn-remove" onclick="removeClient(${c.id})" title="Remover cliente">✕</button>
-      </td>
-    </tr>
-  `).join('');
+      <td>${c.nome}${nivelBadge(c.nivel)}</td>
+      <td></td>
+      <td class="valor-cell">R$ ${fmt(Number(c.valor))}</td>
+      <td><div class="toggle-wrap">
+        <button class="toggle ${c.pago?'on':''}" onclick="togglePago(${c.id},${c.pago})"></button>
+        <span class="toggle-label ${c.pago?'on':'off'}">${c.pago?'Pago':'Pendente'}</span>
+      </div></td>
+      <td><button class="btn-remove" onclick="removeCliente(${c.id})">✕</button></td>
+    </tr>`).join('');
+
+  if(atrasados.length&&filterMode!=='pendentes'){
+    html += `<tr><td colspan="5" style="padding:0"><div class="section-separator"><div class="sep-line"></div><div class="sep-label">⚠️ Atrasados do mês anterior</div><div class="sep-line"></div></div></td></tr>`;
+    html += atrasados.map(c=>`
+      <tr class="row-atrasado">
+        <td>${c.nome}${nivelBadge(c.nivel)}<span class="atrasado-badge">Atrasado</span></td>
+        <td></td>
+        <td style="color:var(--red);font-weight:500">R$ ${fmt(Number(c.valor))}</td>
+        <td><div class="toggle-wrap">
+          <button class="toggle red ${c.pago?'on':''}" onclick="togglePago(${c.id},${c.pago})"></button>
+          <span class="toggle-label ${c.pago?'on':'late'}">${c.pago?'Pago':'Atrasado'}</span>
+        </div></td>
+        <td><button class="btn-remove" onclick="removeCliente(${c.id})">✕</button></td>
+      </tr>`).join('');
+  }
+
+  document.getElementById('tbody').innerHTML = html || '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">Nenhum cliente</td></tr>';
 }
 
-function togglePago(id) {
-  const c = clientes.find(x=>x.id===id);
-  if(c) { c.pago = !c.pago; save(); updateKPIs(); renderChart(); renderTable(); }
+async function loadClientes(){
+  try{
+    const r = await fetch('/api/pagamentos/'+MES_ATUAL);
+    const j = await r.json();
+    if(j.ok){ clientes=j.data; updateKPIs(); renderTable(); renderChart(); }
+  }catch(e){ console.error(e); }
 }
 
-function removeClient(id) {
+async function togglePago(id, pago){
+  const novo = !pago;
+  clientes = clientes.map(c=>c.id===id?{...c,pago:novo}:c);
+  updateKPIs(); renderTable();
+  await fetch('/api/pagamentos/'+MES_ATUAL+'/'+id, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pago:novo})});
+}
+
+async function removeCliente(id){
   if(!confirm('Remover este cliente?')) return;
-  clientes = clientes.filter(x=>x.id!==id);
-  save(); updateKPIs(); renderChart(); renderTable();
+  await fetch('/api/clientes/'+id, {method:'DELETE'});
+  clientes = clientes.filter(c=>c.id!==id);
+  updateKPIs(); renderTable();
 }
 
-function filterPendentes() { filterMode='pendentes'; renderTable(); }
-function filterAll() { filterMode='all'; renderTable(); }
+function openModal(){ document.getElementById('modal').style.display='flex'; document.getElementById('f-nome').focus(); }
+function closeModal(){ document.getElementById('modal').style.display='none'; document.getElementById('f-nome').value=''; document.getElementById('f-valor').value=''; }
 
-function openModal() { document.getElementById('modal').style.display='flex'; document.getElementById('f-nome').focus(); }
-function closeModal() { document.getElementById('modal').style.display='none'; document.getElementById('f-nome').value=''; document.getElementById('f-valor').value=''; }
-
-function addClient() {
+async function addCliente(){
   const nome = document.getElementById('f-nome').value.trim().toUpperCase();
   const valor = parseFloat(document.getElementById('f-valor').value);
   const nivel = document.getElementById('f-nivel').value;
-  if(!nome || !valor || valor<=0) { alert('Preencha o nome e o valor corretamente.'); return; }
-  const newId = Math.max(0, ...clientes.map(c=>c.id)) + 1;
-  clientes.push({id:newId, nome, valor, nivel, pago:false});
-  save(); updateKPIs(); renderChart(); renderTable(); closeModal();
+  if(!nome||!valor||valor<=0){ alert('Preencha nome e valor.'); return; }
+  const r = await fetch('/api/clientes', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nome,valor,nivel})});
+  const j = await r.json();
+  if(j.ok){ closeModal(); loadClientes(); }
+}
+
+function openConfirmReset(){ document.getElementById('modal-reset').style.display='flex'; }
+function closeConfirmReset(){ document.getElementById('modal-reset').style.display='none'; }
+
+async function resetMes(){
+  // Marca não pagos como atrasados, zera pagos
+  for(const c of clientes){
+    if(!c.atrasado){
+      await fetch('/api/pagamentos/'+MES_ATUAL+'/'+c.id, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({pago:false, atrasado:!c.pago})
+      });
+    }
+  }
+  closeConfirmReset();
+  loadClientes();
+}
+
+function filterPendentes(){ filterMode='pendentes'; renderTable(); }
+function filterAll(){ filterMode='all'; renderTable(); }
+
+// HISTÓRICO
+async function loadHistorico(){
+  const grid = document.getElementById('hist-grid');
+  grid.innerHTML = '<div class="loading">Carregando histórico...</div>';
+  try{
+    const r = await fetch('/api/historico');
+    const j = await r.json();
+    const data = j.data || [];
+
+    // Inclui meses históricos fixos
+    const meses = [...new Set([...Object.keys(HIST_VALORES), ...data.map(d=>d.mes)])].sort().reverse();
+
+    if(!meses.length){ grid.innerHTML='<div class="empty-hist">Nenhum histórico ainda.</div>'; return; }
+
+    grid.innerHTML = meses.map(mes => {
+      const d = data.find(x=>x.mes===mes);
+      const recebido = d ? d.recebido : (HIST_VALORES[mes]||0);
+      const total = d ? d.total : (HIST_VALORES[mes]||0);
+      const atrasado = d ? d.atrasado : 0;
+      const pct = total ? Math.round(recebido/total*100) : 100;
+      return `<div class="hist-card">
+        <div class="mes">${MESES_NOMES[mes]||mes}</div>
+        <div class="stats">
+          <div class="stat"><span class="lbl">Total esperado</span><span class="val blue">R$ ${fmt(total)}</span></div>
+          <div class="stat"><span class="lbl">Recebido</span><span class="val green">R$ ${fmt(recebido)}</span></div>
+          ${atrasado?`<div class="stat"><span class="lbl">Atrasado</span><span class="val red">R$ ${fmt(atrasado)}</span></div>`:''}
+          <div class="stat"><span class="lbl">Adimplência</span><span class="val">${pct}%</span></div>
+        </div>
+      </div>`;
+    }).join('');
+  }catch(e){ grid.innerHTML='<div class="empty-hist">Erro ao carregar histórico.</div>'; }
+}
+
+// GRÁFICO
+function renderChart(){
+  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul'];
+  const valores = [16000,10500,19250,16550,31300,0,0];
+  const recJul = clientes.filter(c=>c.pago&&!c.atrasado).reduce((s,c)=>s+Number(c.valor),0);
+  valores[6] = recJul;
+  const max = Math.max(...valores,1);
+  document.getElementById('chart-sub').textContent = 'Jan → Jul 2026';
+  document.getElementById('chart').innerHTML = valores.map((v,i)=>`
+    <div class="bar-group">
+      <div class="bar-value">${v?'R$'+Math.round(v/1000)+'k':''}</div>
+      <div class="bar ${i===6?'current':''}" style="height:${Math.max((v/max)*100,4)}px"></div>
+      <div class="bar-label">${meses[i]}</div>
+    </div>`).join('');
 }
 
 // Init
-load();
-updateKPIs();
-renderChart();
-renderTable();
+loadClientes();
 </script>
 </body>
 </html>
