@@ -241,7 +241,43 @@ def add_tarefa():
 @app.route('/api/tarefas/<int:id>', methods=['DELETE'])
 def delete_tarefa(id):
     try:
-        requests.patch(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(id), headers=supa_headers(), json={'concluida': True})
+        from datetime import datetime
+        now = datetime.utcnow().isoformat()
+        requests.patch(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(id), headers=supa_headers(), json={'concluida': True, 'concluida_em': now})
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/tarefas/historico', methods=['GET'])
+def get_historico_tarefas():
+    try:
+        semana = request.args.get('semana', 'atual')
+        from datetime import datetime, timedelta
+        hoje = datetime.utcnow()
+        if semana == 'atual':
+            inicio = hoje - timedelta(days=hoje.weekday())
+            inicio = inicio.replace(hour=0, minute=0, second=0, microsecond=0)
+            fim = hoje
+        else:
+            # semana passada
+            inicio = hoje - timedelta(days=hoje.weekday() + 7)
+            inicio = inicio.replace(hour=0, minute=0, second=0, microsecond=0)
+            fim = inicio + timedelta(days=7)
+        r = requests.get(
+            SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.true&concluida_em=gte.' + inicio.isoformat() + '&concluida_em=lte.' + fim.isoformat() + '&order=concluida_em.desc',
+            headers=supa_headers()
+        )
+        return jsonify({'ok': True, 'data': r.json(), 'inicio': inicio.isoformat(), 'fim': fim.isoformat()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/tarefas/resetar', methods=['POST'])
+def resetar_tarefas():
+    try:
+        # Marca todas as tarefas nao concluidas como concluidas (reset semanal)
+        from datetime import datetime
+        now = datetime.utcnow().isoformat()
+        requests.patch(SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.false', headers=supa_headers(), json={'concluida': True, 'concluida_em': now})
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
