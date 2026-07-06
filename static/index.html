@@ -236,9 +236,9 @@
           <div class="kcard"><div class="lbl">CPL médio (30d)</div><div class="val" id="ov-cpl">—</div><div class="sub">leads + mensagens</div></div>
         </div>
         <div class="g3">
-          <div class="kcard"><div class="lbl">Faturamento mês passado</div><div class="val">R$ 31.300</div><span class="tag tag-p">Maio 2026</span></div>
-          <div class="kcard"><div class="lbl">Faturamento mês atual</div><div class="val">Em andamento</div><span class="tag tag-a">Junho 2026</span></div>
-          <div class="kcard"><div class="lbl">Previsão próximo mês</div><div class="val">R$ 22.367</div><span class="tag tag-n">Estimativa Julho</span></div>
+          <div class="kcard"><div class="lbl">Faturamento mês passado</div><div class="val">R$ 31.300</div><span class="tag tag-p">Junho 2026</span></div>
+          <div class="kcard"><div class="lbl">Faturamento mês atual</div><div class="val" id="fat-atual">—</div><div class="sub" id="fat-atual-sub">carregando...</div><span class="tag tag-a">Julho 2026</span></div>
+          <div class="kcard"><div class="lbl">Previsão próximo mês</div><div class="val">R$ 22.367</div><span class="tag tag-n">Estimativa Agosto</span></div>
         </div>
         <div class="sec-title" style="margin-bottom:.75rem">🏆 Clientes por nível</div>
         <div class="g3">
@@ -494,8 +494,22 @@ function resetChat(){
   updateBtn();
 }
 
+async function loadFatAtual(){
+  try{
+    const r = await fetch('/api/pagamentos/2026-07');
+    const j = await r.json();
+    if(!j.ok) return;
+    const pagos = j.data.filter(c=>c.pago&&!c.atrasado);
+    const total = pagos.reduce((s,c)=>s+Number(c.valor),0);
+    const n = pagos.length;
+    document.getElementById('fat-atual').textContent = total>0 ? 'R$ '+fmtI(total) : 'Em andamento';
+    document.getElementById('fat-atual-sub').textContent = n+' cliente(s) pagos';
+  }catch(e){ console.error(e); }
+}
+
 // ── init ──
 loadAds();
+loadFatAtual();
 
 </script>
 </body>
