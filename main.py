@@ -219,6 +219,33 @@ def get_historico():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+
+# ── Supabase: Tarefas ──
+@app.route('/api/tarefas', methods=['GET'])
+def get_tarefas():
+    try:
+        r = requests.get(SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.false&order=created_at.asc', headers=supa_headers())
+        return jsonify({'ok': True, 'data': r.json()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/tarefas', methods=['POST'])
+def add_tarefa():
+    try:
+        body = request.json
+        r = requests.post(SUPABASE_URL + '/rest/v1/tarefas', headers=supa_headers(), json=body)
+        return jsonify({'ok': True, 'data': r.json()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/tarefas/<int:id>', methods=['DELETE'])
+def delete_tarefa(id):
+    try:
+        requests.patch(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(id), headers=supa_headers(), json={'concluida': True})
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/')
 def index():
     return send_from_directory('static', 'index.html')
@@ -226,6 +253,10 @@ def index():
 @app.route('/faturamento')
 def faturamento():
     return send_from_directory('static', 'faturamento.html')
+
+@app.route('/tarefas')
+def tarefas():
+    return send_from_directory('static', 'tarefas.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
