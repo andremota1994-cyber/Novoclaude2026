@@ -403,7 +403,7 @@ async function loadHistorico(){
 // GRÁFICO
 function renderChart(){
   const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul'];
-  const valores = [16000,10500,19250,16550,31300,0,0];
+  const valores = [16000,10500,19250,16550,31300,20550,0];
   const recJul = clientes.filter(c=>c.pago&&!c.atrasado).reduce((s,c)=>s+Number(c.valor),0);
   valores[6] = recJul;
   const max = Math.max(...valores,1);
