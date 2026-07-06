@@ -10,13 +10,13 @@
   --border: #1e2040; --blue: #3b82f6; --blue-bright: #60a5fa;
   --text-primary: #f0f4ff; --text-secondary: #8892b0; --text-muted: #4a5568;
   --green: #10b981; --amber: #f59e0b; --purple: #8b5cf6;
+  --red: #ef4444; --red-bg: #1a0a0a; --red-border: #3d1515;
   --radius: 8px;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); display: flex; flex-direction: column; }
 
-/* TOPBAR */
 .topbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
 .topbar-logo { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text-primary); }
 .topbar-logo span { color: var(--blue); }
@@ -25,15 +25,14 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .topbar-link:hover { color: var(--text-primary); background: var(--card); }
 .topbar-link.active { color: var(--text-primary); }
 
-/* MAIN */
-.main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-.content { flex: 1; overflow-y: auto; padding: 2rem; }
+.main { flex: 1; overflow-y: auto; padding: 2rem; }
 .inner { max-width: 980px; margin: 0 auto; }
 
-/* HEADER */
-.page-header { margin-bottom: 1.5rem; }
-.page-header h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
-.page-header p { font-size: 13px; color: var(--text-secondary); }
+.page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
+.page-header-left h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+.page-header-left p { font-size: 13px; color: var(--text-secondary); }
+.btn-reset-week { height: 36px; padding: 0 16px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: 0.5px solid var(--red-border); background: var(--red-bg); color: var(--red); display: flex; align-items: center; gap: 6px; transition: all 0.15s; }
+.btn-reset-week:hover { background: #200a0a; }
 
 /* INPUT RÁPIDO */
 .quick-add { display: flex; gap: 8px; margin-bottom: 2rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 10px 12px; transition: border-color 0.2s; }
@@ -41,32 +40,59 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .quick-input { flex: 1; background: transparent; border: none; outline: none; font-size: 14px; color: var(--text-primary); font-family: inherit; }
 .quick-input::placeholder { color: var(--text-muted); }
 .prazo-select { background: var(--card2); border: 0.5px solid var(--border); border-radius: 6px; padding: 0 10px; font-size: 13px; color: var(--text-secondary); outline: none; font-family: inherit; height: 32px; cursor: pointer; }
-.btn-add { height: 32px; padding: 0 14px; background: var(--blue); border: none; border-radius: 8px; color: #fff; font-size: 13px; cursor: pointer; font-family: inherit; white-space: nowrap; transition: background 0.15s; }
+.btn-add { height: 32px; padding: 0 14px; background: var(--blue); border: none; border-radius: 8px; color: #fff; font-size: 13px; cursor: pointer; font-family: inherit; white-space: nowrap; }
 .btn-add:hover { background: var(--blue-bright); }
 
 /* QUADROS */
-.boards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
-.board { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 1.25rem; display: flex; flex-direction: column; min-height: 400px; }
+.boards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 2rem; }
+.board { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 1.25rem; display: flex; flex-direction: column; min-height: 300px; }
 .board-header { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; }
 .board-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .board.hoje .board-dot { background: var(--blue); }
 .board.amanha .board-dot { background: var(--amber); }
 .board.semana .board-dot { background: var(--purple); }
-.board-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.board-title { font-size: 13px; font-weight: 600; }
 .board-count { font-size: 11px; color: var(--text-muted); background: var(--card2); padding: 2px 7px; border-radius: 20px; margin-left: auto; }
 .board-tasks { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-.task { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--card2); border-radius: 10px; cursor: pointer; transition: all 0.15s; border: 0.5px solid transparent; }
+.task { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--card2); border-radius: 10px; cursor: pointer; transition: all 0.2s; border: 0.5px solid transparent; }
 .task:hover { border-color: var(--border); }
-.task-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; margin-top: 1px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+.task-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; margin-top: 1px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
 .task:hover .task-check { border-color: var(--green); }
 .task.completing .task-check { background: var(--green); border-color: var(--green); }
-.task.completing .task-check::after { content: '✓'; font-size: 10px; color: #fff; font-weight: 700; }
-.task.completing .task-text { text-decoration: line-through; color: var(--text-muted); }
+.task.completing .task-text { text-decoration: line-through; color: var(--text-muted); opacity: 0.5; }
 .task-text { font-size: 13px; line-height: 1.4; color: var(--text-secondary); flex: 1; }
 .empty-board { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 13px; text-align: center; padding: 2rem; }
 
-/* LOADING */
+/* HISTÓRICO */
+.hist-section { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 1.25rem; }
+.hist-header { display: flex; align-items: center; gap: 12px; margin-bottom: 1.25rem; }
+.hist-header h3 { font-size: 14px; font-weight: 600; flex: 1; }
+.hist-tabs { display: flex; gap: 4px; background: var(--card2); border-radius: 8px; padding: 3px; }
+.hist-tab { padding: 5px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
+.hist-tab.active { background: var(--border); color: var(--text-primary); }
+.hist-search { height: 32px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 13px; background: var(--card2); color: var(--text-primary); outline: none; font-family: inherit; width: 200px; }
+.hist-list { display: flex; flex-direction: column; gap: 6px; max-height: 400px; overflow-y: auto; }
+.hist-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--card2); border-radius: 10px; }
+.hist-check { width: 18px; height: 18px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
+.hist-text { flex: 1; font-size: 13px; color: var(--text-secondary); }
+.hist-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.hist-date { font-size: 11px; color: var(--text-muted); }
+.hist-prazo { font-size: 10px; padding: 2px 7px; border-radius: 20px; }
+.hist-prazo.hoje { background: #1a2040; color: var(--blue-bright); }
+.hist-prazo.amanha { background: #1a1500; color: var(--amber); }
+.hist-prazo.semana { background: #1a1040; color: var(--purple); }
+.empty-hist { color: var(--text-muted); font-size: 13px; text-align: center; padding: 2rem; }
 .loading { color: var(--text-muted); font-size: 13px; text-align: center; padding: 1rem; }
+
+/* MODAL CONFIRM */
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--card); border: 0.5px solid var(--red-border); border-radius: 16px; padding: 1.5rem; width: 340px; text-align: center; }
+.modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 0.5rem; }
+.modal p { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.25rem; }
+.modal-actions { display: flex; gap: 8px; }
+.modal-actions .btn { flex: 1; height: 40px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: none; }
+.btn-ghost { background: var(--card2); color: var(--text-secondary); border: 0.5px solid var(--border) !important; }
+.btn-danger { background: var(--red); color: #fff; }
 </style>
 </head>
 <body>
@@ -75,95 +101,126 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
   <a class="topbar-logo" href="/">📡 Mobilli <span>Digital</span></a>
   <div class="topbar-nav">
     <a class="topbar-link" href="/">Início</a>
-    <a class="topbar-link" href="/">Visão Geral</a>
     <a class="topbar-link" href="/faturamento">Faturamento</a>
     <a class="topbar-link active" href="/tarefas">Tarefas</a>
   </div>
 </div>
 
 <div class="main">
-  <div class="content">
-    <div class="inner">
+  <div class="inner">
 
-      <div class="page-header">
+    <div class="page-header">
+      <div class="page-header-left">
         <h2>📋 Tarefas</h2>
         <p>Organize o que precisa fazer hoje, amanhã e essa semana</p>
       </div>
+      <button class="btn-reset-week" onclick="openConfirmReset()">🔄 Resetar semana</button>
+    </div>
 
-      <!-- INPUT RÁPIDO -->
-      <div class="quick-add">
-        <input class="quick-input" id="task-input" placeholder="Nova tarefa..." onkeydown="handleKey(event)">
-        <select class="prazo-select" id="task-prazo">
-          <option value="hoje">📅 Hoje</option>
-          <option value="amanha">📆 Amanhã</option>
-          <option value="semana">🗓 Essa semana</option>
-        </select>
-        <button class="btn-add" onclick="addTarefa()">+ Adicionar</button>
+    <!-- INPUT RÁPIDO -->
+    <div class="quick-add">
+      <input class="quick-input" id="task-input" placeholder="Nova tarefa..." onkeydown="handleKey(event)">
+      <select class="prazo-select" id="task-prazo">
+        <option value="hoje">📅 Hoje</option>
+        <option value="amanha">📆 Amanhã</option>
+        <option value="semana">🗓 Essa semana</option>
+      </select>
+      <button class="btn-add" onclick="addTarefa()">+ Adicionar</button>
+    </div>
+
+    <!-- QUADROS -->
+    <div class="boards">
+      <div class="board hoje">
+        <div class="board-header">
+          <div class="board-dot"></div>
+          <span class="board-title">Hoje</span>
+          <span class="board-count" id="count-hoje">0</span>
+        </div>
+        <div class="board-tasks" id="board-hoje"><div class="loading">Carregando...</div></div>
       </div>
-
-      <!-- QUADROS -->
-      <div class="boards">
-        <div class="board hoje">
-          <div class="board-header">
-            <div class="board-dot"></div>
-            <span class="board-title">Hoje</span>
-            <span class="board-count" id="count-hoje">0</span>
-          </div>
-          <div class="board-tasks" id="board-hoje"><div class="loading">Carregando...</div></div>
+      <div class="board amanha">
+        <div class="board-header">
+          <div class="board-dot"></div>
+          <span class="board-title">Amanhã</span>
+          <span class="board-count" id="count-amanha">0</span>
         </div>
-        <div class="board amanha">
-          <div class="board-header">
-            <div class="board-dot"></div>
-            <span class="board-title">Amanhã</span>
-            <span class="board-count" id="count-amanha">0</span>
-          </div>
-          <div class="board-tasks" id="board-amanha"><div class="loading">Carregando...</div></div>
-        </div>
-        <div class="board semana">
-          <div class="board-header">
-            <div class="board-dot"></div>
-            <span class="board-title">Essa semana</span>
-            <span class="board-count" id="count-semana">0</span>
-          </div>
-          <div class="board-tasks" id="board-semana"><div class="loading">Carregando...</div></div>
-        </div>
+        <div class="board-tasks" id="board-amanha"><div class="loading">Carregando...</div></div>
       </div>
+      <div class="board semana">
+        <div class="board-header">
+          <div class="board-dot"></div>
+          <span class="board-title">Essa semana</span>
+          <span class="board-count" id="count-semana">0</span>
+        </div>
+        <div class="board-tasks" id="board-semana"><div class="loading">Carregando...</div></div>
+      </div>
+    </div>
 
+    <!-- HISTÓRICO -->
+    <div class="hist-section">
+      <div class="hist-header">
+        <h3>✅ Tarefas concluídas</h3>
+        <div class="hist-tabs">
+          <button class="hist-tab active" onclick="setHistTab('atual',this)">Esta semana</button>
+          <button class="hist-tab" onclick="setHistTab('passada',this)">Semana passada</button>
+        </div>
+        <input class="hist-search" id="hist-search" placeholder="Buscar..." oninput="filterHist()">
+      </div>
+      <div class="hist-list" id="hist-list"><div class="loading">Carregando...</div></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODAL RESET -->
+<div class="modal-overlay" id="modal-reset" style="display:none">
+  <div class="modal">
+    <h3>🔄 Resetar semana</h3>
+    <p>Todas as tarefas pendentes serão marcadas como concluídas e irão para o histórico. Confirma?</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeConfirmReset()">Cancelar</button>
+      <button class="btn btn-danger" onclick="resetarSemana()">Confirmar</button>
     </div>
   </div>
 </div>
 
 <script>
 let tarefas = [];
+let historico = [];
+let histSemana = 'atual';
 
+const PRAZO_LABEL = { hoje: 'Hoje', amanha: 'Amanhã', semana: 'Semana' };
+
+function fmtData(iso){
+  if(!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+}
+
+// ── TAREFAS ──
 async function loadTarefas(){
   try{
     const r = await fetch('/api/tarefas');
     const j = await r.json();
-    if(j.ok){ tarefas = j.data; render(); }
+    if(j.ok){ tarefas=j.data; renderBoards(); }
   }catch(e){ console.error(e); }
 }
 
-function render(){
-  const grupos = { hoje: [], amanha: [], semana: [] };
-  tarefas.forEach(t => { if(grupos[t.prazo]) grupos[t.prazo].push(t); });
-
+function renderBoards(){
+  const grupos = {hoje:[],amanha:[],semana:[]};
+  tarefas.forEach(t=>{ if(grupos[t.prazo]) grupos[t.prazo].push(t); });
   for(const prazo of ['hoje','amanha','semana']){
     const board = document.getElementById('board-'+prazo);
-    const count = document.getElementById('count-'+prazo);
-    count.textContent = grupos[prazo].length;
-
+    document.getElementById('count-'+prazo).textContent = grupos[prazo].length;
     if(!grupos[prazo].length){
-      board.innerHTML = '<div class="empty-board">Nenhuma tarefa 🎉</div>';
+      board.innerHTML='<div class="empty-board">Nenhuma tarefa 🎉</div>';
       continue;
     }
-
-    board.innerHTML = grupos[prazo].map(t => `
+    board.innerHTML = grupos[prazo].map(t=>`
       <div class="task" id="task-${t.id}" onclick="concluir(${t.id})">
         <div class="task-check"></div>
         <div class="task-text">${t.titulo}</div>
-      </div>
-    `).join('');
+      </div>`).join('');
   }
 }
 
@@ -171,10 +228,12 @@ async function concluir(id){
   const el = document.getElementById('task-'+id);
   if(!el) return;
   el.classList.add('completing');
-  setTimeout(async () => {
+  el.querySelector('.task-check').textContent = '✓';
+  setTimeout(async()=>{
     await fetch('/api/tarefas/'+id, {method:'DELETE'});
     tarefas = tarefas.filter(t=>t.id!==id);
-    render();
+    renderBoards();
+    loadHistorico();
   }, 400);
 }
 
@@ -183,21 +242,67 @@ async function addTarefa(){
   const prazo = document.getElementById('task-prazo').value;
   const titulo = input.value.trim();
   if(!titulo) return;
-  input.value = '';
-  const r = await fetch('/api/tarefas', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({titulo, prazo})
-  });
-  const j = await r.json();
-  if(j.ok) loadTarefas();
+  input.value='';
+  await fetch('/api/tarefas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({titulo,prazo})});
+  loadTarefas();
 }
 
-function handleKey(e){
-  if(e.key==='Enter') addTarefa();
+function handleKey(e){ if(e.key==='Enter') addTarefa(); }
+
+// ── HISTÓRICO ──
+async function loadHistorico(){
+  try{
+    const r = await fetch('/api/tarefas/historico?semana='+histSemana);
+    const j = await r.json();
+    if(j.ok){ historico=j.data; renderHist(); }
+  }catch(e){ console.error(e); }
 }
 
+function setHistTab(semana, el){
+  histSemana=semana;
+  document.querySelectorAll('.hist-tab').forEach(t=>t.classList.remove('active'));
+  el.classList.add('active');
+  loadHistorico();
+}
+
+function filterHist(){
+  renderHist();
+}
+
+function renderHist(){
+  const q = document.getElementById('hist-search').value.toLowerCase();
+  const rows = historico.filter(t=>t.titulo.toLowerCase().includes(q));
+  const list = document.getElementById('hist-list');
+  if(!rows.length){
+    list.innerHTML='<div class="empty-hist">Nenhuma tarefa concluída nesse período.</div>';
+    return;
+  }
+  list.innerHTML = rows.map(t=>`
+    <div class="hist-item">
+      <div class="hist-check">✓</div>
+      <div class="hist-text">${t.titulo}</div>
+      <div class="hist-meta">
+        <span class="hist-date">${fmtData(t.concluida_em)}</span>
+        <span class="hist-prazo ${t.prazo}">${PRAZO_LABEL[t.prazo]||t.prazo}</span>
+      </div>
+    </div>`).join('');
+}
+
+// ── RESET SEMANAL ──
+function openConfirmReset(){ document.getElementById('modal-reset').style.display='flex'; }
+function closeConfirmReset(){ document.getElementById('modal-reset').style.display='none'; }
+
+async function resetarSemana(){
+  await fetch('/api/tarefas/resetar',{method:'POST'});
+  closeConfirmReset();
+  tarefas=[];
+  renderBoards();
+  loadHistorico();
+}
+
+// Init
 loadTarefas();
+loadHistorico();
 </script>
 </body>
 </html>
