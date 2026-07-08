@@ -7,7 +7,7 @@ import hashlib
 
 app = Flask(__name__, static_folder='static')
 CORS(app)
-app.secret_key = 'mobilli_secret_2026_xk9p'
+app.secret_key = 'mobilli_reset_2026_zx7q'
 
 PASSWORD_HASH = hashlib.sha256('Enricomota@2018'.encode()).hexdigest()
 
