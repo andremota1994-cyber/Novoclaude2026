@@ -1,11 +1,29 @@
 import os
 import requests
 import traceback
-from flask import Flask, jsonify, send_from_directory, request
+from flask import Flask, jsonify, send_from_directory, request, session, redirect
 from flask_cors import CORS
+import hashlib
 
 app = Flask(__name__, static_folder='static')
 CORS(app)
+app.secret_key = 'mobilli_secret_2026_xk9p'
+
+PASSWORD_HASH = hashlib.sha256('Enricomota@2018'.encode()).hexdigest()
+
+def check_auth():
+    return session.get('autenticado') == True
+
+@app.before_request
+def require_login():
+    # Rotas publicas
+    public = ['/login', '/api/login', '/logout']
+    if request.path in public or request.path.startswith('/static'):
+        return None
+    if not check_auth():
+        if request.path.startswith('/api/'):
+            return jsonify({'ok': False, 'error': 'Não autorizado'}), 401
+        return redirect('/login')
 
 WINDSOR_API_KEY = os.environ.get('WINDSOR_API_KEY', 'ab2a32d495a3d6c5f46565bd9ea6e0e3b6f9')
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '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')
@@ -322,6 +340,29 @@ def resetar_tarefas():
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/login')
+def login_page():
+    return send_from_directory('static', 'login.html')
+
+@app.route('/api/login', methods=['POST'])
+def api_login():
+    try:
+        body = request.json or {}
+        senha = body.get('senha', '')
+        hash_input = hashlib.sha256(senha.encode()).hexdigest()
+        if hash_input == PASSWORD_HASH:
+            session['autenticado'] = True
+            session.permanent = True
+            return jsonify({'ok': True})
+        return jsonify({'ok': False, 'error': 'Senha incorreta'}), 401
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect('/login')
 
 @app.route('/')
 def index():
