@@ -230,10 +230,24 @@
     <div class="page-scroll">
       <div class="page-inner">
         <div class="g4">
-          <div class="kcard"><div class="lbl">Clientes ativos</div><div class="val">29</div><div class="sub">3 Ouro · 7 Prata · 19 Bronze</div></div>
+          <div class="kcard"><div class="lbl">Clientes ativos</div><div class="val" id="ov-clientes">29</div><div class="sub">3 Ouro · 7 Prata · 19 Bronze</div></div>
           <div class="kcard"><div class="lbl">Investimento total (30d)</div><div class="val" id="ov-spend">—</div><div class="sub">Todas as contas</div></div>
           <div class="kcard"><div class="lbl">Resultados (30d)</div><div class="val" id="ov-results">—</div><div class="sub" id="ov-sub">leads + conversas</div></div>
           <div class="kcard"><div class="lbl">CPL médio (30d)</div><div class="val" id="ov-cpl">—</div><div class="sub">leads + mensagens</div></div>
+        </div>
+        <div class="g3" style="grid-template-columns:repeat(2,1fr);max-width:680px;margin-bottom:1.5rem;">
+          <div class="kcard" style="border-top:2px solid var(--green);">
+            <div class="lbl">🟢 Novos clientes</div>
+            <div class="val" id="mov-novos-n" style="color:var(--green)">—</div>
+            <div class="sub" id="mov-novos-v" style="color:var(--green);margin-top:4px;">+R$ —</div>
+            <div class="sub" id="mov-novos-nomes" style="margin-top:6px;line-height:1.6;">—</div>
+          </div>
+          <div class="kcard" style="border-top:2px solid var(--red);">
+            <div class="lbl">🔴 Clientes perdidos</div>
+            <div class="val" id="mov-perdidos-n" style="color:var(--red)">—</div>
+            <div class="sub" id="mov-perdidos-v" style="color:var(--red);margin-top:4px;">-R$ —</div>
+            <div class="sub" id="mov-perdidos-nomes" style="margin-top:6px;line-height:1.6;">—</div>
+          </div>
         </div>
         <div class="g3">
           <div class="kcard"><div class="lbl">Faturamento mês passado</div><div class="val">R$ 20.550</div><span class="tag tag-p">Junho 2026</span></div>
@@ -507,9 +521,31 @@ async function loadFatAtual(){
   }catch(e){ console.error(e); }
 }
 
+async function loadMovimento(){
+  try{
+    const mes = new Date().toISOString().slice(0,7);
+    const r = await fetch('/api/clientes/movimento?mes='+mes);
+    const j = await r.json();
+    if(!j.ok) return;
+    const fmt = v => v.toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
+    document.getElementById('mov-novos-n').textContent = j.total_novos + (j.total_novos===1?' cliente':' clientes');
+    document.getElementById('mov-novos-v').textContent = '+R$ '+fmt(j.valor_novos)+'/mês';
+    document.getElementById('mov-novos-nomes').textContent = j.novos.length ? j.novos.map(c=>c.nome).join(', ') : 'Nenhum novo cliente';
+    document.getElementById('mov-perdidos-n').textContent = j.total_perdidos + (j.total_perdidos===1?' cliente':' clientes');
+    document.getElementById('mov-perdidos-v').textContent = '-R$ '+fmt(j.valor_perdidos)+'/mês';
+    document.getElementById('mov-perdidos-nomes').textContent = j.perdidos.length ? j.perdidos.map(c=>c.nome).join(', ') : 'Nenhum cliente perdido';
+
+    // Atualiza total de clientes ativos
+    const r2 = await fetch('/api/clientes');
+    const j2 = await r2.json();
+    if(j2.ok) document.getElementById('ov-clientes').textContent = j2.data.length;
+  }catch(e){ console.error(e); }
+}
+
 // ── init ──
 loadAds();
 loadFatAtual();
+loadMovimento();
 
 </script>
 </body>
