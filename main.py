@@ -147,8 +147,49 @@ def add_cliente():
 @app.route('/api/clientes/<int:id>', methods=['DELETE'])
 def delete_cliente(id):
     try:
-        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json={'ativo': False})
+        from datetime import datetime
+        now = datetime.utcnow().isoformat()
+        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json={'ativo': False, 'inativado_em': now})
         return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/clientes/movimento', methods=['GET'])
+def get_movimento():
+    try:
+        from datetime import datetime
+        mes = request.args.get('mes', datetime.utcnow().strftime('%Y-%m'))
+        inicio = mes + '-01T00:00:00'
+        # Novo mes seguinte para limite
+        ano, m = int(mes[:4]), int(mes[5:])
+        if m == 12:
+            fim = str(ano+1) + '-01-01T00:00:00'
+        else:
+            fim = str(ano) + '-' + str(m+1).zfill(2) + '-01T00:00:00'
+
+        # Novos clientes no mês
+        r_novos = requests.get(
+            SUPABASE_URL + '/rest/v1/clientes?created_at=gte.' + inicio + '&created_at=lt.' + fim,
+            headers=supa_headers()
+        )
+        novos = r_novos.json()
+
+        # Clientes perdidos no mês
+        r_perdidos = requests.get(
+            SUPABASE_URL + '/rest/v1/clientes?inativado_em=gte.' + inicio + '&inativado_em=lt.' + fim,
+            headers=supa_headers()
+        )
+        perdidos = r_perdidos.json()
+
+        return jsonify({
+            'ok': True,
+            'novos': novos,
+            'perdidos': perdidos,
+            'total_novos': len(novos),
+            'total_perdidos': len(perdidos),
+            'valor_novos': sum(float(c.get('valor',0)) for c in novos),
+            'valor_perdidos': sum(float(c.get('valor',0)) for c in perdidos),
+        })
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
