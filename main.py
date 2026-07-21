@@ -7,7 +7,7 @@ import hashlib
 
 app = Flask(__name__, static_folder='static')
 CORS(app)
-app.secret_key = 'mobilli_reset_2026_zx7q'
+app.secret_key = 'mobilli_secret_2026_xk9p'
 
 PASSWORD_HASH = hashlib.sha256('Enricomota@2018'.encode()).hexdigest()
 
@@ -159,6 +159,19 @@ def add_cliente():
         body = request.json
         r = requests.post(SUPABASE_URL + '/rest/v1/clientes', headers=supa_headers(), json=body)
         return jsonify({'ok': True, 'data': r.json()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/clientes/<int:id>/dia', methods=['PATCH'])
+def update_dia_pagamento(id):
+    try:
+        body = request.json
+        requests.patch(
+            SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id),
+            headers=supa_headers(),
+            json={'dia_pagamento': body.get('dia_pagamento')}
+        )
+        return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
