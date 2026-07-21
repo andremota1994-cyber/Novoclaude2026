@@ -257,6 +257,36 @@ function setTab(tab, el){
   if(tab==='historico') loadHistorico();
 }
 
+function getDiaColor(dia, pago){
+  if(!dia) return '';
+  if(pago) return 'var(--green)';        // verde = já pagou
+  const hoje = new Date().getDate();
+  const diff = dia - hoje;
+  if(diff < 0) return 'var(--red)';      // vermelho = vencido
+  if(diff <= 3) return 'var(--amber)';   // amarelo = próximo
+  return '';                              // sem cor = mais de 3 dias
+}
+
+function getDiaBg(dia, pago){
+  if(!dia) return '';
+  if(pago) return 'rgba(16,185,129,0.1)';
+  const hoje = new Date().getDate();
+  const diff = dia - hoje;
+  if(diff < 0) return 'rgba(239,68,68,0.1)';
+  if(diff <= 3) return 'rgba(245,158,11,0.1)';
+  return '';
+}
+
+function getDiaLabel(dia, pago){
+  if(!dia) return '';
+  if(pago) return ' ✓';
+  const hoje = new Date().getDate();
+  const diff = dia - hoje;
+  if(diff < 0) return ' ⚠️';
+  if(diff <= 3) return ' 🔔';
+  return '';
+}
+
 function nivelBadge(nivel){
   if(nivel==='ouro') return '<span class="nivel-badge nivel-ouro">🥇 Ouro</span>';
   if(nivel==='prata') return '<span class="nivel-badge nivel-prata">🥈 Prata</span>';
@@ -292,7 +322,16 @@ function renderTable(){
     <tr>
       <td>${c.nome}${nivelBadge(c.nivel)}</td>
       <td></td>
-      <td><input type="number" class="dia-input" min="1" max="31" placeholder="—" value="${c.dia_pagamento||''}" onchange="updateDia(${c.id},this.value)" title="Dia de pagamento"></td>
+      <td style="position:relative">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number" class="dia-input" min="1" max="31" placeholder="—" 
+            value="${c.dia_pagamento||''}" 
+            onchange="updateDia(${c.id},this.value,this)"
+            title="Dia de pagamento"
+            style="border-color:${getDiaColor(c.dia_pagamento,c.pago)};background:${getDiaBg(c.dia_pagamento,c.pago)}">
+          <span style="font-size:11px">${getDiaLabel(c.dia_pagamento,c.pago)}</span>
+        </div>
+      </td>
       <td class="valor-cell">R$ ${fmt(Number(c.valor))}</td>
       <td><div class="toggle-wrap">
         <button class="toggle ${c.pago?'on':''}" onclick="togglePago(${c.id},${c.pago})"></button>
@@ -307,7 +346,16 @@ function renderTable(){
       <tr class="row-atrasado">
         <td>${c.nome}${nivelBadge(c.nivel)}<span class="atrasado-badge">Atrasado</span></td>
         <td></td>
-        <td><input type="number" class="dia-input" min="1" max="31" placeholder="—" value="${c.dia_pagamento||''}" onchange="updateDia(${c.id},this.value)" title="Dia de pagamento"></td>
+        <td style="position:relative">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <input type="number" class="dia-input" min="1" max="31" placeholder="—" 
+            value="${c.dia_pagamento||''}" 
+            onchange="updateDia(${c.id},this.value,this)"
+            title="Dia de pagamento"
+            style="border-color:${getDiaColor(c.dia_pagamento,c.pago)};background:${getDiaBg(c.dia_pagamento,c.pago)}">
+          <span style="font-size:11px">${getDiaLabel(c.dia_pagamento,c.pago)}</span>
+        </div>
+      </td>
         <td style="color:var(--red);font-weight:500">R$ ${fmt(Number(c.valor))}</td>
         <td><div class="toggle-wrap">
           <button class="toggle red ${c.pago?'on':''}" onclick="togglePago(${c.id},${c.pago})"></button>
@@ -372,7 +420,7 @@ async function resetMes(){
   loadClientes();
 }
 
-async function updateDia(id, valor){
+async function updateDia(id, valor, el){
   const dia = parseInt(valor);
   if(isNaN(dia)||dia<1||dia>31) return;
   await fetch('/api/clientes/'+id+'/dia', {
@@ -380,8 +428,16 @@ async function updateDia(id, valor){
     headers:{'Content-Type':'application/json'},
     body:JSON.stringify({dia_pagamento:dia})
   });
-  // Atualiza local
   clientes = clientes.map(c=>c.id===id?{...c,dia_pagamento:dia}:c);
+  // Feedback visual
+  if(el){
+    el.style.borderColor='var(--green)';
+    el.style.color='var(--green)';
+    setTimeout(()=>{
+      el.style.borderColor='';
+      el.style.color='var(--blue-bright)';
+    }, 1000);
+  }
 }
 
 function filterPendentes(){ filterMode='pendentes'; renderTable(); }
