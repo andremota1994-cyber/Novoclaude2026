@@ -102,6 +102,12 @@ tr.row-atrasado td:first-child { color: var(--red); }
 .toggle-label.on { color: var(--green); font-weight: 500; }
 .toggle-label.off { color: var(--text-muted); }
 .toggle-label.late { color: var(--red); }
+.dia-input {
+  width: 52px; height: 28px; background: var(--card); border: 0.5px solid var(--border);
+  border-radius: 6px; color: var(--blue-bright); font-size: 13px; text-align: center;
+  outline: none; font-family: inherit; padding: 0 4px;
+}
+.dia-input:focus { border-color: var(--blue); }
 .btn-remove { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 4px; border-radius: 4px; }
 .btn-remove:hover { color: var(--red); }
 
@@ -182,7 +188,7 @@ tr.row-atrasado td:first-child { color: var(--red); }
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th style="width:38%">Cliente</th><th style="width:12%">Nível</th><th style="width:15%">Valor/mês</th><th style="width:22%">Status</th><th style="width:13%">Ação</th></tr></thead>
+        <thead><tr><th style="width:33%">Cliente</th><th style="width:10%">Nível</th><th style="width:10%">Dia</th><th style="width:14%">Valor/mês</th><th style="width:20%">Status</th><th style="width:13%">Ação</th></tr></thead>
         <tbody id="tbody"><tr><td colspan="5" class="loading">Carregando...</td></tr></tbody>
       </table>
     </div>
@@ -286,6 +292,7 @@ function renderTable(){
     <tr>
       <td>${c.nome}${nivelBadge(c.nivel)}</td>
       <td></td>
+      <td><input type="number" class="dia-input" min="1" max="31" placeholder="—" value="${c.dia_pagamento||''}" onchange="updateDia(${c.id},this.value)" title="Dia de pagamento"></td>
       <td class="valor-cell">R$ ${fmt(Number(c.valor))}</td>
       <td><div class="toggle-wrap">
         <button class="toggle ${c.pago?'on':''}" onclick="togglePago(${c.id},${c.pago})"></button>
@@ -295,11 +302,12 @@ function renderTable(){
     </tr>`).join('');
 
   if(atrasados.length&&filterMode!=='pendentes'){
-    html += `<tr><td colspan="5" style="padding:0"><div class="section-separator"><div class="sep-line"></div><div class="sep-label">⚠️ Atrasados do mês anterior</div><div class="sep-line"></div></div></td></tr>`;
+    html += `<tr><td colspan="6" style="padding:0"><div class="section-separator"><div class="sep-line"></div><div class="sep-label">⚠️ Atrasados do mês anterior</div><div class="sep-line"></div></div></td></tr>`;
     html += atrasados.map(c=>`
       <tr class="row-atrasado">
         <td>${c.nome}${nivelBadge(c.nivel)}<span class="atrasado-badge">Atrasado</span></td>
         <td></td>
+        <td><input type="number" class="dia-input" min="1" max="31" placeholder="—" value="${c.dia_pagamento||''}" onchange="updateDia(${c.id},this.value)" title="Dia de pagamento"></td>
         <td style="color:var(--red);font-weight:500">R$ ${fmt(Number(c.valor))}</td>
         <td><div class="toggle-wrap">
           <button class="toggle red ${c.pago?'on':''}" onclick="togglePago(${c.id},${c.pago})"></button>
@@ -362,6 +370,18 @@ async function resetMes(){
   }
   closeConfirmReset();
   loadClientes();
+}
+
+async function updateDia(id, valor){
+  const dia = parseInt(valor);
+  if(isNaN(dia)||dia<1||dia>31) return;
+  await fetch('/api/clientes/'+id+'/dia', {
+    method:'PATCH',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({dia_pagamento:dia})
+  });
+  // Atualiza local
+  clientes = clientes.map(c=>c.id===id?{...c,dia_pagamento:dia}:c);
 }
 
 function filterPendentes(){ filterMode='pendentes'; renderTable(); }
