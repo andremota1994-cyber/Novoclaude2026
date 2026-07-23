@@ -354,6 +354,14 @@ def resetar_tarefas():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+@app.route('/api/debug/supabase')
+def debug_supabase():
+    try:
+        r = requests.get(SUPABASE_URL + '/rest/v1/clientes?limit=3', headers=supa_headers())
+        return jsonify({'ok': True, 'status': r.status_code, 'data': r.json(), 'url': SUPABASE_URL, 'key_prefix': SUPABASE_KEY[:20]})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
 @app.route('/login')
 def login_page():
     return send_from_directory('static', 'login.html')
