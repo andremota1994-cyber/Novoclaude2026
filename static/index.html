@@ -252,7 +252,7 @@
         <div class="g3">
           <div class="kcard"><div class="lbl">Faturamento mês passado</div><div class="val" id="fat-passado">—</div><div class="sub" id="fat-passado-sub">carregando...</div><span class="tag tag-p" id="fat-passado-tag"></span></div>
           <div class="kcard"><div class="lbl">Faturamento mês atual</div><div class="val" id="fat-atual">—</div><div class="sub" id="fat-atual-sub">carregando...</div><span class="tag tag-a" id="fat-atual-tag"></span></div>
-          <div class="kcard"><div class="lbl">Previsão próximo mês</div><div class="val">R$ 22.367</div><span class="tag tag-n" id="fat-prox-tag"></span></div>
+          <div class="kcard"><div class="lbl">Previsão próximo mês</div><div class="val" id="fat-prox">—</div><div class="sub" id="fat-prox-sub">todos os clientes</div><span class="tag tag-n" id="fat-prox-tag"></span></div>
         </div>
         <div class="sec-title" style="margin-bottom:.75rem">🏆 Clientes por nível</div>
         <div class="g3">
@@ -549,6 +549,15 @@ async function loadFatAtual(){
       const total2 = pagos2.reduce((s,c)=>s+Number(c.valor),0);
       document.getElementById('fat-passado').textContent = total2>0 ? 'R$ '+fmtI(total2) : '—';
       document.getElementById('fat-passado-sub').textContent = pagos2.length+' cliente(s) pagos';
+    }
+
+    // Previsão = soma de todos os clientes ativos
+    const r3 = await fetch('/api/clientes');
+    const j3 = await r3.json();
+    if(j3.ok){
+      const totalPrevisao = j3.data.reduce((s,c)=>s+Number(c.valor),0);
+      document.getElementById('fat-prox').textContent = 'R$ '+fmtI(totalPrevisao);
+      document.getElementById('fat-prox-sub').textContent = j3.data.length+' clientes ativos';
     }
   }catch(e){ console.error(e); }
 }
