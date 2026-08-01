@@ -209,9 +209,9 @@ tr.row-atrasado td:first-child { color: var(--red); }
     <div class="form-group"><label>Valor mensal (R$)</label><input id="f-valor" type="number" placeholder="500"/></div>
     <div class="form-group"><label>Nível</label>
       <select id="f-nivel">
-        <option value="bronze">🥉 Bronze (até R$700)</option>
-        <option value="prata">🥈 Prata (R$700–R$1.500)</option>
-        <option value="ouro">🥇 Ouro (acima de R$1.500)</option>
+        <option value="bronze">🥉 Bronze (abaixo de R$999)</option>
+        <option value="prata">🥈 Prata (acima de R$999)</option>
+        <option value="ouro">🥇 Ouro (acima de R$1.499)</option>
       </select>
     </div>
     <div class="modal-actions">
@@ -426,10 +426,17 @@ async function removeCliente(id){
 function openModal(){ document.getElementById('modal').style.display='flex'; document.getElementById('f-nome').focus(); }
 function closeModal(){ document.getElementById('modal').style.display='none'; document.getElementById('f-nome').value=''; document.getElementById('f-valor').value=''; }
 
+function getNivelByValor(valor){
+  if(valor > 1499) return 'ouro';
+  if(valor > 999) return 'prata';
+  return 'bronze';
+}
+
 async function addCliente(){
   const nome = document.getElementById('f-nome').value.trim().toUpperCase();
   const valor = parseFloat(document.getElementById('f-valor').value);
-  const nivel = document.getElementById('f-nivel').value;
+  // Auto-classifica pelo valor
+  const nivel = getNivelByValor(valor);
   if(!nome||!valor||valor<=0){ alert('Preencha nome e valor.'); return; }
   const r = await fetch('/api/clientes', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nome,valor,nivel})});
   const j = await r.json();
