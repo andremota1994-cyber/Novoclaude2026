@@ -250,9 +250,9 @@
           </div>
         </div>
         <div class="g3">
-          <div class="kcard"><div class="lbl">Faturamento mês passado</div><div class="val">R$ 20.550</div><span class="tag tag-p">Junho 2026</span></div>
-          <div class="kcard"><div class="lbl">Faturamento mês atual</div><div class="val" id="fat-atual">—</div><div class="sub" id="fat-atual-sub">carregando...</div><span class="tag tag-a">Julho 2026</span></div>
-          <div class="kcard"><div class="lbl">Previsão próximo mês</div><div class="val">R$ 22.367</div><span class="tag tag-n">Estimativa Agosto</span></div>
+          <div class="kcard"><div class="lbl">Faturamento mês passado</div><div class="val" id="fat-passado">—</div><div class="sub" id="fat-passado-sub">carregando...</div><span class="tag tag-p" id="fat-passado-tag"></span></div>
+          <div class="kcard"><div class="lbl">Faturamento mês atual</div><div class="val" id="fat-atual">—</div><div class="sub" id="fat-atual-sub">carregando...</div><span class="tag tag-a" id="fat-atual-tag"></span></div>
+          <div class="kcard"><div class="lbl">Previsão próximo mês</div><div class="val">R$ 22.367</div><span class="tag tag-n" id="fat-prox-tag"></span></div>
         </div>
         <div class="sec-title" style="margin-bottom:.75rem">🏆 Clientes por nível</div>
         <div class="g3">
@@ -510,14 +510,46 @@ function resetChat(){
 
 async function loadFatAtual(){
   try{
-    const r = await fetch('/api/pagamentos/2026-07');
+    const hoje = new Date();
+    const MESES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    
+    // Mês atual
+    const mesAtual = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0');
+    const nomeAtual = MESES_NOMES[hoje.getMonth()] + ' ' + hoje.getFullYear();
+    
+    // Mês passado
+    const d = new Date(hoje); d.setMonth(d.getMonth()-1);
+    const mesPassado = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+    const nomePassado = MESES_NOMES[d.getMonth()] + ' ' + d.getFullYear();
+    
+    // Próximo mês
+    const d2 = new Date(hoje); d2.setMonth(d2.getMonth()+1);
+    const nomeProximo = 'Estimativa ' + MESES_NOMES[d2.getMonth()];
+
+    // Atualiza tags
+    document.getElementById('fat-passado-tag').textContent = nomePassado;
+    document.getElementById('fat-atual-tag').textContent = nomeAtual;
+    document.getElementById('fat-prox-tag').textContent = nomeProximo;
+
+    // Busca mês atual
+    const r = await fetch('/api/pagamentos/'+mesAtual);
     const j = await r.json();
-    if(!j.ok) return;
-    const pagos = j.data.filter(c=>c.pago&&!c.atrasado);
-    const total = pagos.reduce((s,c)=>s+Number(c.valor),0);
-    const n = pagos.length;
-    document.getElementById('fat-atual').textContent = total>0 ? 'R$ '+fmtI(total) : 'Em andamento';
-    document.getElementById('fat-atual-sub').textContent = n+' cliente(s) pagos';
+    if(j.ok){
+      const pagos = j.data.filter(c=>c.pago&&!c.atrasado);
+      const total = pagos.reduce((s,c)=>s+Number(c.valor),0);
+      document.getElementById('fat-atual').textContent = total>0 ? 'R$ '+fmtI(total) : 'Em andamento';
+      document.getElementById('fat-atual-sub').textContent = pagos.length+' cliente(s) pagos';
+    }
+
+    // Busca mês passado
+    const r2 = await fetch('/api/pagamentos/'+mesPassado);
+    const j2 = await r2.json();
+    if(j2.ok){
+      const pagos2 = j2.data.filter(c=>c.pago);
+      const total2 = pagos2.reduce((s,c)=>s+Number(c.valor),0);
+      document.getElementById('fat-passado').textContent = total2>0 ? 'R$ '+fmtI(total2) : '—';
+      document.getElementById('fat-passado-sub').textContent = pagos2.length+' cliente(s) pagos';
+    }
   }catch(e){ console.error(e); }
 }
 
