@@ -173,7 +173,7 @@ tr.row-atrasado td:first-child { color: var(--red); }
     </div>
 
     <div class="mes-header">
-      <span class="mes-badge" id="mes-badge">📅 <span id="mes-nome-label"></span> &nbsp;·&nbsp; <span id="data-atual"></span></span>
+      <span class="mes-badge" id="mes-badge">📅 <span id="mes-nome-label">Carregando...</span> &nbsp;·&nbsp; <span id="data-atual"></span></span>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost" onclick="filterPendentes()">⚠️ Só pendentes</button>
         <button class="btn btn-ghost" onclick="filterAll()">Todos</button>
@@ -238,7 +238,19 @@ tr.row-atrasado td:first-child { color: var(--red); }
 const hoje = new Date();
 const MES_ATUAL = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0');
 const MESES_LABELS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DIAS_SEMANA = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
 const MES_NOME = MESES_LABELS[hoje.getMonth()] + ' ' + hoje.getFullYear();
+const DATA_HOJE = DIAS_SEMANA[hoje.getDay()] + ', ' + String(hoje.getDate()).padStart(2,'0') + ' de ' + MESES_LABELS[hoje.getMonth()].toLowerCase() + ' de ' + hoje.getFullYear();
+
+// Atualiza imediatamente
+document.addEventListener('DOMContentLoaded', function(){
+  const el = document.getElementById('mes-nome-label');
+  const el2 = document.getElementById('data-atual');
+  const el3 = document.getElementById('mes-titulo-label');
+  if(el) el.textContent = MES_NOME;
+  if(el2) el2.textContent = DATA_HOJE;
+  if(el3) el3.textContent = MES_NOME;
+});
 const HISTORICO_MESES = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06'];
 const MESES_NOMES = {
   '2026-01':'Janeiro 2026','2026-02':'Fevereiro 2026','2026-03':'Março 2026',
