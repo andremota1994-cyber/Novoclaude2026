@@ -173,7 +173,7 @@ tr.row-atrasado td:first-child { color: var(--red); }
     </div>
 
     <div class="mes-header">
-      <span class="mes-badge" id="mes-badge">📅 Julho 2026</span>
+      <span class="mes-badge" id="mes-badge">📅 <span id="mes-nome-label"></span></span>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost" onclick="filterPendentes()">⚠️ Só pendentes</button>
         <button class="btn btn-ghost" onclick="filterAll()">Todos</button>
@@ -234,7 +234,11 @@ tr.row-atrasado td:first-child { color: var(--red); }
 </div>
 
 <script>
-const MES_ATUAL = '2026-07';
+// Mês atual dinâmico
+const hoje = new Date();
+const MES_ATUAL = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0');
+const MESES_LABELS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const MES_NOME = MESES_LABELS[hoje.getMonth()] + ' ' + hoje.getFullYear();
 const HISTORICO_MESES = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06'];
 const MESES_NOMES = {
   '2026-01':'Janeiro 2026','2026-02':'Fevereiro 2026','2026-03':'Março 2026',
@@ -477,13 +481,25 @@ async function loadHistorico(){
 }
 
 // GRÁFICO
-function renderChart(){
+async function renderChart(){
   const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul'];
   const valores = [16000,10500,19250,16550,31300,20550,0];
-  const recJul = clientes.filter(c=>c.pago&&!c.atrasado).reduce((s,c)=>s+Number(c.valor),0);
-  valores[6] = recJul;
+  
+  // Busca valor recebido em Julho do Supabase
+  try {
+    const r = await fetch('/api/pagamentos/2026-07');
+    const j = await r.json();
+    if(j.ok){
+      const recJul = j.data.filter(c=>c.pago&&!c.atrasado).reduce((s,c)=>s+Number(c.valor),0);
+      valores[6] = recJul;
+    }
+  } catch(e){ 
+    const recJul = clientes.filter(c=>c.pago&&!c.atrasado).reduce((s,c)=>s+Number(c.valor),0);
+    valores[6] = recJul;
+  }
+  
   const max = Math.max(...valores,1);
-  document.getElementById('chart-sub').textContent = 'Jan → Jul 2026';
+  document.getElementById('chart-sub').textContent = 'Jan → ' + MESES_LABELS[hoje.getMonth()].substring(0,3) + ' ' + hoje.getFullYear();
   document.getElementById('chart').innerHTML = valores.map((v,i)=>`
     <div class="bar-group">
       <div class="bar-value">${v?'R$'+Math.round(v/1000)+'k':''}</div>
