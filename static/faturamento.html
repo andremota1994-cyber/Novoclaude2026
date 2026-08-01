@@ -328,8 +328,12 @@ function updateKPIs(){
 
 function renderTable(){
   const q = document.getElementById('search').value.toLowerCase();
-  const normais = clientes.filter(c=>!c.atrasado&&c.nome.toLowerCase().includes(q));
+  // Todos os clientes ativos aparecem na lista principal (incluindo atrasados do mês anterior)
+  const todos = clientes.filter(c=>c.nome.toLowerCase().includes(q));
+  // Atrasados = quem estava atrasado do mês anterior E ainda não pagou o mês atual
   const atrasados = clientes.filter(c=>c.atrasado&&c.nome.toLowerCase().includes(q));
+  // Normais = todos os clientes para o mês atual
+  const normais = todos.filter(c=>c.nome.toLowerCase().includes(q));
   let rows = filterMode==='pendentes' ? normais.filter(c=>!c.pago) : normais;
   rows.sort((a,b)=>b.valor-a.valor);
   atrasados.sort((a,b)=>b.valor-a.valor);
@@ -390,6 +394,19 @@ async function loadClientes(){
     const j = await r.json();
     if(j.ok){ clientes=j.data; updateKPIs(); renderTable(); renderChart(); }
   }catch(e){ console.error(e); }
+}
+
+async function togglePagoAtrasado(id, pago){
+  const novo = !pago;
+  // Atualiza o pagamento do mês anterior
+  const d = new Date(); d.setMonth(d.getMonth()-1);
+  const mesAnt = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+  clientes = clientes.map(c=>c.id===id?{...c,pago:novo}:c);
+  updateKPIs(); renderTable();
+  await fetch('/api/pagamentos/'+mesAnt+'/'+id, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({pago:novo, atrasado:!novo})
+  });
 }
 
 async function togglePago(id, pago){
