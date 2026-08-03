@@ -255,53 +255,10 @@
           <div class="kcard"><div class="lbl">Previsão próximo mês</div><div class="val" id="fat-prox">—</div><div class="sub" id="fat-prox-sub">todos os clientes</div><span class="tag tag-n" id="fat-prox-tag"></span></div>
         </div>
         <div class="sec-title" style="margin-bottom:.75rem">🏆 Clientes por nível</div>
-        <div class="g3">
-          <div class="ncard ouro">
-            <div class="nh"><span style="font-size:18px">🥇</span><div><h3>Ouro</h3><p>Acima de R$1.499/mês</p></div></div>
-            <div class="ns"><div><div class="n">3</div><div class="l">clientes</div></div><div><div class="n">R$ 7.000</div><div class="l">/mês</div></div></div>
-            <div class="nc">
-              <div class="nc-row"><span class="nm">BAHAMONDES</span><span class="vl">R$ 2.500 ×2</span></div>
-              <div class="nc-row"><span class="nm">SHEIK</span><span class="vl">R$ 2.000</span></div>
-            </div>
-          </div>
-          <div class="ncard prata">
-            <div class="nh"><span style="font-size:18px">🥈</span><div><h3>Prata</h3><p>Acima de R$999/mês</p></div></div>
-            <div class="ns"><div><div class="n">7</div><div class="l">clientes</div></div><div><div class="n">R$ 8.500</div><div class="l">/mês</div></div></div>
-            <div class="nc">
-              <div class="nc-row"><span class="nm">OTAVIO APEPROPRIO</span><span class="vl">R$ 1.500</span></div>
-              <div class="nc-row"><span class="nm">GUTO</span><span class="vl">R$ 1.500</span></div>
-              <div class="nc-row"><span class="nm">LUCCO</span><span class="vl">R$ 1.500</span></div>
-              <div class="nc-row"><span class="nm">LBM</span><span class="vl">R$ 1.000</span></div>
-              <div class="nc-row"><span class="nm">JIMY</span><span class="vl">R$ 1.000</span></div>
-              <div class="nc-row"><span class="nm">ROJO</span><span class="vl">R$ 1.000</span></div>
-              <div class="nc-row"><span class="nm">B&G (ROCHA)</span><span class="vl">R$ 1.000</span></div>
-            </div>
-          </div>
-          <div class="ncard bronze">
-            <div class="nh"><span style="font-size:18px">🥉</span><div><h3>Bronze</h3><p>Abaixo de R$999/mês</p></div></div>
-            <div class="ns"><div><div class="n">19</div><div class="l">clientes</div></div><div><div class="n">R$ 8.900</div><div class="l">/mês</div></div></div>
-            <div class="nc">
-              <div class="nc-row"><span class="nm">JOSIAS</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">JEGE</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">ALARICK</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">SARÇA</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">WENDY</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">DISLEIDE</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">CANUT</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">DICK LOURENÇO</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">CHAPOLIM</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">CLARICE</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">LUCAS PADRE</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">DISNEY</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">INFINITY</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">DOUGLAS</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">IMOB ADRIANO</span><span class="vl">R$ 500</span></div>
-              <div class="nc-row"><span class="nm">OXFORD</span><span class="vl">R$ 350</span></div>
-              <div class="nc-row"><span class="nm">EGITO</span><span class="vl">R$ 350</span></div>
-              <div class="nc-row"><span class="nm">EDGARD</span><span class="vl">R$ 350</span></div>
-              <div class="nc-row"><span class="nm">FUNARI</span><span class="vl">R$ 350</span></div>
-            </div>
-          </div>
+        <div class="g3" id="niveis-grid">
+          <div class="ncard ouro"><div class="nh"><span style="font-size:18px">🥇</span><div><h3>Ouro</h3><p>R$1.500/mês ou acima</p></div></div><div class="ns"><div><div class="n" id="ouro-n">—</div><div class="l">clientes</div></div><div><div class="n" id="ouro-val">—</div><div class="l">/mês</div></div></div><div class="nc" id="ouro-list"></div></div>
+          <div class="ncard prata"><div class="nh"><span style="font-size:18px">🥈</span><div><h3>Prata</h3><p>R$1.000 a R$1.499/mês</p></div></div><div class="ns"><div><div class="n" id="prata-n">—</div><div class="l">clientes</div></div><div><div class="n" id="prata-val">—</div><div class="l">/mês</div></div></div><div class="nc" id="prata-list"></div></div>
+          <div class="ncard bronze"><div class="nh"><span style="font-size:18px">🥉</span><div><h3>Bronze</h3><p>Abaixo de R$1.000/mês</p></div></div><div class="ns"><div><div class="n" id="bronze-n">—</div><div class="l">clientes</div></div><div><div class="n" id="bronze-val">—</div><div class="l">/mês</div></div></div><div class="nc" id="bronze-list"></div></div>
         </div>
         <div class="sec-title">🚨 CPL acima de R$15 <span class="badge-red" id="alert-count">—</span></div>
         <div id="alert-container"><div style="color:var(--text-muted);font-size:14px">Carregando...</div></div>
@@ -562,6 +519,26 @@ async function loadFatAtual(){
   }catch(e){ console.error(e); }
 }
 
+async function loadNiveis(){
+  try{
+    const r = await fetch('/api/clientes');
+    const j = await r.json();
+    if(!j.ok) return;
+    const fmtV = v => 'R$ '+Math.round(v).toLocaleString('pt-BR');
+    const grupos = {ouro:[], prata:[], bronze:[]};
+    j.data.forEach(c => { if(grupos[c.nivel]) grupos[c.nivel].push(c); });
+    for(const nivel of ['ouro','prata','bronze']){
+      const lista = grupos[nivel].sort((a,b)=>b.valor-a.valor);
+      const total = lista.reduce((s,c)=>s+Number(c.valor),0);
+      document.getElementById(nivel+'-n').textContent = lista.length;
+      document.getElementById(nivel+'-val').textContent = fmtV(total);
+      document.getElementById(nivel+'-list').innerHTML = lista.map(c=>
+        '<div class="nc-row"><span class="nm">'+c.nome+'</span><span class="vl">'+fmtV(Number(c.valor))+'</span></div>'
+      ).join('');
+    }
+  }catch(e){ console.error(e); }
+}
+
 async function loadMovimento(){
   try{
     const mes = new Date().toISOString().slice(0,7);
@@ -587,6 +564,7 @@ async function loadMovimento(){
 loadAds();
 loadFatAtual();
 loadMovimento();
+loadNiveis();
 
 </script>
 </body>
