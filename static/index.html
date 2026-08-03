@@ -230,7 +230,7 @@
     <div class="page-scroll">
       <div class="page-inner">
         <div class="g4">
-          <div class="kcard"><div class="lbl">Clientes ativos</div><div class="val" id="ov-clientes">29</div><div class="sub">3 Ouro · 7 Prata · 19 Bronze</div></div>
+          <div class="kcard"><div class="lbl">Clientes ativos</div><div class="val" id="ov-clientes">—</div><div class="sub" id="ov-clientes-sub">carregando...</div></div>
           <div class="kcard"><div class="lbl">Investimento total (30d)</div><div class="val" id="ov-spend">—</div><div class="sub">Todas as contas</div></div>
           <div class="kcard"><div class="lbl">Resultados (30d)</div><div class="val" id="ov-results">—</div><div class="sub" id="ov-sub">leads + conversas</div></div>
           <div class="kcard"><div class="lbl">CPL médio (30d)</div><div class="val" id="ov-cpl">—</div><div class="sub">leads + mensagens</div></div>
@@ -536,6 +536,13 @@ async function loadNiveis(){
         '<div class="nc-row"><span class="nm">'+c.nome+'</span><span class="vl">'+fmtV(Number(c.valor))+'</span></div>'
       ).join('');
     }
+    // Atualiza card de clientes ativos
+    const total = j.data.length;
+    const nOuro = grupos.ouro.length;
+    const nPrata = grupos.prata.length;
+    const nBronze = grupos.bronze.length;
+    document.getElementById('ov-clientes').textContent = total;
+    document.getElementById('ov-clientes-sub').textContent = nOuro+' Ouro · '+nPrata+' Prata · '+nBronze+' Bronze';
   }catch(e){ console.error(e); }
 }
 
