@@ -257,12 +257,14 @@ function getDiaLabel(dia, pago){
 }
 
 function updateKPIs(){
-  const normais = clientes.filter(c=>!c.atrasado);
+  const todos = clientes;
   const atrasados = clientes.filter(c=>c.atrasado&&!c.pago);
+  const normais = clientes.filter(c=>!c.atrasado);
   const recebido = normais.filter(c=>c.pago).reduce((s,c)=>s+Number(c.valor),0);
   const receber = normais.filter(c=>!c.pago).reduce((s,c)=>s+Number(c.valor),0);
   const totalAtrasado = atrasados.reduce((s,c)=>s+Number(c.valor),0);
-  const total = normais.reduce((s,c)=>s+Number(c.valor),0);
+  // Total esperado = TODOS os clientes (incluindo atrasados)
+  const total = todos.reduce((s,c)=>s+Number(c.valor),0);
   document.getElementById('val-atrasado').textContent = 'R$ '+fmt(totalAtrasado);
   document.getElementById('val-receber').textContent = 'R$ '+fmt(receber);
   document.getElementById('val-recebido').textContent = 'R$ '+fmt(recebido);
@@ -407,6 +409,7 @@ async function resetMes(){
 }
 
 async function renderChart(){
+  if(!MES_ATUAL) return;
   const [anoAtual, mAtual] = MES_ATUAL.split('-');
   const meses = [];
   const valores = [];
