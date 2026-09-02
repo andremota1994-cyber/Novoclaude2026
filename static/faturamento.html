@@ -277,8 +277,10 @@ function updateKPIs(){
 function renderTable(){
   const q = document.getElementById('search').value.toLowerCase();
   const normais = clientes.filter(c=>c.nome.toLowerCase().includes(q));
-  const atrasados = clientes.filter(c=>c.atrasado&&c.nome.toLowerCase().includes(q));
-  let rows = filterMode==='pendentes' ? normais.filter(c=>!c.pago) : normais;
+  const atrasados = clientes.filter(c=>c.atrasado&&!c.pago&&c.nome.toLowerCase().includes(q));
+  // Remove atrasados da lista principal — eles aparecem só na seção de pendências
+  const normaisSemAtrasados = normais.filter(c=>!c.atrasado);
+  let rows = filterMode==='pendentes' ? normaisSemAtrasados.filter(c=>!c.pago) : normaisSemAtrasados;
   rows.sort((a,b)=>b.valor-a.valor);
   atrasados.sort((a,b)=>b.valor-a.valor);
 
