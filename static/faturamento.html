@@ -277,10 +277,9 @@ function updateKPIs(){
 function renderTable(){
   const q = document.getElementById('search').value.toLowerCase();
   const normais = clientes.filter(c=>c.nome.toLowerCase().includes(q));
-  const atrasados = clientes.filter(c=>c.atrasado&&!c.pago&&c.nome.toLowerCase().includes(q));
-  // Remove atrasados da lista principal — eles aparecem só na seção de pendências
-  const normaisSemAtrasados = normais.filter(c=>!c.atrasado);
-  let rows = filterMode==='pendentes' ? normaisSemAtrasados.filter(c=>!c.pago) : normaisSemAtrasados;
+  const atrasados = clientes.filter(c=>c.atrasado&&c.nome.toLowerCase().includes(q));
+  // Lista principal inclui TODOS (incluindo atrasados) mas com toggle do mês atual
+  let rows = filterMode==='pendentes' ? normais.filter(c=>!c.pago) : normais;
   rows.sort((a,b)=>b.valor-a.valor);
   atrasados.sort((a,b)=>b.valor-a.valor);
 
@@ -313,8 +312,8 @@ function renderTable(){
         <td></td><td>—</td>
         <td style="color:var(--red);font-weight:500">R$ ${fmt(Number(c.valor))}</td>
         <td><div class="toggle-wrap">
-          <button class="toggle red ${c.pago?'on':''}" onclick="togglePagoAtrasado(${c.id},${c.pago})"></button>
-          <span class="toggle-label ${c.pago?'on':'late'}">${c.pago?'Quitado':'Pendente'}</span>
+          <button class="toggle red ${c.pagoAtrasado?'on':''}" onclick="togglePagoAtrasado(${c.id},${!!c.pagoAtrasado})"></button>
+          <span class="toggle-label ${c.pagoAtrasado?'on':'late'}">${c.pagoAtrasado?'Quitado':'Pendente'}</span>
         </div></td>
         <td></td>
       </tr>`).join('');
@@ -338,23 +337,31 @@ async function loadClientes(){
 }
 
 async function togglePago(id, pago){
+  // Toggle mes ATUAL — salva em MES_ATUAL
   const novo = !pago;
   clientes = clientes.map(c=>c.id===id?{...c,pago:novo}:c);
   updateKPIs(); renderTable();
-  await fetch('/api/pagamentos/'+MES_ATUAL+'/'+id, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pago:novo})});
+  await fetch('/api/pagamentos/'+MES_ATUAL+'/'+id, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({pago:novo})
+  });
   renderChart();
 }
 
-async function togglePagoAtrasado(id, pago){
-  const novo = !pago;
+async function togglePagoAtrasado(id, pagoAtrasado){
+  // Toggle mes ANTERIOR — salva no mes passado, nao afeta mes atual
+  const novo = !pagoAtrasado;
   const [ano, m] = MES_ATUAL.split('-');
   const mAnt = parseInt(m)-1;
   const anoAnt = mAnt===0 ? parseInt(ano)-1 : parseInt(ano);
   const mAntNum = mAnt===0 ? 12 : mAnt;
   const mesAnt = anoAnt+'-'+String(mAntNum).padStart(2,'0');
-  clientes = clientes.map(c=>c.id===id?{...c,pago:novo}:c);
+  clientes = clientes.map(c=>c.id===id?{...c,pagoAtrasado:novo}:c);
   updateKPIs(); renderTable();
-  await fetch('/api/pagamentos/'+mesAnt+'/'+id, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pago:novo,atrasado:!novo})});
+  await fetch('/api/pagamentos/'+mesAnt+'/'+id, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({pago:novo, atrasado:!novo})
+  });
 }
 
 async function updateDia(id, valor, el){
