@@ -2,6 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Faturamento - Mobilli Digital</title>
 <style>
 :root {
@@ -14,38 +15,27 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); padding: 2rem; }
 .container { max-width: 980px; margin: 0 auto; }
-
-/* HEADER */
 .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 0.5px solid var(--border); }
 .logo { display: flex; align-items: center; gap: 12px; }
 .logo-icon { width: 36px; height: 36px; background: var(--blue); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
 .logo h1 { font-size: 20px; font-weight: 600; }
 .logo p { font-size: 13px; color: var(--text-secondary); }
 .back-btn { display: flex; align-items: center; gap: 6px; padding: 8px 16px; border: 0.5px solid var(--border); border-radius: var(--radius); background: var(--card); font-size: 13px; color: var(--text-secondary); text-decoration: none; }
-
-/* TABS */
 .tabs { display: flex; gap: 2px; margin-bottom: 1.5rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 4px; width: fit-content; }
 .tab { padding: 7px 20px; border-radius: 7px; font-size: 13px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
 .tab.active { background: var(--blue); color: #fff; font-weight: 500; }
-
-/* PAGE */
 .page { display: none; }
 .page.active { display: block; }
-
-/* GRÁFICO */
 .chart-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; }
 .chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .chart-header h3 { font-size: 14px; font-weight: 500; }
 .chart-header span { font-size: 12px; color: var(--text-secondary); }
 .chart-wrap { height: 120px; display: flex; align-items: flex-end; gap: 8px; }
 .bar-group { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
-.bar-group:hover .bar { opacity: 0.8; }
 .bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--blue); transition: height 0.4s ease; min-height: 4px; }
 .bar.current { background: var(--blue-bright); box-shadow: 0 0 12px var(--blue-glow); }
 .bar-label { font-size: 10px; color: var(--text-muted); }
 .bar-value { font-size: 10px; color: var(--blue-bright); font-weight: 500; }
-
-/* STATUS CARDS */
 .status-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.5rem; }
 .status-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.1rem; position: relative; overflow: hidden; }
 .status-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
@@ -60,11 +50,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .status-card.recebido .value { color: var(--green); }
 .status-card.total .value { color: var(--blue-bright); }
 .status-card .sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-
-/* CONTROLES */
 .mes-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
 .mes-badge { font-size: 14px; font-weight: 600; }
-.controls-row { display: flex; gap: 10px; margin-bottom: 1rem; align-items: center; }
+.controls-row { display: flex; gap: 10px; margin-bottom: 1rem; }
 .search-input { flex: 1; height: 36px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 13px; background: var(--card); color: var(--text-primary); outline: none; font-family: inherit; }
 .btn { height: 36px; padding: 0 16px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: none; display: flex; align-items: center; gap: 6px; transition: all 0.15s; }
 .btn-primary { background: var(--blue); color: #fff; }
@@ -72,8 +60,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-
 .btn-ghost { background: var(--card); color: var(--text-secondary); border: 0.5px solid var(--border); }
 .btn-ghost:hover { color: var(--text-primary); }
 .btn-reset { height: 36px; padding: 0 14px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: 0.5px solid var(--red-border); background: var(--red-bg); color: var(--red); display: flex; align-items: center; gap: 6px; }
-
-/* TABELA */
 .table-wrap { border: 0.5px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 thead th { text-align: left; padding: 10px 12px; color: var(--text-secondary); font-weight: 500; background: var(--card2); border-bottom: 0.5px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
@@ -102,19 +88,12 @@ tr.row-atrasado td:first-child { color: var(--red); }
 .toggle-label.on { color: var(--green); font-weight: 500; }
 .toggle-label.off { color: var(--text-muted); }
 .toggle-label.late { color: var(--red); }
-.dia-input {
-  width: 52px; height: 28px; background: var(--card); border: 0.5px solid var(--border);
-  border-radius: 6px; color: var(--blue-bright); font-size: 13px; text-align: center;
-  outline: none; font-family: inherit; padding: 0 4px;
-}
-.dia-input:focus { border-color: var(--blue); }
 .btn-remove { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; padding: 4px; border-radius: 4px; }
 .btn-remove:hover { color: var(--red); }
-
-/* HISTÓRICO */
-.hist-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-bottom: 1.5rem; }
-.hist-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.1rem; cursor: pointer; transition: border-color 0.15s; }
-.hist-card:hover { border-color: var(--blue); }
+.dia-input { width: 52px; height: 28px; background: var(--card); border: 0.5px solid var(--border); border-radius: 6px; color: var(--blue-bright); font-size: 13px; text-align: center; outline: none; font-family: inherit; padding: 0 4px; }
+.dia-input:focus { border-color: var(--blue); }
+.hist-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+.hist-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.1rem; }
 .hist-card .mes { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--blue-bright); }
 .hist-card .stats { display: flex; flex-direction: column; gap: 4px; }
 .hist-card .stat { display: flex; justify-content: space-between; font-size: 12px; }
@@ -123,9 +102,6 @@ tr.row-atrasado td:first-child { color: var(--red); }
 .hist-card .stat .val.green { color: var(--green); }
 .hist-card .stat .val.red { color: var(--red); }
 .hist-card .stat .val.blue { color: var(--blue-bright); }
-.empty-hist { color: var(--text-muted); font-size: 14px; text-align: center; padding: 3rem; }
-
-/* MODAL */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
 .modal { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 1.5rem; width: 360px; }
 .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 1.25rem; }
@@ -140,7 +116,6 @@ tr.row-atrasado td:first-child { color: var(--red); }
 </head>
 <body>
 <div class="container">
-
   <div class="header">
     <div class="logo">
       <div class="logo-icon">📡</div>
@@ -149,31 +124,25 @@ tr.row-atrasado td:first-child { color: var(--red); }
     <a href="/" class="back-btn">← Voltar ao Dashboard</a>
   </div>
 
-  <!-- GRÁFICO -->
   <div class="chart-card">
     <div class="chart-header"><h3>Evolução do faturamento 2026</h3><span id="chart-sub">Carregando...</span></div>
     <div class="chart-wrap" id="chart"><div class="loading">Carregando...</div></div>
   </div>
 
-  <!-- TABS -->
   <div class="tabs">
     <button class="tab active" onclick="setTab('mes',this)">📅 Mês Atual</button>
     <button class="tab" onclick="setTab('historico',this)">🗂 Histórico</button>
   </div>
 
-  <!-- MÊS ATUAL -->
   <div class="page active" id="page-mes">
-    <div id="status-section">
-      <div class="status-grid">
-        <div class="status-card atrasado"><div class="label">⚠️ Atrasados</div><div class="value" id="val-atrasado">—</div><div class="sub" id="sub-atrasado">—</div></div>
-        <div class="status-card receber"><div class="label">A receber</div><div class="value" id="val-receber">—</div><div class="sub" id="sub-receber">—</div></div>
-        <div class="status-card recebido"><div class="label">Recebido</div><div class="value" id="val-recebido">—</div><div class="sub" id="sub-recebido">—</div></div>
-        <div class="status-card total"><div class="label">Total esperado</div><div class="value" id="val-total">—</div><div class="sub">todos os clientes</div></div>
-      </div>
+    <div class="status-grid">
+      <div class="status-card atrasado"><div class="label">⚠️ Atrasados</div><div class="value" id="val-atrasado">—</div><div class="sub" id="sub-atrasado">—</div></div>
+      <div class="status-card receber"><div class="label">A receber</div><div class="value" id="val-receber">—</div><div class="sub" id="sub-receber">—</div></div>
+      <div class="status-card recebido"><div class="label">Recebido</div><div class="value" id="val-recebido">—</div><div class="sub" id="sub-recebido">—</div></div>
+      <div class="status-card total"><div class="label">Total esperado</div><div class="value" id="val-total">—</div><div class="sub">todos os clientes</div></div>
     </div>
-
     <div class="mes-header">
-      <span class="mes-badge" id="mes-badge">📅 <span id="mes-nome-label">Carregando...</span> &nbsp;·&nbsp; <span id="data-atual"></span></span>
+      <span class="mes-badge" id="mes-badge">📅 Carregando...</span>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-ghost" onclick="filterPendentes()">⚠️ Só pendentes</button>
         <button class="btn btn-ghost" onclick="filterAll()">Todos</button>
@@ -181,24 +150,20 @@ tr.row-atrasado td:first-child { color: var(--red); }
         <button class="btn btn-primary" onclick="openModal()">+ Adicionar cliente</button>
       </div>
     </div>
-
     <div class="controls-row">
       <input class="search-input" id="search" placeholder="Buscar cliente..." oninput="renderTable()">
     </div>
-
     <div class="table-wrap">
       <table>
         <thead><tr><th style="width:33%">Cliente</th><th style="width:10%">Nível</th><th style="width:10%">Dia</th><th style="width:14%">Valor/mês</th><th style="width:20%">Status</th><th style="width:13%">Ação</th></tr></thead>
-        <tbody id="tbody"><tr><td colspan="5" class="loading">Carregando...</td></tr></tbody>
+        <tbody id="tbody"><tr><td colspan="6" class="loading">Carregando...</td></tr></tbody>
       </table>
     </div>
   </div>
 
-  <!-- HISTÓRICO -->
   <div class="page" id="page-historico">
-    <div class="hist-grid" id="hist-grid"><div class="empty-hist">Nenhum histórico encontrado.</div></div>
+    <div class="hist-grid" id="hist-grid"><div class="loading">Carregando histórico...</div></div>
   </div>
-
 </div>
 
 <!-- MODAL ADICIONAR -->
@@ -207,11 +172,11 @@ tr.row-atrasado td:first-child { color: var(--red); }
     <h3>Adicionar cliente</h3>
     <div class="form-group"><label>Nome</label><input id="f-nome" placeholder="Ex: João Corretor"/></div>
     <div class="form-group"><label>Valor mensal (R$)</label><input id="f-valor" type="number" placeholder="500"/></div>
-    <div class="form-group"><label>Nível</label>
+    <div class="form-group"><label>Nível (auto pelo valor)</label>
       <select id="f-nivel">
-        <option value="bronze">🥉 Bronze (abaixo de R$999)</option>
-        <option value="prata">🥈 Prata (acima de R$999)</option>
-        <option value="ouro">🥇 Ouro (acima de R$1.499)</option>
+        <option value="bronze">🥉 Bronze (abaixo de R$1.000)</option>
+        <option value="prata">🥈 Prata (R$1.000 a R$1.499)</option>
+        <option value="ouro">🥇 Ouro (R$1.500 ou acima)</option>
       </select>
     </div>
     <div class="modal-actions">
@@ -225,7 +190,7 @@ tr.row-atrasado td:first-child { color: var(--red); }
 <div class="modal-overlay" id="modal-reset" style="display:none">
   <div class="modal" style="border-color:var(--red-border)">
     <h3>🔄 Virar para novo mês</h3>
-    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem">Clientes que <strong>não pagaram</strong> este mês serão marcados como <strong style="color:var(--red)">Atrasados</strong> no próximo. Os que pagaram serão zerados. Confirma?</p>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem">Clientes que <strong>não pagaram</strong> este mês serão marcados como <strong style="color:var(--red)">Atrasados</strong>. Os que pagaram serão zerados para o novo mês. Confirma?</p>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeConfirmReset()">Cancelar</button>
       <button class="btn btn-danger" onclick="resetMes()">Confirmar</button>
@@ -234,36 +199,20 @@ tr.row-atrasado td:first-child { color: var(--red); }
 </div>
 
 <script>
-// Mês atual dinâmico
-const hoje = new Date();
-const MES_ATUAL = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0');
-const MESES_LABELS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-const DIAS_SEMANA = ['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'];
-const MES_NOME = MESES_LABELS[hoje.getMonth()] + ' ' + hoje.getFullYear();
-const DATA_HOJE = DIAS_SEMANA[hoje.getDay()] + ', ' + String(hoje.getDate()).padStart(2,'0') + ' de ' + MESES_LABELS[hoje.getMonth()].toLowerCase() + ' de ' + hoje.getFullYear();
+const MESES_NOMES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+const HISTORICO_FIXO = {'2026-01':16000,'2026-02':10500,'2026-03':19250,'2026-04':16550,'2026-05':31300,'2026-06':20550};
 
-// Atualiza imediatamente
-document.addEventListener('DOMContentLoaded', function(){
-  const el = document.getElementById('mes-nome-label');
-  const el2 = document.getElementById('data-atual');
-  const el3 = document.getElementById('mes-titulo-label');
-  if(el) el.textContent = MES_NOME;
-  if(el2) el2.textContent = DATA_HOJE;
-  if(el3) el3.textContent = MES_NOME;
-});
-const HISTORICO_MESES = ['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06'];
-const MESES_NOMES = {
-  '2026-01':'Janeiro 2026','2026-02':'Fevereiro 2026','2026-03':'Março 2026',
-  '2026-04':'Abril 2026','2026-05':'Maio 2026','2026-06':'Junho 2026',
-  '2026-07':'Julho 2026','2026-08':'Agosto 2026','2026-09':'Setembro 2026',
-  '2026-10':'Outubro 2026','2026-11':'Novembro 2026','2026-12':'Dezembro 2026'
-};
-const HIST_VALORES = {'2026-01':16000,'2026-02':10500,'2026-03':19250,'2026-04':16550,'2026-05':31300};
-
+let MES_ATUAL = '';
 let clientes = [];
 let filterMode = 'all';
 
 const fmt = v => v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function getNomeMes(mesKey){
+  const [ano, m] = mesKey.split('-');
+  return MESES_NOMES[parseInt(m)-1] + ' ' + ano;
+}
 
 function setTab(tab, el){
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
@@ -273,16 +222,21 @@ function setTab(tab, el){
   if(tab==='historico') loadHistorico();
 }
 
-function getDiaColor(dia, pago){
-  if(!dia) return '';
-  if(pago) return 'var(--green)';        // verde = já pagou
-  const hoje = new Date().getDate();
-  const diff = dia - hoje;
-  if(diff < 0) return 'var(--red)';      // vermelho = vencido
-  if(diff <= 3) return 'var(--amber)';   // amarelo = próximo
-  return '';                              // sem cor = mais de 3 dias
+function nivelBadge(nivel){
+  if(nivel==='ouro') return '<span class="nivel-badge nivel-ouro">🥇 Ouro</span>';
+  if(nivel==='prata') return '<span class="nivel-badge nivel-prata">🥈 Prata</span>';
+  return '<span class="nivel-badge nivel-bronze">🥉 Bronze</span>';
 }
 
+function getDiaColor(dia, pago){
+  if(!dia) return '';
+  if(pago) return 'var(--green)';
+  const hoje = new Date().getDate();
+  const diff = dia - hoje;
+  if(diff < 0) return 'var(--red)';
+  if(diff <= 3) return 'var(--amber)';
+  return '';
+}
 function getDiaBg(dia, pago){
   if(!dia) return '';
   if(pago) return 'rgba(16,185,129,0.1)';
@@ -292,7 +246,6 @@ function getDiaBg(dia, pago){
   if(diff <= 3) return 'rgba(245,158,11,0.1)';
   return '';
 }
-
 function getDiaLabel(dia, pago){
   if(!dia) return '';
   if(pago) return ' ✓';
@@ -303,12 +256,6 @@ function getDiaLabel(dia, pago){
   return '';
 }
 
-function nivelBadge(nivel){
-  if(nivel==='ouro') return '<span class="nivel-badge nivel-ouro">🥇 Ouro</span>';
-  if(nivel==='prata') return '<span class="nivel-badge nivel-prata">🥈 Prata</span>';
-  return '<span class="nivel-badge nivel-bronze">🥉 Bronze</span>';
-}
-
 function updateKPIs(){
   const normais = clientes.filter(c=>!c.atrasado);
   const atrasados = clientes.filter(c=>c.atrasado&&!c.pago);
@@ -316,7 +263,6 @@ function updateKPIs(){
   const receber = normais.filter(c=>!c.pago).reduce((s,c)=>s+Number(c.valor),0);
   const totalAtrasado = atrasados.reduce((s,c)=>s+Number(c.valor),0);
   const total = normais.reduce((s,c)=>s+Number(c.valor),0);
-
   document.getElementById('val-atrasado').textContent = 'R$ '+fmt(totalAtrasado);
   document.getElementById('val-receber').textContent = 'R$ '+fmt(receber);
   document.getElementById('val-recebido').textContent = 'R$ '+fmt(recebido);
@@ -328,30 +274,20 @@ function updateKPIs(){
 
 function renderTable(){
   const q = document.getElementById('search').value.toLowerCase();
-  // Todos os clientes ativos aparecem na lista principal (incluindo atrasados do mês anterior)
-  const todos = clientes.filter(c=>c.nome.toLowerCase().includes(q));
-  // Atrasados = quem estava atrasado do mês anterior E ainda não pagou o mês atual
+  const normais = clientes.filter(c=>c.nome.toLowerCase().includes(q));
   const atrasados = clientes.filter(c=>c.atrasado&&c.nome.toLowerCase().includes(q));
-  // Normais = todos os clientes para o mês atual
-  const normais = todos.filter(c=>c.nome.toLowerCase().includes(q));
   let rows = filterMode==='pendentes' ? normais.filter(c=>!c.pago) : normais;
   rows.sort((a,b)=>b.valor-a.valor);
   atrasados.sort((a,b)=>b.valor-a.valor);
 
   let html = rows.map(c=>`
     <tr>
-      <td>${c.nome}${nivelBadge(c.nivel)}</td>
+      <td>${c.nome}${nivelBadge(c.nivel)}${c.atrasado&&!c.pago?'<span class="atrasado-badge" style="font-size:9px">atrasado</span>':''}</td>
       <td></td>
-      <td style="position:relative">
-        <div style="display:flex;align-items:center;gap:4px;">
-          <input type="number" class="dia-input" min="1" max="31" placeholder="—" 
-            value="${c.dia_pagamento||''}" 
-            onchange="updateDia(${c.id},this.value,this)"
-            title="Dia de pagamento"
-            style="border-color:${getDiaColor(c.dia_pagamento,c.pago)};background:${getDiaBg(c.dia_pagamento,c.pago)}">
-          <span style="font-size:11px">${getDiaLabel(c.dia_pagamento,c.pago)}</span>
-        </div>
-      </td>
+      <td><div style="display:flex;align-items:center;gap:4px;">
+        <input type="number" class="dia-input" min="1" max="31" placeholder="—" value="${c.dia_pagamento||''}" onchange="updateDia(${c.id},this.value,this)" style="border-color:${getDiaColor(c.dia_pagamento,c.pago)};background:${getDiaBg(c.dia_pagamento,c.pago)}">
+        <span style="font-size:11px">${getDiaLabel(c.dia_pagamento,c.pago)}</span>
+      </div></td>
       <td class="valor-cell">R$ ${fmt(Number(c.valor))}</td>
       <td><div class="toggle-wrap">
         <button class="toggle ${c.pago?'on':''}" onclick="togglePago(${c.id},${c.pago})"></button>
@@ -361,150 +297,163 @@ function renderTable(){
     </tr>`).join('');
 
   if(atrasados.length&&filterMode!=='pendentes'){
-    html += `<tr><td colspan="6" style="padding:0"><div class="section-separator"><div class="sep-line"></div><div class="sep-label">⚠️ Atrasados do mês anterior</div><div class="sep-line"></div></div></td></tr>`;
+    const [ano, m] = MES_ATUAL.split('-');
+    const mAnt = parseInt(m)-1;
+    const anoAnt = mAnt===0 ? parseInt(ano)-1 : parseInt(ano);
+    const mAntNum = mAnt===0 ? 12 : mAnt;
+    const nomeAnt = MESES_NOMES[mAntNum-1]+'/'+anoAnt;
+    html += `<tr><td colspan="6" style="padding:0"><div class="section-separator"><div class="sep-line"></div><div class="sep-label">⚠️ Pendências de ${nomeAnt}</div><div class="sep-line"></div></div></td></tr>`;
     html += atrasados.map(c=>`
       <tr class="row-atrasado">
-        <td>${c.nome}${nivelBadge(c.nivel)}<span class="atrasado-badge">Atrasado</span></td>
-        <td></td>
-        <td style="position:relative">
-        <div style="display:flex;align-items:center;gap:4px;">
-          <input type="number" class="dia-input" min="1" max="31" placeholder="—" 
-            value="${c.dia_pagamento||''}" 
-            onchange="updateDia(${c.id},this.value,this)"
-            title="Dia de pagamento"
-            style="border-color:${getDiaColor(c.dia_pagamento,c.pago)};background:${getDiaBg(c.dia_pagamento,c.pago)}">
-          <span style="font-size:11px">${getDiaLabel(c.dia_pagamento,c.pago)}</span>
-        </div>
-      </td>
+        <td>${c.nome}${nivelBadge(c.nivel)}<span class="atrasado-badge">Não pagou ${nomeAnt}</span></td>
+        <td></td><td>—</td>
         <td style="color:var(--red);font-weight:500">R$ ${fmt(Number(c.valor))}</td>
         <td><div class="toggle-wrap">
-          <button class="toggle red ${c.pago?'on':''}" onclick="togglePago(${c.id},${c.pago})"></button>
-          <span class="toggle-label ${c.pago?'on':'late'}">${c.pago?'Pago':'Atrasado'}</span>
+          <button class="toggle red ${c.pago?'on':''}" onclick="togglePagoAtrasado(${c.id},${c.pago})"></button>
+          <span class="toggle-label ${c.pago?'on':'late'}">${c.pago?'Quitado':'Pendente'}</span>
         </div></td>
-        <td><button class="btn-remove" onclick="removeCliente(${c.id})">✕</button></td>
+        <td></td>
       </tr>`).join('');
   }
 
-  document.getElementById('tbody').innerHTML = html || '<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">Nenhum cliente</td></tr>';
+  document.getElementById('tbody').innerHTML = html || '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">Nenhum cliente</td></tr>';
+}
+
+async function loadMesAtual(){
+  const r = await fetch('/api/config/mes_atual');
+  const j = await r.json();
+  if(j.ok) MES_ATUAL = j.valor;
+  else MES_ATUAL = new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0');
+  document.getElementById('mes-badge').textContent = '📅 '+getNomeMes(MES_ATUAL);
 }
 
 async function loadClientes(){
-  try{
-    const r = await fetch('/api/pagamentos/'+MES_ATUAL);
-    const j = await r.json();
-    if(j.ok){ clientes=j.data; updateKPIs(); renderTable(); renderChart(); }
-  }catch(e){ console.error(e); }
-}
-
-async function togglePagoAtrasado(id, pago){
-  const novo = !pago;
-  // Atualiza o pagamento do mês anterior
-  const d = new Date(); d.setMonth(d.getMonth()-1);
-  const mesAnt = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
-  clientes = clientes.map(c=>c.id===id?{...c,pago:novo}:c);
-  updateKPIs(); renderTable();
-  await fetch('/api/pagamentos/'+mesAnt+'/'+id, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({pago:novo, atrasado:!novo})
-  });
+  const r = await fetch('/api/pagamentos/'+MES_ATUAL);
+  const j = await r.json();
+  if(j.ok){ clientes=j.data; updateKPIs(); renderTable(); renderChart(); }
 }
 
 async function togglePago(id, pago){
   const novo = !pago;
   clientes = clientes.map(c=>c.id===id?{...c,pago:novo}:c);
   updateKPIs(); renderTable();
-  await fetch('/api/pagamentos/'+MES_ATUAL+'/'+id, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pago:novo})});
+  await fetch('/api/pagamentos/'+MES_ATUAL+'/'+id, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pago:novo})});
+  renderChart();
+}
+
+async function togglePagoAtrasado(id, pago){
+  const novo = !pago;
+  const [ano, m] = MES_ATUAL.split('-');
+  const mAnt = parseInt(m)-1;
+  const anoAnt = mAnt===0 ? parseInt(ano)-1 : parseInt(ano);
+  const mAntNum = mAnt===0 ? 12 : mAnt;
+  const mesAnt = anoAnt+'-'+String(mAntNum).padStart(2,'0');
+  clientes = clientes.map(c=>c.id===id?{...c,pago:novo}:c);
+  updateKPIs(); renderTable();
+  await fetch('/api/pagamentos/'+mesAnt+'/'+id, {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pago:novo,atrasado:!novo})});
+}
+
+async function updateDia(id, valor, el){
+  const dia = parseInt(valor);
+  if(isNaN(dia)||dia<1||dia>31) return;
+  await fetch('/api/clientes/'+id+'/dia', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({dia_pagamento:dia})});
+  clientes = clientes.map(c=>c.id===id?{...c,dia_pagamento:dia}:c);
+  if(el){ el.style.borderColor='var(--green)'; setTimeout(()=>{ el.style.borderColor=''; },1000); }
 }
 
 async function removeCliente(id){
   if(!confirm('Remover este cliente?')) return;
-  await fetch('/api/clientes/'+id, {method:'DELETE'});
+  await fetch('/api/clientes/'+id,{method:'DELETE'});
   clientes = clientes.filter(c=>c.id!==id);
   updateKPIs(); renderTable();
 }
 
+function filterPendentes(){ filterMode='pendentes'; renderTable(); }
+function filterAll(){ filterMode='all'; renderTable(); }
 function openModal(){ document.getElementById('modal').style.display='flex'; document.getElementById('f-nome').focus(); }
 function closeModal(){ document.getElementById('modal').style.display='none'; document.getElementById('f-nome').value=''; document.getElementById('f-valor').value=''; }
-
-function getNivelByValor(valor){
-  if(valor > 1499) return 'ouro';
-  if(valor > 999) return 'prata';
-  return 'bronze';
-}
 
 async function addCliente(){
   const nome = document.getElementById('f-nome').value.trim().toUpperCase();
   const valor = parseFloat(document.getElementById('f-valor').value);
-  // Auto-classifica pelo valor
-  const nivel = getNivelByValor(valor);
   if(!nome||!valor||valor<=0){ alert('Preencha nome e valor.'); return; }
-  const r = await fetch('/api/clientes', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nome,valor,nivel})});
+  const nivel = valor>=1500?'ouro':valor>=1000?'prata':'bronze';
+  const r = await fetch('/api/clientes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nome,valor,nivel})});
   const j = await r.json();
-  if(j.ok){ closeModal(); loadClientes(); }
+  if(j.ok){ closeModal(); await loadClientes(); }
 }
 
 function openConfirmReset(){ document.getElementById('modal-reset').style.display='flex'; }
 function closeConfirmReset(){ document.getElementById('modal-reset').style.display='none'; }
 
 async function resetMes(){
-  // Marca não pagos como atrasados, zera pagos
-  for(const c of clientes){
-    if(!c.atrasado){
-      await fetch('/api/pagamentos/'+MES_ATUAL+'/'+c.id, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({pago:false, atrasado:!c.pago})
-      });
+  // Marca não pagos como atrasados no mês atual
+  for(const c of clientes.filter(c=>!c.atrasado)){
+    await fetch('/api/pagamentos/'+MES_ATUAL+'/'+c.id, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pago:false, atrasado:!c.pago})
+    });
+  }
+  // Avança o mês
+  const [ano, m] = MES_ATUAL.split('-');
+  const novoM = parseInt(m)===12 ? 1 : parseInt(m)+1;
+  const novoAno = parseInt(m)===12 ? parseInt(ano)+1 : parseInt(ano);
+  const novoMes = novoAno+'-'+String(novoM).padStart(2,'0');
+  await fetch('/api/config/mes_atual', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:novoMes})});
+  MES_ATUAL = novoMes;
+  document.getElementById('mes-badge').textContent = '📅 '+getNomeMes(MES_ATUAL);
+  closeConfirmReset();
+  await loadClientes();
+}
+
+async function renderChart(){
+  const [anoAtual, mAtual] = MES_ATUAL.split('-');
+  const meses = [];
+  const valores = [];
+  for(let i=1; i<=parseInt(mAtual); i++){
+    const mesKey = anoAtual+'-'+String(i).padStart(2,'0');
+    meses.push(MESES_ABREV[i-1]);
+    if(HISTORICO_FIXO[mesKey] !== undefined){
+      valores.push(HISTORICO_FIXO[mesKey]);
+    } else {
+      try{
+        const r = await fetch('/api/pagamentos/'+mesKey);
+        const j = await r.json();
+        if(j.ok){
+          const rec = j.data.filter(c=>c.pago&&!c.atrasado).reduce((s,c)=>s+Number(c.valor),0);
+          valores.push(rec);
+        } else valores.push(0);
+      } catch(e){ valores.push(0); }
     }
   }
-  closeConfirmReset();
-  loadClientes();
+  const max = Math.max(...valores,1);
+  document.getElementById('chart-sub').textContent = 'Jan → '+MESES_ABREV[parseInt(mAtual)-1]+' '+anoAtual;
+  document.getElementById('chart').innerHTML = valores.map((v,i)=>`
+    <div class="bar-group">
+      <div class="bar-value">${v?'R$'+Math.round(v/1000)+'k':''}</div>
+      <div class="bar ${i===valores.length-1?'current':''}" style="height:${Math.max((v/max)*100,4)}px"></div>
+      <div class="bar-label">${meses[i]}</div>
+    </div>`).join('');
 }
 
-async function updateDia(id, valor, el){
-  const dia = parseInt(valor);
-  if(isNaN(dia)||dia<1||dia>31) return;
-  await fetch('/api/clientes/'+id+'/dia', {
-    method:'PATCH',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({dia_pagamento:dia})
-  });
-  clientes = clientes.map(c=>c.id===id?{...c,dia_pagamento:dia}:c);
-  // Feedback visual
-  if(el){
-    el.style.borderColor='var(--green)';
-    el.style.color='var(--green)';
-    setTimeout(()=>{
-      el.style.borderColor='';
-      el.style.color='var(--blue-bright)';
-    }, 1000);
-  }
-}
-
-function filterPendentes(){ filterMode='pendentes'; renderTable(); }
-function filterAll(){ filterMode='all'; renderTable(); }
-
-// HISTÓRICO
 async function loadHistorico(){
   const grid = document.getElementById('hist-grid');
-  grid.innerHTML = '<div class="loading">Carregando histórico...</div>';
+  grid.innerHTML = '<div class="loading">Carregando...</div>';
   try{
     const r = await fetch('/api/historico');
     const j = await r.json();
-    const data = j.data || [];
-
-    // Inclui meses históricos fixos
-    const meses = [...new Set([...Object.keys(HIST_VALORES), ...data.map(d=>d.mes)])].sort().reverse();
-
-    if(!meses.length){ grid.innerHTML='<div class="empty-hist">Nenhum histórico ainda.</div>'; return; }
-
-    grid.innerHTML = meses.map(mes => {
+    const data = j.data||[];
+    const MESES_HIST = {'2026-01':16000,'2026-02':10500,'2026-03':19250,'2026-04':16550,'2026-05':31300,'2026-06':20550};
+    const todosM = [...new Set([...Object.keys(MESES_HIST),...data.map(d=>d.mes)])].sort().reverse();
+    if(!todosM.length){ grid.innerHTML='<div class="loading">Nenhum histórico.</div>'; return; }
+    grid.innerHTML = todosM.map(mes=>{
       const d = data.find(x=>x.mes===mes);
-      const recebido = d ? d.recebido : (HIST_VALORES[mes]||0);
-      const total = d ? d.total : (HIST_VALORES[mes]||0);
-      const atrasado = d ? d.atrasado : 0;
-      const pct = total ? Math.round(recebido/total*100) : 100;
+      const recebido = d?d.recebido:(MESES_HIST[mes]||0);
+      const total = d?d.total:(MESES_HIST[mes]||0);
+      const atrasado = d?d.atrasado:0;
+      const pct = total?Math.round(recebido/total*100):100;
       return `<div class="hist-card">
-        <div class="mes">${MESES_NOMES[mes]||mes}</div>
+        <div class="mes">${getNomeMes(mes)}</div>
         <div class="stats">
           <div class="stat"><span class="lbl">Total esperado</span><span class="val blue">R$ ${fmt(total)}</span></div>
           <div class="stat"><span class="lbl">Recebido</span><span class="val green">R$ ${fmt(recebido)}</span></div>
@@ -513,39 +462,14 @@ async function loadHistorico(){
         </div>
       </div>`;
     }).join('');
-  }catch(e){ grid.innerHTML='<div class="empty-hist">Erro ao carregar histórico.</div>'; }
+  }catch(e){ grid.innerHTML='<div class="loading">Erro ao carregar.</div>'; }
 }
 
-// GRÁFICO
-async function renderChart(){
-  const meses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul'];
-  const valores = [16000,10500,19250,16550,31300,20550,0];
-  
-  // Busca valor recebido em Julho do Supabase
-  try {
-    const r = await fetch('/api/pagamentos/2026-07');
-    const j = await r.json();
-    if(j.ok){
-      const recJul = j.data.filter(c=>c.pago&&!c.atrasado).reduce((s,c)=>s+Number(c.valor),0);
-      valores[6] = recJul;
-    }
-  } catch(e){ 
-    const recJul = clientes.filter(c=>c.pago&&!c.atrasado).reduce((s,c)=>s+Number(c.valor),0);
-    valores[6] = recJul;
-  }
-  
-  const max = Math.max(...valores,1);
-  document.getElementById('chart-sub').textContent = 'Jan → ' + MESES_LABELS[hoje.getMonth()].substring(0,3) + ' ' + hoje.getFullYear();
-  document.getElementById('chart').innerHTML = valores.map((v,i)=>`
-    <div class="bar-group">
-      <div class="bar-value">${v?'R$'+Math.round(v/1000)+'k':''}</div>
-      <div class="bar ${i===6?'current':''}" style="height:${Math.max((v/max)*100,4)}px"></div>
-      <div class="bar-label">${meses[i]}</div>
-    </div>`).join('');
+async function init(){
+  await loadMesAtual();
+  await loadClientes();
 }
-
-// Init
-loadClientes();
+init();
 </script>
 </body>
 </html>
