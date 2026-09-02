@@ -257,6 +257,31 @@ def get_movimento():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 # ── Pagamentos ──
+@app.route('/api/config/<chave>', methods=['GET'])
+def get_config(chave):
+    try:
+        r = requests.get(SUPABASE_URL + '/rest/v1/config?chave=eq.' + chave, headers=supa_headers())
+        data = r.json()
+        if data:
+            return jsonify({'ok': True, 'valor': data[0]['valor']})
+        return jsonify({'ok': False, 'error': 'Chave nao encontrada'}), 404
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/config/<chave>', methods=['PATCH'])
+def set_config(chave):
+    try:
+        body = request.json
+        r = requests.get(SUPABASE_URL + '/rest/v1/config?chave=eq.' + chave, headers=supa_headers())
+        existing = r.json()
+        if existing:
+            requests.patch(SUPABASE_URL + '/rest/v1/config?chave=eq.' + chave, headers=supa_headers(), json={'valor': body.get('valor')})
+        else:
+            requests.post(SUPABASE_URL + '/rest/v1/config', headers=supa_headers(), json={'chave': chave, 'valor': body.get('valor')})
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/pagamentos/<mes>', methods=['GET'])
 def get_pagamentos(mes):
     try:
