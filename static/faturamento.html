@@ -92,6 +92,9 @@ tr.row-atrasado td:first-child { color: var(--red); }
 .btn-remove:hover { color: var(--red); }
 .dia-input { width: 52px; height: 28px; background: var(--card); border: 0.5px solid var(--border); border-radius: 6px; color: var(--blue-bright); font-size: 13px; text-align: center; outline: none; font-family: inherit; padding: 0 4px; }
 .dia-input:focus { border-color: var(--blue); }
+.valor-edit-wrap { display: flex; align-items: center; gap: 3px; }
+.valor-input { width: 78px; height: 28px; background: var(--card); border: 0.5px solid var(--border); border-radius: 6px; color: var(--blue-bright); font-weight: 500; font-size: 13px; text-align: right; outline: none; font-family: inherit; padding: 0 6px; }
+.valor-input:focus { border-color: var(--blue); }
 .hist-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
 .hist-card { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 1.1rem; }
 .hist-card .mes { font-size: 13px; font-weight: 600; margin-bottom: 10px; color: var(--blue-bright); }
@@ -291,7 +294,7 @@ function renderTable(){
         <input type="number" class="dia-input" min="1" max="31" placeholder="—" value="${c.dia_pagamento||''}" onchange="updateDia(${c.id},this.value,this)" style="border-color:${getDiaColor(c.dia_pagamento,c.pago)};background:${getDiaBg(c.dia_pagamento,c.pago)}">
         <span style="font-size:11px">${getDiaLabel(c.dia_pagamento,c.pago)}</span>
       </div></td>
-      <td class="valor-cell">R$ ${fmt(Number(c.valor))}</td>
+      <td class="valor-cell"><div class="valor-edit-wrap">R$ <input type="number" class="valor-input" min="1" step="1" value="${Number(c.valor)}" onchange="updateValor(${c.id},this.value,this)"></div></td>
       <td><div class="toggle-wrap">
         <button class="toggle ${c.pago?'on':''}" onclick="togglePago(${c.id},${c.pago})"></button>
         <span class="toggle-label ${c.pago?'on':'off'}">${c.pago?'Pago':'Pendente'}</span>
@@ -370,6 +373,21 @@ async function updateDia(id, valor, el){
   await fetch('/api/clientes/'+id+'/dia', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({dia_pagamento:dia})});
   clientes = clientes.map(c=>c.id===id?{...c,dia_pagamento:dia}:c);
   if(el){ el.style.borderColor='var(--green)'; setTimeout(()=>{ el.style.borderColor=''; },1000); }
+}
+
+async function updateValor(id, valor, el){
+  const novoValor = parseFloat(valor);
+  if(isNaN(novoValor) || novoValor <= 0){
+    alert('Valor invalido.');
+    if(el){ const c = clientes.find(c=>c.id===id); if(c) el.value = Number(c.valor); }
+    return;
+  }
+  const r = await fetch('/api/clientes/'+id+'/valor', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:novoValor})});
+  const j = await r.json();
+  if(!j.ok){ alert('Nao foi possivel salvar o novo valor.'); return; }
+  clientes = clientes.map(c=>c.id===id?{...c,valor:novoValor,nivel:j.nivel}:c);
+  if(el){ el.style.borderColor='var(--green)'; setTimeout(()=>{ el.style.borderColor=''; },1000); }
+  updateKPIs(); renderTable(); renderChart();
 }
 
 async function removeCliente(id){
