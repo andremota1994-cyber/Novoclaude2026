@@ -238,6 +238,19 @@ def update_dia_pagamento(id):
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+@app.route('/api/clientes/<int:id>/valor', methods=['PATCH'])
+def update_valor_cliente(id):
+    try:
+        body = request.json
+        valor = float(body.get('valor'))
+        if valor <= 0:
+            return jsonify({'ok': False, 'error': 'Valor invalido'}), 400
+        nivel = 'ouro' if valor >= 1500 else 'prata' if valor >= 1000 else 'bronze'
+        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json={'valor': valor, 'nivel': nivel})
+        return jsonify({'ok': True, 'nivel': nivel})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/clientes/movimento', methods=['GET'])
 def get_movimento():
     try:
