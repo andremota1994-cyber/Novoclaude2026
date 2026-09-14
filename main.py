@@ -453,6 +453,21 @@ def agenda_desconectar():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+def get_calendarios(token):
+    try:
+        resp = requests.get(
+            'https://www.googleapis.com/calendar/v3/users/me/calendarList',
+            headers={'Authorization': 'Bearer ' + token},
+            timeout=15
+        )
+        if resp.status_code >= 400:
+            print('CALENDARIOS ERROR:', resp.status_code, resp.text)
+            return []
+        return resp.json().get('items', [])
+    except Exception:
+        print('CALENDARIOS ERROR:', traceback.format_exc())
+        return []
+
 @app.route('/api/agenda/eventos', methods=['GET'])
 def agenda_eventos():
     try:
@@ -464,27 +479,39 @@ def agenda_eventos():
             ano, m = int(mes[:4]), int(mes[5:])
             time_min = datetime(ano, m, 1).isoformat() + 'Z'
             time_max = datetime(ano + 1, 1, 1).isoformat() + 'Z' if m == 12 else datetime(ano, m + 1, 1).isoformat() + 'Z'
-            params = {'timeMin': time_min, 'timeMax': time_max, 'maxResults': 250, 'singleEvents': 'true', 'orderBy': 'startTime'}
+            params_base = {'timeMin': time_min, 'timeMax': time_max, 'maxResults': 250, 'singleEvents': 'true', 'orderBy': 'startTime'}
         else:
             agora = datetime.utcnow().isoformat() + 'Z'
-            params = {'timeMin': agora, 'maxResults': 20, 'singleEvents': 'true', 'orderBy': 'startTime'}
-        resp = requests.get(
-            'https://www.googleapis.com/calendar/v3/calendars/primary/events',
-            headers={'Authorization': 'Bearer ' + token},
-            params=params,
-            timeout=15
-        )
-        if resp.status_code >= 400:
-            print('AGENDA EVENTOS ERROR:', resp.status_code, resp.text)
-            return jsonify({'ok': False, 'error': str(resp.status_code) + ': ' + resp.text}), 500
-        items = resp.json().get('items', [])
-        eventos = [{
-            'id': ev.get('id'),
-            'titulo': ev.get('summary', '(sem titulo)'),
-            'inicio': (ev.get('start') or {}).get('dateTime') or (ev.get('start') or {}).get('date'),
-            'fim': (ev.get('end') or {}).get('dateTime') or (ev.get('end') or {}).get('date'),
-            'link': ev.get('htmlLink')
-        } for ev in items]
+            params_base = {'timeMin': agora, 'maxResults': 20, 'singleEvents': 'true', 'orderBy': 'startTime'}
+
+        calendarios = get_calendarios(token)
+        calendarios_usar = [c for c in calendarios if c.get('selected')] or calendarios
+        if not calendarios_usar:
+            calendarios_usar = [{'id': 'primary', 'summary': 'Principal'}]
+
+        eventos = []
+        for cal in calendarios_usar:
+            cal_id = cal.get('id', 'primary')
+            resp = requests.get(
+                'https://www.googleapis.com/calendar/v3/calendars/' + requests.utils.quote(cal_id, safe='') + '/events',
+                headers={'Authorization': 'Bearer ' + token},
+                params=params_base,
+                timeout=15
+            )
+            if resp.status_code >= 400:
+                print('AGENDA EVENTOS ERROR (' + cal_id + '):', resp.status_code, resp.text)
+                continue
+            items = resp.json().get('items', [])
+            for ev in items:
+                eventos.append({
+                    'id': ev.get('id'),
+                    'titulo': ev.get('summary', '(sem titulo)'),
+                    'inicio': (ev.get('start') or {}).get('dateTime') or (ev.get('start') or {}).get('date'),
+                    'fim': (ev.get('end') or {}).get('dateTime') or (ev.get('end') or {}).get('date'),
+                    'link': ev.get('htmlLink'),
+                    'calendario': cal.get('summary', '')
+                })
+        eventos.sort(key=lambda e: e['inicio'] or '')
         return jsonify({'ok': True, 'conectado': True, 'eventos': eventos})
     except Exception as e:
         print('AGENDA ERROR:', traceback.format_exc())
