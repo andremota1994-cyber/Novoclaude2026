@@ -459,11 +459,19 @@ def agenda_eventos():
         token = get_google_access_token()
         if not token:
             return jsonify({'ok': True, 'conectado': False, 'eventos': []})
-        agora = datetime.utcnow().isoformat() + 'Z'
+        mes = request.args.get('mes')
+        if mes:
+            ano, m = int(mes[:4]), int(mes[5:])
+            time_min = datetime(ano, m, 1).isoformat() + 'Z'
+            time_max = datetime(ano + 1, 1, 1).isoformat() + 'Z' if m == 12 else datetime(ano, m + 1, 1).isoformat() + 'Z'
+            params = {'timeMin': time_min, 'timeMax': time_max, 'maxResults': 250, 'singleEvents': 'true', 'orderBy': 'startTime'}
+        else:
+            agora = datetime.utcnow().isoformat() + 'Z'
+            params = {'timeMin': agora, 'maxResults': 20, 'singleEvents': 'true', 'orderBy': 'startTime'}
         resp = requests.get(
             'https://www.googleapis.com/calendar/v3/calendars/primary/events',
             headers={'Authorization': 'Bearer ' + token},
-            params={'timeMin': agora, 'maxResults': 20, 'singleEvents': 'true', 'orderBy': 'startTime'},
+            params=params,
             timeout=15
         )
         if resp.status_code >= 400:
