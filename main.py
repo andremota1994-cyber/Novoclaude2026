@@ -795,10 +795,6 @@ def faturamento():
 def tarefas():
     return send_from_directory('static', 'tarefas.html')
 
-@app.route('/briefing')
-def briefing_page():
-    return send_from_directory('static', 'briefing.html')
-
 @app.route('/financeiro')
 def financeiro_page():
     return send_from_directory('static', 'financeiro.html')
