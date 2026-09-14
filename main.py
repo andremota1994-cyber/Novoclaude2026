@@ -468,6 +468,20 @@ def get_calendarios(token):
         print('CALENDARIOS ERROR:', traceback.format_exc())
         return []
 
+@app.route('/api/debug/calendarios')
+def debug_calendarios():
+    try:
+        token = get_google_access_token()
+        if not token:
+            return jsonify({'ok': False, 'error': 'nao conectado'})
+        cals = get_calendarios(token)
+        return jsonify({'ok': True, 'calendarios': [
+            {'id': c.get('id'), 'summary': c.get('summary'), 'primary': c.get('primary'),
+             'selected': c.get('selected'), 'accessRole': c.get('accessRole')} for c in cals
+        ]})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)})
+
 @app.route('/api/agenda/eventos', methods=['GET'])
 def agenda_eventos():
     try:
@@ -485,7 +499,7 @@ def agenda_eventos():
             params_base = {'timeMin': agora, 'maxResults': 20, 'singleEvents': 'true', 'orderBy': 'startTime'}
 
         calendarios = get_calendarios(token)
-        calendarios_usar = [c for c in calendarios if c.get('selected')] or calendarios
+        calendarios_usar = [c for c in calendarios if c.get('accessRole') in ('owner', 'writer', 'reader')] or calendarios
         if not calendarios_usar:
             calendarios_usar = [{'id': 'primary', 'summary': 'Principal'}]
 
