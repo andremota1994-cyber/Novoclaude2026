@@ -34,11 +34,11 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
   * { transition: none !important; }
 }
 
-.topbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
 .topbar-logo { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--text-primary); font-family: 'Sora', sans-serif; }
 .topbar-logo img { height: 24px; width: auto; display: block; }
 .topbar-logo span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.topbar-nav { display: flex; gap: 2px; }
+.topbar-nav { display: flex; gap: 2px; flex-wrap: wrap; justify-content: flex-end; }
 .topbar-link { padding: 6px 14px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; border: none; background: transparent; font-family: inherit; transition: all 0.15s; text-decoration: none; display: inline-block; }
 .topbar-link:hover { color: var(--text-primary); background: var(--card); }
 .topbar-link.active { color: var(--text-primary); }
@@ -106,13 +106,29 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 
 /* MODAL CONFIRM */
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
-.modal { background: var(--bg); border: 1px solid var(--red-border); border-radius: 16px; padding: 1.5rem; width: 340px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.modal { background: var(--bg); border: 1px solid var(--red-border); border-radius: 16px; padding: 1.5rem; width: 340px; max-width: calc(100vw - 2.5rem); text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
 .modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 0.5rem; }
 .modal p { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.25rem; }
 .modal-actions { display: flex; gap: 8px; }
 .modal-actions .btn { flex: 1; height: 40px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: none; }
 .btn-ghost { background: var(--card2); color: var(--text-secondary); border: 0.5px solid var(--border) !important; }
 .btn-danger { background: var(--red); color: #fff; }
+
+/* RESPONSIVO */
+@media (max-width: 860px) {
+  .boards { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 560px) {
+  .main { padding: 1.25rem; }
+  .topbar { padding: 0.6rem 1rem; }
+  .topbar-link { padding: 6px 10px; font-size: 12px; }
+  .page-header { flex-wrap: wrap; gap: 12px; }
+  .quick-add { flex-wrap: wrap; }
+  .quick-input { min-width: 100%; order: -1; }
+  .boards { grid-template-columns: 1fr; }
+  .hist-header { flex-wrap: wrap; gap: 8px; }
+  .hist-search { width: 100%; }
+}
 </style>
 </head>
 <body>

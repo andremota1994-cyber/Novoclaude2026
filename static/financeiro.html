@@ -95,6 +95,18 @@ tr:last-child td { border-bottom: none; }
 .check-pago { width: 16px; height: 16px; cursor: pointer; accent-color: var(--green); }
 .empty-row { text-align: center; color: var(--text-muted); padding: 2rem !important; }
 .loading-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 14px; }
+.table-scroll { overflow-x: auto; border-radius: 16px; }
+
+/* RESPONSIVO */
+@media (max-width: 560px) {
+  .main { padding: 1.25rem; }
+  .topbar { padding: 0.6rem 1rem; }
+  .topbar-link { padding: 6px 10px; font-size: 12px; }
+  .page-header { flex-wrap: wrap; }
+  .add-form input[type="text"] { min-width: 100%; }
+  table { min-width: 480px; }
+  th, td { padding: 8px 10px; font-size: 12px; }
+}
 </style>
 </head>
 <body>
@@ -207,10 +219,12 @@ function render(j){
     </div>
 
     <div class="section-title">Despesas de ${labelMes(mesAtual)}</div>
-    <table>
-      <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Pago</th><th></th></tr></thead>
-      <tbody>${linhas}</tbody>
-    </table>
+    <div class="table-scroll">
+      <table>
+        <thead><tr><th>Descrição</th><th>Categoria</th><th>Valor</th><th>Pago</th><th></th></tr></thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    </div>
   `;
 }
 
