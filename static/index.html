@@ -50,11 +50,11 @@
   }
 
   /* TOPBAR */
-  .topbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
   .topbar-logo { font-size: 15px; font-weight: 600; color: var(--text-primary); display: flex; align-items: center; gap: 9px; font-family: 'Sora', sans-serif; }
   .topbar-logo img { height: 24px; width: auto; display: block; }
   .topbar-logo span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  .topbar-nav { display: flex; gap: 2px; }
+  .topbar-nav { display: flex; gap: 2px; flex-wrap: wrap; justify-content: flex-end; }
   .topbar-link { padding: 6px 14px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; border: none; background: transparent; font-family: inherit; transition: all 0.15s; text-decoration: none; display: inline-block; }
   .topbar-link:hover { color: var(--text-primary); background: var(--card); }
   .topbar-link.active { color: var(--text-primary); }
@@ -201,6 +201,24 @@
   td:nth-child(2),td:nth-child(3),td:nth-child(4),td:nth-child(5){text-align:right;}
   tr:hover td { background: rgba(228,190,110,.06); }
   .sline { font-size: 12px; color: var(--text-muted); margin-top: 1rem; text-align: right; }
+
+  /* RESPONSIVO */
+  @media (max-width: 860px) {
+    .g4, .g4k { grid-template-columns: repeat(2,1fr); }
+    .g3 { grid-template-columns: repeat(2,1fr); }
+    .alert-grid { grid-template-columns: repeat(2,1fr); }
+  }
+  @media (max-width: 560px) {
+    .page-scroll { padding: 1.25rem; }
+    .g4, .g4k, .g3, .alert-grid { grid-template-columns: 1fr; }
+    .topbar { padding: 0.6rem 1rem; }
+    .topbar-link { padding: 6px 10px; font-size: 12px; }
+    .greeting-title { font-size: 22px; }
+    .chips { max-width: 100%; }
+    .ctrls { flex-wrap: wrap; }
+    .breakdown { flex-wrap: wrap; gap: 8px; }
+    thead th, td { padding: 8px 6px; font-size: 11px; }
+  }
 </style>
 </head>
 <body>
