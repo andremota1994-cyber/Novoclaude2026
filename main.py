@@ -3,6 +3,7 @@ import requests
 import traceback
 import hashlib
 from datetime import datetime, timedelta
+from urllib.parse import urlencode
 from flask import Flask, jsonify, send_from_directory, request, session, redirect
 from flask_cors import CORS
 
@@ -15,6 +16,10 @@ ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://uhbmbmqoivoxgqnaighr.supabase.co')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 PASSWORD_HASH = hashlib.sha256('Enricomota@2018'.encode()).hexdigest()
+
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
+GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'https://novoclaude2026-1.onrender.com/api/google/callback')
 
 WINDSOR_BASE = 'https://connectors.windsor.ai/facebook'
 FIELDS = 'account_name,spend,actions_lead,actions_onsite_conversion_messaging_conversation_started_7d'
@@ -305,6 +310,205 @@ def api_briefing():
         print('BRIEFING ERROR:', traceback.format_exc())
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+# ── Financeiro ──
+@app.route('/api/despesas', methods=['GET'])
+def get_despesas():
+    try:
+        mes = request.args.get('mes', datetime.utcnow().strftime('%Y-%m'))
+        r = requests.get(SUPABASE_URL + '/rest/v1/despesas?mes=eq.' + mes + '&order=categoria.asc,valor.desc', headers=supa_headers())
+        return jsonify({'ok': True, 'data': r.json()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/despesas', methods=['POST'])
+def add_despesa():
+    try:
+        body = request.json
+        r = requests.post(SUPABASE_URL + '/rest/v1/despesas', headers=supa_headers(), json=body)
+        return jsonify({'ok': True, 'data': r.json()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/despesas/<int:id>', methods=['PATCH'])
+def update_despesa(id):
+    try:
+        body = request.json
+        requests.patch(SUPABASE_URL + '/rest/v1/despesas?id=eq.' + str(id), headers=supa_headers(), json=body)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/despesas/<int:id>', methods=['DELETE'])
+def delete_despesa(id):
+    try:
+        requests.delete(SUPABASE_URL + '/rest/v1/despesas?id=eq.' + str(id), headers=supa_headers())
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/financeiro/resumo', methods=['GET'])
+def financeiro_resumo():
+    try:
+        mes = request.args.get('mes', datetime.utcnow().strftime('%Y-%m'))
+        cli_r = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true', headers=supa_headers())
+        clientes = {c['id']: c for c in cli_r.json()}
+        pag_r = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=eq.' + mes, headers=supa_headers())
+        pagamentos = pag_r.json()
+        entrada = sum(float(clientes[p['cliente_id']]['valor']) for p in pagamentos if p.get('pago') and p['cliente_id'] in clientes)
+        esperado = sum(float(c['valor']) for c in clientes.values())
+
+        desp_r = requests.get(SUPABASE_URL + '/rest/v1/despesas?mes=eq.' + mes, headers=supa_headers())
+        despesas = desp_r.json()
+        saida_total = sum(float(d['valor']) for d in despesas)
+        por_categoria = {'fixo': 0.0, 'variavel': 0.0, 'salario': 0.0}
+        for d in despesas:
+            cat = d.get('categoria')
+            if cat in por_categoria:
+                por_categoria[cat] += float(d['valor'])
+        saldo = entrada - saida_total
+        return jsonify({
+            'ok': True, 'mes': mes,
+            'entrada': round(entrada, 2), 'esperado': round(esperado, 2),
+            'saida': round(saida_total, 2), 'saldo': round(saldo, 2),
+            'por_categoria': {k: round(v, 2) for k, v in por_categoria.items()},
+            'despesas': despesas
+        })
+    except Exception as e:
+        print('FINANCEIRO ERROR:', traceback.format_exc())
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# ── Agenda / Google Calendar ──
+def get_config_valor(chave):
+    r = requests.get(SUPABASE_URL + '/rest/v1/config?chave=eq.' + chave, headers=supa_headers())
+    data = r.json()
+    return data[0]['valor'] if data else None
+
+def set_config_valor(chave, valor):
+    existing = get_config_valor(chave)
+    if existing is not None:
+        requests.patch(SUPABASE_URL + '/rest/v1/config?chave=eq.' + chave, headers=supa_headers(), json={'valor': valor})
+    else:
+        requests.post(SUPABASE_URL + '/rest/v1/config', headers=supa_headers(), json={'chave': chave, 'valor': valor})
+
+@app.route('/api/google/login')
+def google_login():
+    params = {
+        'client_id': GOOGLE_CLIENT_ID,
+        'redirect_uri': GOOGLE_REDIRECT_URI,
+        'response_type': 'code',
+        'scope': 'https://www.googleapis.com/auth/calendar',
+        'access_type': 'offline',
+        'prompt': 'consent'
+    }
+    return redirect('https://accounts.google.com/o/oauth2/v2/auth?' + urlencode(params))
+
+@app.route('/api/google/callback')
+def google_callback():
+    try:
+        code = request.args.get('code')
+        if not code:
+            return redirect('/agenda?erro=1')
+        resp = requests.post('https://oauth2.googleapis.com/token', data={
+            'code': code,
+            'client_id': GOOGLE_CLIENT_ID,
+            'client_secret': GOOGLE_CLIENT_SECRET,
+            'redirect_uri': GOOGLE_REDIRECT_URI,
+            'grant_type': 'authorization_code'
+        }, timeout=15)
+        tokens = resp.json()
+        refresh_token = tokens.get('refresh_token')
+        if refresh_token:
+            set_config_valor('google_refresh_token', refresh_token)
+        else:
+            print('GOOGLE CALLBACK SEM REFRESH TOKEN:', tokens)
+        return redirect('/agenda')
+    except Exception as e:
+        print('GOOGLE CALLBACK ERROR:', traceback.format_exc())
+        return redirect('/agenda?erro=1')
+
+def get_google_access_token():
+    refresh_token = get_config_valor('google_refresh_token')
+    if not refresh_token:
+        return None
+    resp = requests.post('https://oauth2.googleapis.com/token', data={
+        'refresh_token': refresh_token,
+        'client_id': GOOGLE_CLIENT_ID,
+        'client_secret': GOOGLE_CLIENT_SECRET,
+        'grant_type': 'refresh_token'
+    }, timeout=15)
+    if resp.status_code >= 400:
+        print('GOOGLE REFRESH ERROR:', resp.status_code, resp.text)
+        return None
+    return resp.json().get('access_token')
+
+@app.route('/api/agenda/status')
+def agenda_status():
+    return jsonify({'ok': True, 'conectado': bool(get_config_valor('google_refresh_token'))})
+
+@app.route('/api/agenda/desconectar', methods=['POST'])
+def agenda_desconectar():
+    try:
+        requests.delete(SUPABASE_URL + '/rest/v1/config?chave=eq.google_refresh_token', headers=supa_headers())
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/agenda/eventos', methods=['GET'])
+def agenda_eventos():
+    try:
+        token = get_google_access_token()
+        if not token:
+            return jsonify({'ok': True, 'conectado': False, 'eventos': []})
+        agora = datetime.utcnow().isoformat() + 'Z'
+        resp = requests.get(
+            'https://www.googleapis.com/calendar/v3/events',
+            headers={'Authorization': 'Bearer ' + token},
+            params={'timeMin': agora, 'maxResults': 20, 'singleEvents': 'true', 'orderBy': 'startTime'},
+            timeout=15
+        )
+        if resp.status_code >= 400:
+            print('AGENDA EVENTOS ERROR:', resp.status_code, resp.text)
+            return jsonify({'ok': False, 'error': str(resp.status_code) + ': ' + resp.text}), 500
+        items = resp.json().get('items', [])
+        eventos = [{
+            'id': ev.get('id'),
+            'titulo': ev.get('summary', '(sem titulo)'),
+            'inicio': (ev.get('start') or {}).get('dateTime') or (ev.get('start') or {}).get('date'),
+            'fim': (ev.get('end') or {}).get('dateTime') or (ev.get('end') or {}).get('date'),
+            'link': ev.get('htmlLink')
+        } for ev in items]
+        return jsonify({'ok': True, 'conectado': True, 'eventos': eventos})
+    except Exception as e:
+        print('AGENDA ERROR:', traceback.format_exc())
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/agenda/eventos', methods=['POST'])
+def agenda_criar_evento():
+    try:
+        token = get_google_access_token()
+        if not token:
+            return jsonify({'ok': False, 'error': 'Google Calendar nao conectado'}), 400
+        body = request.json or {}
+        data_inicio = body.get('inicio')
+        data_fim = body.get('fim', data_inicio)
+        payload = {
+            'summary': body.get('titulo', '(sem titulo)'),
+            'description': body.get('descricao', ''),
+            'start': {'dateTime': data_inicio, 'timeZone': 'America/Sao_Paulo'},
+            'end': {'dateTime': data_fim, 'timeZone': 'America/Sao_Paulo'}
+        }
+        resp = requests.post(
+            'https://www.googleapis.com/calendar/v3/events',
+            headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'},
+            json=payload, timeout=15
+        )
+        if resp.status_code >= 400:
+            print('AGENDA CRIAR ERROR:', resp.status_code, resp.text)
+            return jsonify({'ok': False, 'error': str(resp.status_code) + ': ' + resp.text}), 500
+        return jsonify({'ok': True, 'data': resp.json()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 # ── Clientes ──
 @app.route('/api/clientes', methods=['GET'])
 def get_clientes():
@@ -533,6 +737,14 @@ def tarefas():
 @app.route('/briefing')
 def briefing_page():
     return send_from_directory('static', 'briefing.html')
+
+@app.route('/financeiro')
+def financeiro_page():
+    return send_from_directory('static', 'financeiro.html')
+
+@app.route('/agenda')
+def agenda_page():
+    return send_from_directory('static', 'agenda.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
