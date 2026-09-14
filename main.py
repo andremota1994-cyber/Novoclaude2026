@@ -280,6 +280,9 @@ def api_briefing():
             'Va direto ao ponto, cite numeros reais dos DADOS abaixo, e termine cada bloco apontando o que '
             'precisa de acao hoje (ou "nada urgente" se nao houver). Anna ainda nao tem dados conectados -- ela '
             'deve dizer isso em uma linha e sugerir uma ideia de conteudo do dia. Nunca invente dados. '
+            'IMPORTANTE: nao inclua titulo, cabecalho, saudacao inicial nem linhas separadoras como "---" ou "===". '
+            'Comece a resposta direto no primeiro bloco "**[Nome] (Area):**" e va direto para o proximo bloco '
+            'em seguida, sem nenhum texto entre eles alem dos proprios blocos. '
             'Responda em portugues.\n\n'
             'DADOS:\n' + dados
         )
