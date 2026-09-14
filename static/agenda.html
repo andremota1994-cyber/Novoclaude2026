@@ -200,7 +200,10 @@ function montarCalendario(eventos){
     const evsDia = porDia[d] || [];
     const dataStr = ano + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0');
     const isHoje = dataStr === hojeStr;
-    const itens = evsDia.slice(0, 3).map(ev => '<div class="evento-mini" title="' + ev.titulo.replace(/"/g,'&quot;') + '">' + ev.titulo + '</div>').join('');
+    const itens = evsDia.slice(0, 3).map(ev => {
+      const tip = (ev.calendario ? '[' + ev.calendario + '] ' : '') + ev.titulo;
+      return '<div class="evento-mini" title="' + tip.replace(/"/g,'&quot;') + '">' + ev.titulo + '</div>';
+    }).join('');
     const mais = evsDia.length > 3 ? '<div class="evento-mais">+' + (evsDia.length - 3) + '</div>' : '';
     celulas += '<div class="dia' + (isHoje ? ' hoje' : '') + '"><div class="dia-num">' + d + '</div>' + itens + mais + '</div>';
   }
