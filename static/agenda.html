@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agenda - Mobilli Digital</title>
+<style>
+:root {
+  --bg: #0a0a0f; --card: #13131f; --card2: #1a1a2e;
+  --border: #1e2040; --blue: #3b82f6; --blue-bright: #60a5fa;
+  --text-primary: #f0f4ff; --text-secondary: #8892b0; --text-muted: #4a5568;
+  --green: #10b981; --amber: #f59e0b; --purple: #8b5cf6;
+  --red: #ef4444; --red-bg: #1a0a0a; --red-border: #3d1515;
+  --radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); display: flex; flex-direction: column; }
+
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
+.topbar-logo { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text-primary); }
+.topbar-logo span { color: var(--blue); }
+.topbar-nav { display: flex; gap: 2px; flex-wrap: wrap; }
+.topbar-link { padding: 6px 14px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; border: none; background: transparent; font-family: inherit; transition: all 0.15s; text-decoration: none; display: inline-block; }
+.topbar-link:hover { color: var(--text-primary); background: var(--card); }
+.topbar-link.active { color: var(--text-primary); }
+
+.main { flex: 1; overflow-y: auto; padding: 2rem; }
+.inner { max-width: 780px; margin: 0 auto; }
+
+.page-header { margin-bottom: 1.5rem; }
+.page-header h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+.page-header p { font-size: 13px; color: var(--text-secondary); }
+
+.connect-box { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 2.5rem 1.5rem; text-align: center; }
+.connect-box .icon { font-size: 32px; margin-bottom: 12px; }
+.connect-box p { color: var(--text-secondary); font-size: 13px; margin-bottom: 18px; }
+.btn-google { display: inline-flex; align-items: center; gap: 8px; background: var(--blue); color: white; border: none; padding: 10px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; text-decoration: none; }
+.btn-google:hover { background: var(--blue-bright); }
+
+.top-actions { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+.btn-ghost { background: transparent; border: 0.5px solid var(--border); color: var(--text-secondary); padding: 6px 12px; border-radius: var(--radius); font-size: 12px; cursor: pointer; font-family: inherit; }
+.btn-ghost:hover { color: var(--text-primary); background: var(--card); }
+
+.add-form { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 1rem 1.1rem; margin-bottom: 1.5rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.add-form .field { display: flex; flex-direction: column; gap: 4px; }
+.add-form label { font-size: 11px; color: var(--text-secondary); }
+.add-form input { background: var(--card2); border: 0.5px solid var(--border); border-radius: 6px; color: var(--text-primary); padding: 8px 10px; font-size: 13px; font-family: inherit; }
+.add-form input[type="text"] { min-width: 180px; }
+.btn-add { height: 36px; padding: 0 18px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: none; background: var(--blue); color: white; font-weight: 500; }
+.btn-add:hover { background: var(--blue-bright); }
+
+.cards { display: flex; flex-direction: column; gap: 10px; }
+.evento { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 0.9rem 1.1rem; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.evento-titulo { font-size: 14px; font-weight: 500; }
+.evento-data { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.evento a { font-size: 12px; color: var(--blue-bright); text-decoration: none; white-space: nowrap; }
+.evento a:hover { text-decoration: underline; }
+.empty { text-align: center; color: var(--text-muted); font-size: 13px; padding: 2rem; }
+.loading-box { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 14px; }
+.error-box { background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: 16px; padding: 1.5rem; color: var(--red); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="topbar-logo" href="/">📡 Mobilli <span>Digital</span></a>
+  <div class="topbar-nav">
+    <a class="topbar-link" href="/">Início</a>
+    <a class="topbar-link" href="/faturamento">Faturamento</a>
+    <a class="topbar-link" href="/tarefas">Tarefas</a>
+    <a class="topbar-link" href="/briefing">Briefing</a>
+    <a class="topbar-link" href="/financeiro">Financeiro</a>
+    <a class="topbar-link active" href="/agenda">Agenda</a>
+  </div>
+</div>
+
+<div class="main">
+  <div class="inner">
+    <div class="page-header">
+      <h2>📅 Agenda</h2>
+      <p>Seus próximos compromissos, direto do Google Calendar</p>
+    </div>
+    <div id="conteudo">
+      <div class="loading-box">Carregando...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+async function carregar(){
+  document.getElementById('conteudo').innerHTML = '<div class="loading-box">Carregando...</div>';
+  try {
+    const rs = await fetch('/api/agenda/status');
+    const js = await rs.json();
+    if (!js.conectado){
+      renderConectar();
+      return;
+    }
+    const r = await fetch('/api/agenda/eventos');
+    const j = await r.json();
+    if (!j.ok){
+      document.getElementById('conteudo').innerHTML = '<div class="error-box">❌ Erro ao buscar eventos: ' + j.error + '</div>';
+      return;
+    }
+    renderEventos(j.eventos || []);
+  } catch (e) {
+    document.getElementById('conteudo').innerHTML = '<div class="error-box">❌ Erro de conexão.</div>';
+  }
+}
+
+function renderConectar(){
+  document.getElementById('conteudo').innerHTML = `
+    <div class="connect-box">
+      <div class="icon">📅</div>
+      <p>Conecte sua conta do Google para ver e criar eventos direto por aqui.</p>
+      <a class="btn-google" href="/api/google/login">🔗 Conectar Google Calendar</a>
+    </div>
+  `;
+}
+
+function fmtData(iso){
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  const temHora = iso.includes('T');
+  return d.toLocaleDateString('pt-BR') + (temHora ? ' às ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}) : ' (dia todo)');
+}
+
+function renderEventos(eventos){
+  const linhas = eventos.map(ev => `
+    <div class="evento">
+      <div>
+        <div class="evento-titulo">${ev.titulo}</div>
+        <div class="evento-data">${fmtData(ev.inicio)}</div>
+      </div>
+      ${ev.link ? '<a href="' + ev.link + '" target="_blank">Abrir ↗</a>' : ''}
+    </div>
+  `).join('') || '<div class="empty">Nenhum evento futuro encontrado.</div>';
+
+  document.getElementById('conteudo').innerHTML = `
+    <div class="top-actions"><button class="btn-ghost" onclick="desconectar()">Desconectar Google Calendar</button></div>
+    <div class="add-form">
+      <div class="field"><label>Título</label><input type="text" id="f-titulo" placeholder="Ex: Reunião com Emerson"></div>
+      <div class="field"><label>Data</label><input type="date" id="f-data"></div>
+      <div class="field"><label>Início</label><input type="time" id="f-hora-inicio" value="09:00"></div>
+      <div class="field"><label>Fim</label><input type="time" id="f-hora-fim" value="10:00"></div>
+      <button class="btn-add" onclick="criarEvento()">+ Adicionar</button>
+    </div>
+    <div class="cards">${linhas}</div>
+  `;
+}
+
+async function criarEvento(){
+  const titulo = document.getElementById('f-titulo').value.trim();
+  const data = document.getElementById('f-data').value;
+  const horaIni = document.getElementById('f-hora-inicio').value || '09:00';
+  const horaFim = document.getElementById('f-hora-fim').value || '10:00';
+  if (!titulo || !data){ alert('Preencha título e data.'); return; }
+  const r = await fetch('/api/agenda/eventos', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({titulo, inicio: data + 'T' + horaIni + ':00', fim: data + 'T' + horaFim + ':00'})
+  });
+  const j = await r.json();
+  if (!j.ok){ alert('Não foi possível criar o evento: ' + (j.error || '')); return; }
+  carregar();
+}
+
+async function desconectar(){
+  if (!confirm('Desconectar o Google Calendar?')) return;
+  await fetch('/api/agenda/desconectar', {method: 'POST'});
+  carregar();
+}
+
+carregar();
+</script>
+</body>
+</html>
