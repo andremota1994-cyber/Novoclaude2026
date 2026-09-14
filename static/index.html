@@ -183,7 +183,6 @@
     <button class="topbar-link" onclick="setPage('dashboard',this)">Meta Ads</button>
     <a class="topbar-link" href="/faturamento">Faturamento</a>
     <a class="topbar-link" href="/tarefas">Tarefas</a>
-    <a class="topbar-link" href="/briefing">Briefing</a>
     <a class="topbar-link" href="/financeiro">Financeiro</a>
     <a class="topbar-link" href="/agenda">Agenda</a>
   </div>
@@ -206,6 +205,7 @@
           <div class="chip" onclick="quickSend('Quais clientes precisam de atenção agora? Considera CPL alto, inadimplência e qualquer sinal de risco.')">👥 Clientes para dar atenção</div>
           <div class="chip" onclick="quickSend('Alerta de churn: quais clientes têm maior risco de cancelar? Considera inadimplência, CPL alto e outros sinais.')">⚠️ Alerta de churn</div>
           <div class="chip" onclick="quickSend('Me dá uma visão geral rápida da agência: faturamento, campanhas, clientes e o que está bom ou ruim.')">📊 Visão geral</div>
+          <div class="chip" onclick="briefingDoDia()">☀️ Briefing do dia</div>
         </div>
       </div>
 
@@ -408,6 +408,22 @@ function sendMsg(){
 }
 
 function quickSend(msg){doSend(msg);}
+
+async function briefingDoDia(){
+  if(busy)return;
+  busy=true;updateBtn();
+  if(!started){started=true;showGreeting(false);}
+  addMsg('user','☀️ Briefing do dia');
+  showTyping();
+  try{
+    const r=await fetch('/api/briefing');
+    const j=await r.json();
+    hideTyping();
+    if(j.ok)addMsg('assistant',formatReply(j.briefing));
+    else addMsg('assistant','<p>❌ Erro: '+j.error+'</p>');
+  }catch(e){hideTyping();addMsg('assistant','<p>❌ Erro de conexão.</p>');}
+  busy=false;updateBtn();
+}
 function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMsg();}}
 
 // ── ads ──
