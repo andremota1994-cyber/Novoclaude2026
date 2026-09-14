@@ -69,6 +69,92 @@ def fetch_ads_data(preset):
     result.sort(key=lambda x: x['spend'], reverse=True)
     return result
 
+def get_ads_resumo():
+    try:
+        ads_data = fetch_ads_data('last_30dT')
+    except Exception:
+        ads_data = []
+    total_spend = sum(d['spend'] for d in ads_data)
+    total_results = sum(d['total'] for d in ads_data)
+    total_leads = sum(d['leads'] for d in ads_data)
+    total_msg = sum(d['msg'] for d in ads_data)
+    cpl_avg = round(total_spend / total_results, 2) if total_results else 0
+    alertas = sorted([d for d in ads_data if d['cpl'] and d['cpl'] > 15 and d['spend'] > 0], key=lambda x: x['cpl'], reverse=True)
+    top5_lines = '\n'.join(['- ' + d['account_name'] + ': R$' + str(round(d['spend'])) + ', ' + str(d['total']) + ' resultados, CPL R$' + str(d['cpl'] or 0) for d in ads_data[:5]]) or 'Sem dados.'
+    alert_lines = '\n'.join(['- ' + d['account_name'] + ': CPL R$' + str(d['cpl']) for d in alertas[:6]]) if alertas else 'Nenhuma conta com CPL alto.'
+    return (
+        'META ADS ULTIMOS 30 DIAS (area do Bryan):\n'
+        'Investimento total: R$' + str(round(total_spend)) + '\n'
+        'Resultados: ' + str(total_results) + ' (' + str(total_leads) + ' leads + ' + str(total_msg) + ' conversas)\n'
+        'CPL medio: R$' + str(cpl_avg) + '\n\n'
+        'TOP 5 CONTAS:\n' + top5_lines + '\n\n'
+        'ALERTAS CPL ACIMA R$15:\n' + alert_lines + '\n'
+    )
+
+def get_movimento_resumo():
+    try:
+        mes = datetime.utcnow().strftime('%Y-%m')
+        ano, m = int(mes[:4]), int(mes[5:])
+        inicio = mes + '-01T00:00:00'
+        fim = str(ano) + '-' + str(m + 1).zfill(2) + '-01T00:00:00' if m < 12 else str(ano + 1) + '-01-01T00:00:00'
+        r_novos = requests.get(SUPABASE_URL + '/rest/v1/clientes?created_at=gte.' + inicio + '&created_at=lt.' + fim, headers=supa_headers(), timeout=10)
+        novos = [c['nome'] for c in r_novos.json()]
+        r_perdidos = requests.get(SUPABASE_URL + '/rest/v1/clientes?inativado_em=gte.' + inicio + '&inativado_em=lt.' + fim, headers=supa_headers(), timeout=10)
+        perdidos = [c['nome'] for c in r_perdidos.json()]
+        return (
+            'MOVIMENTO DE CLIENTES neste mes (area do Emerson):\n'
+            'Novos (' + str(len(novos)) + '): ' + (', '.join(novos) if novos else 'nenhum') + '\n'
+            'Perdidos/cancelados (' + str(len(perdidos)) + '): ' + (', '.join(perdidos) if perdidos else 'nenhum') + '\n'
+        )
+    except Exception:
+        return 'Movimento de clientes indisponivel.\n'
+
+def get_tarefas_resumo():
+    try:
+        r = requests.get(SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.false&order=created_at.asc', headers=supa_headers(), timeout=10)
+        tarefas = r.json()
+        hoje = [t['titulo'] for t in tarefas if t.get('prazo') == 'hoje']
+        amanha = [t['titulo'] for t in tarefas if t.get('prazo') == 'amanha']
+        semana = [t['titulo'] for t in tarefas if t.get('prazo') == 'semana']
+        return (
+            'TAREFAS PENDENTES (area da Amy):\n'
+            'Hoje (' + str(len(hoje)) + '): ' + (', '.join(hoje) if hoje else 'nenhuma') + '\n'
+            'Amanha (' + str(len(amanha)) + '): ' + (', '.join(amanha) if amanha else 'nenhuma') + '\n'
+            'Semana (' + str(len(semana)) + '): ' + (', '.join(semana) if semana else 'nenhuma') + '\n'
+        )
+    except Exception:
+        return 'Tarefas indisponiveis.\n'
+
+def build_dados_equipe():
+    total_clientes, fat_info = get_fat_info()
+    return (
+        'Clientes ativos: ' + str(total_clientes) + '\n'
+        'Historico faturamento 2026: Jan R$16000, Fev R$10500, Mar R$19250, Abr R$16550, Mai R$31300, Jun R$20550\n\n'
+        + fat_info + '\n'
+        + get_ads_resumo() + '\n'
+        + get_movimento_resumo() + '\n'
+        + get_tarefas_resumo() + '\n'
+        + 'MARKETING INTERNO (area da Anna):\n'
+          'Nenhuma metrica conectada ainda (sem dados de conteudo, social media ou crescimento visual).\n'
+    )
+
+TEAM_INTRO = (
+    'Voce representa a equipe da agencia Mobilli Digital, de Andre Mota (agencia de trafego pago imobiliario MCMV). '
+    'A equipe tem 5 especialistas, cada um dono de uma area. Ao responder, identifique de qual area e a pergunta '
+    'e responda NA VOZ da pessoa responsavel, comecando o bloco com "**[Nome] (Area):**" antes do texto. '
+    'Se a pergunta envolver mais de uma area, responda com um bloco por pessoa relevante, cada bloco comecando '
+    'com o proprio "**[Nome] (Area):**". Nunca invente dados ou numeros fora do que estiver em DADOS DISPONIVEIS. '
+    'Responda sempre em portugues, de forma direta e objetiva. Use emojis com moderacao.\n\n'
+    'A EQUIPE:\n'
+    '- Bryan (Trafego): Meta Ads, CPL, otimizacao de campanhas e investimento em midia paga.\n'
+    '- Claudio (Financeiro): faturamento, cobranca, pagamentos, inadimplencia.\n'
+    '- Emerson (Vendas e Expansao): novos clientes, churn, retencao, upsell.\n'
+    '- Amy (Secretaria): tarefas, agenda e prioridades do dia a dia.\n'
+    '- Anna (Marketing Interno): conteudo, social media e crescimento visual da propria Mobilli Digital. '
+    'Ainda sem metricas conectadas -- atua como consultora estrategica quando perguntada, sem inventar numeros, '
+    'e pode sugerir conectar Instagram/TikTok/YouTube organico via Windsor.ai no futuro.\n\n'
+)
+
 def get_fat_info():
     try:
         mes_atual = datetime.utcnow().strftime('%Y-%m')
@@ -152,34 +238,7 @@ def api_chat():
     try:
         body = request.json or {}
         messages = body.get('messages', [])
-        try:
-            ads_data = fetch_ads_data('last_30dT')
-        except:
-            ads_data = []
-        total_spend = sum(d['spend'] for d in ads_data)
-        total_results = sum(d['total'] for d in ads_data)
-        total_leads = sum(d['leads'] for d in ads_data)
-        total_msg = sum(d['msg'] for d in ads_data)
-        cpl_avg = round(total_spend / total_results, 2) if total_results else 0
-        alertas = sorted([d for d in ads_data if d['cpl'] and d['cpl'] > 15 and d['spend'] > 0], key=lambda x: x['cpl'], reverse=True)
-        top5_lines = '\n'.join(['- ' + d['account_name'] + ': R$' + str(round(d['spend'])) + ', ' + str(d['total']) + ' resultados, CPL R$' + str(d['cpl'] or 0) for d in ads_data[:5]])
-        alert_lines = '\n'.join(['- ' + d['account_name'] + ': CPL R$' + str(d['cpl']) for d in alertas[:6]]) if alertas else 'Nenhuma conta com CPL alto.'
-        total_clientes, fat_info = get_fat_info()
-        system = (
-            'Voce e o assistente da agencia Mobilli Digital de Andre Mota. '
-            'Responda sempre em portugues de forma direta e objetiva. '
-            'Use emojis moderadamente. Nunca invente dados.\n\n'
-            'DADOS DA AGENCIA:\n'
-            'Clientes ativos: ' + str(total_clientes) + '\n'
-            'Historico 2026: Jan R$16000, Fev R$10500, Mar R$19250, Abr R$16550, Mai R$31300, Jun R$20550\n\n'
-            + fat_info + '\n'
-            'META ADS ULTIMOS 30 DIAS:\n'
-            'Investimento total: R$' + str(round(total_spend)) + '\n'
-            'Resultados: ' + str(total_results) + ' (' + str(total_leads) + ' leads + ' + str(total_msg) + ' conversas)\n'
-            'CPL medio: R$' + str(cpl_avg) + '\n\n'
-            'TOP 5 CONTAS:\n' + top5_lines + '\n\n'
-            'ALERTAS CPL ACIMA R$15:\n' + alert_lines
-        )
+        system = TEAM_INTRO + 'DADOS DISPONIVEIS:\n\n' + build_dados_equipe()
         clean = []
         for m in messages:
             role = m.get('role', '')
@@ -206,6 +265,41 @@ def api_chat():
         return jsonify({'ok': True, 'reply': resp.json()['content'][0]['text']})
     except Exception as e:
         print('CHAT ERROR:', traceback.format_exc())
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# ── Briefing da manha ──
+@app.route('/api/briefing', methods=['GET'])
+def api_briefing():
+    try:
+        dados = build_dados_equipe()
+        system = (
+            'Voce vai montar o briefing matinal da equipe da Mobilli Digital para o Andre Mota. '
+            'Cada um dos 5 especialistas da um relato curto (2 a 4 linhas) da propria area, em primeira pessoa, '
+            'cada bloco comecando com "**[Nome] (Area):**". Ordem fixa: Amy (Secretaria), Claudio (Financeiro), '
+            'Bryan (Trafego), Emerson (Vendas e Expansao), Anna (Marketing Interno). '
+            'Va direto ao ponto, cite numeros reais dos DADOS abaixo, e termine cada bloco apontando o que '
+            'precisa de acao hoje (ou "nada urgente" se nao houver). Anna ainda nao tem dados conectados -- ela '
+            'deve dizer isso em uma linha e sugerir uma ideia de conteudo do dia. Nunca invente dados. '
+            'Responda em portugues.\n\n'
+            'DADOS:\n' + dados
+        )
+        resp = requests.post(
+            'https://api.anthropic.com/v1/messages',
+            headers={'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
+            json={'model': 'claude-haiku-4-5-20251001', 'max_tokens': 1200, 'system': system,
+                  'messages': [{'role': 'user', 'content': 'Monte o briefing de hoje.'}]},
+            timeout=30
+        )
+        if resp.status_code >= 400:
+            try:
+                detalhe = resp.json()
+            except Exception:
+                detalhe = resp.text
+            print('BRIEFING ERROR DETALHE:', resp.status_code, detalhe)
+            return jsonify({'ok': False, 'error': str(resp.status_code) + ': ' + str(detalhe)}), 500
+        return jsonify({'ok': True, 'briefing': resp.json()['content'][0]['text'], 'data': datetime.utcnow().strftime('%d/%m/%Y')})
+    except Exception as e:
+        print('BRIEFING ERROR:', traceback.format_exc())
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 # ── Clientes ──
@@ -432,6 +526,10 @@ def faturamento():
 @app.route('/tarefas')
 def tarefas():
     return send_from_directory('static', 'tarefas.html')
+
+@app.route('/briefing')
+def briefing_page():
+    return send_from_directory('static', 'briefing.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
