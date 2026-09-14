@@ -196,7 +196,13 @@ def api_chat():
             json={'model': 'claude-haiku-4-5-20251001', 'max_tokens': 1024, 'system': system, 'messages': clean},
             timeout=30
         )
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            try:
+                detalhe = resp.json()
+            except Exception:
+                detalhe = resp.text
+            print('CHAT ERROR DETALHE:', resp.status_code, detalhe)
+            return jsonify({'ok': False, 'error': str(resp.status_code) + ': ' + str(detalhe)}), 500
         return jsonify({'ok': True, 'reply': resp.json()['content'][0]['text']})
     except Exception as e:
         print('CHAT ERROR:', traceback.format_exc())
