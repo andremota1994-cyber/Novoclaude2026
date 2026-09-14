@@ -461,7 +461,7 @@ def agenda_eventos():
             return jsonify({'ok': True, 'conectado': False, 'eventos': []})
         agora = datetime.utcnow().isoformat() + 'Z'
         resp = requests.get(
-            'https://www.googleapis.com/calendar/v3/events',
+            'https://www.googleapis.com/calendar/v3/calendars/primary/events',
             headers={'Authorization': 'Bearer ' + token},
             params={'timeMin': agora, 'maxResults': 20, 'singleEvents': 'true', 'orderBy': 'startTime'},
             timeout=15
@@ -498,7 +498,7 @@ def agenda_criar_evento():
             'end': {'dateTime': data_fim, 'timeZone': 'America/Sao_Paulo'}
         }
         resp = requests.post(
-            'https://www.googleapis.com/calendar/v3/events',
+            'https://www.googleapis.com/calendar/v3/calendars/primary/events',
             headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'},
             json=payload, timeout=15
         )
