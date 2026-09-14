@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agenda - Mobilli Digital</title>
+<style>
+:root {
+  --bg: #0a0a0f; --card: #13131f; --card2: #1a1a2e;
+  --border: #1e2040; --blue: #3b82f6; --blue-bright: #60a5fa;
+  --text-primary: #f0f4ff; --text-secondary: #8892b0; --text-muted: #4a5568;
+  --green: #10b981; --amber: #f59e0b; --purple: #8b5cf6;
+  --red: #ef4444; --red-bg: #1a0a0a; --red-border: #3d1515;
+  --radius: 8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); display: flex; flex-direction: column; }
+
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
+.topbar-logo { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--text-primary); }
+.topbar-logo span { color: var(--blue); }
+.topbar-nav { display: flex; gap: 2px; flex-wrap: wrap; }
+.topbar-link { padding: 6px 14px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; border: none; background: transparent; font-family: inherit; transition: all 0.15s; text-decoration: none; display: inline-block; }
+.topbar-link:hover { color: var(--text-primary); background: var(--card); }
+.topbar-link.active { color: var(--text-primary); }
+
+.main { flex: 1; overflow-y: auto; padding: 2rem; }
+.inner { max-width: 980px; margin: 0 auto; }
+
+.page-header { margin-bottom: 1.5rem; }
+.page-header h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+.page-header p { font-size: 13px; color: var(--text-secondary); }
+
+.connect-box { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 2.5rem 1.5rem; text-align: center; }
+.connect-box .icon { font-size: 32px; margin-bottom: 12px; }
+.connect-box p { color: var(--text-secondary); font-size: 13px; margin-bottom: 18px; }
+.btn-google { display: inline-flex; align-items: center; gap: 8px; background: var(--blue); color: white; border: none; padding: 10px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 500; cursor: pointer; text-decoration: none; }
+.btn-google:hover { background: var(--blue-bright); }
+
+.toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px; }
+.mes-nav { display: flex; align-items: center; gap: 10px; background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 6px 10px; }
+.mes-nav button { background: transparent; border: none; color: var(--text-secondary); cursor: pointer; font-size: 15px; padding: 2px 6px; }
+.mes-nav button:hover { color: var(--text-primary); }
+.mes-nav span { font-size: 13px; min-width: 110px; text-align: center; }
+.btn-ghost { background: transparent; border: 0.5px solid var(--border); color: var(--text-secondary); padding: 6px 12px; border-radius: var(--radius); font-size: 12px; cursor: pointer; font-family: inherit; }
+.btn-ghost:hover { color: var(--text-primary); background: var(--card); }
+
+.add-form { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 1rem 1.1rem; margin-bottom: 1.5rem; display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.add-form .field { display: flex; flex-direction: column; gap: 4px; }
+.add-form label { font-size: 11px; color: var(--text-secondary); }
+.add-form input { background: var(--card2); border: 0.5px solid var(--border); border-radius: 6px; color: var(--text-primary); padding: 8px 10px; font-size: 13px; font-family: inherit; }
+.add-form input[type="text"] { min-width: 180px; }
+.btn-add { height: 36px; padding: 0 18px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: none; background: var(--blue); color: white; font-weight: 500; }
+.btn-add:hover { background: var(--blue-bright); }
+
+.semana-labels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-bottom: 6px; }
+.semana-labels div { text-align: center; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; padding-bottom: 4px; }
+
+.calendario-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+.dia { background: var(--card); border: 0.5px solid var(--border); border-radius: 8px; padding: 6px; min-height: 84px; overflow: hidden; }
+.dia.vazio { background: transparent; border: none; }
+.dia.hoje { border-color: var(--blue); }
+.dia-num { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; }
+.dia.hoje .dia-num { color: var(--blue-bright); font-weight: 600; }
+.evento-mini { background: rgba(59,130,246,0.15); color: var(--blue-bright); border-radius: 4px; padding: 2px 5px; margin-bottom: 2px; font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: default; }
+.evento-mais { font-size: 10px; color: var(--text-muted); padding: 2px 5px; }
+
+.loading-box { background: var(--card); border: 0.5px solid var(--border); border-radius: 16px; padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 14px; }
+.error-box { background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: 16px; padding: 1.5rem; color: var(--red); font-size: 13px; }
+
+@media (max-width: 600px) {
+  .dia { min-height: 56px; padding: 4px; }
+  .dia-num { font-size: 10px; }
+  .evento-mini { font-size: 9px; padding: 1px 3px; }
+  .semana-labels div { font-size: 9px; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="topbar-logo" href="/">📡 Mobilli <span>Digital</span></a>
+  <div class="topbar-nav">
+    <a class="topbar-link" href="/">Início</a>
+    <a class="topbar-link" href="/faturamento">Faturamento</a>
+    <a class="topbar-link" href="/tarefas">Tarefas</a>
+    <a class="topbar-link" href="/briefing">Briefing</a>
+    <a class="topbar-link" href="/financeiro">Financeiro</a>
+    <a class="topbar-link active" href="/agenda">Agenda</a>
+  </div>
+</div>
+
+<div class="main">
+  <div class="inner">
+    <div class="page-header">
+      <h2>📅 Agenda</h2>
+      <p>Calendário do mês, direto do Google Calendar</p>
+    </div>
+    <div id="conteudo">
+      <div class="loading-box">Carregando...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+let mesAtual = new Date().toISOString().slice(0,7);
+let conectado = false;
+
+function labelMes(mes){
+  const [ano, m] = mes.split('-').map(Number);
+  return MESES[m-1] + ' / ' + ano;
+}
+
+function mudarMes(delta){
+  let [ano, m] = mesAtual.split('-').map(Number);
+  m += delta;
+  if (m < 1) { m = 12; ano--; }
+  if (m > 12) { m = 1; ano++; }
+  mesAtual = ano + '-' + String(m).padStart(2,'0');
+  carregar();
+}
+
+async function carregar(){
+  document.getElementById('conteudo').innerHTML = '<div class="loading-box">Carregando...</div>';
+  try {
+    const rs = await fetch('/api/agenda/status');
+    const js = await rs.json();
+    conectado = js.conectado;
+    if (!conectado){
+      renderConectar();
+      return;
+    }
+    const r = await fetch('/api/agenda/eventos?mes=' + mesAtual);
+    const j = await r.json();
+    if (!j.ok){
+      renderShell('<div class="error-box">❌ Erro ao buscar eventos: ' + j.error + '</div>');
+      return;
+    }
+    renderShell(montarCalendario(j.eventos || []));
+  } catch (e) {
+    document.getElementById('conteudo').innerHTML = '<div class="error-box">❌ Erro de conexão.</div>';
+  }
+}
+
+function renderConectar(){
+  document.getElementById('conteudo').innerHTML = `
+    <div class="connect-box">
+      <div class="icon">📅</div>
+      <p>Conecte sua conta do Google para ver e criar eventos direto por aqui.</p>
+      <a class="btn-google" href="/api/google/login">🔗 Conectar Google Calendar</a>
+    </div>
+  `;
+}
+
+function renderShell(inner){
+  document.getElementById('conteudo').innerHTML = `
+    <div class="toolbar">
+      <div class="mes-nav">
+        <button onclick="mudarMes(-1)">◀</button>
+        <span>${labelMes(mesAtual)}</span>
+        <button onclick="mudarMes(1)">▶</button>
+      </div>
+      <button class="btn-ghost" onclick="desconectar()">Desconectar Google Calendar</button>
+    </div>
+    <div class="add-form">
+      <div class="field"><label>Título</label><input type="text" id="f-titulo" placeholder="Ex: Reunião com Emerson"></div>
+      <div class="field"><label>Data</label><input type="date" id="f-data"></div>
+      <div class="field"><label>Início</label><input type="time" id="f-hora-inicio" value="09:00"></div>
+      <div class="field"><label>Fim</label><input type="time" id="f-hora-fim" value="10:00"></div>
+      <button class="btn-add" onclick="criarEvento()">+ Adicionar</button>
+    </div>
+    ${inner}
+  `;
+}
+
+function montarCalendario(eventos){
+  const [ano, m] = mesAtual.split('-').map(Number);
+  const diasNoMes = new Date(ano, m, 0).getDate();
+  const offset = new Date(ano, m - 1, 1).getDay();
+
+  const porDia = {};
+  eventos.forEach(ev => {
+    if (!ev.inicio) return;
+    const diaStr = ev.inicio.split('T')[0];
+    const partes = diaStr.split('-').map(Number);
+    if (partes[0] === ano && partes[1] === m){
+      (porDia[partes[2]] = porDia[partes[2]] || []).push(ev);
+    }
+  });
+
+  const hoje = new Date();
+  const hojeStr = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2,'0') + '-' + String(hoje.getDate()).padStart(2,'0');
+
+  let celulas = '';
+  for (let i = 0; i < offset; i++) celulas += '<div class="dia vazio"></div>';
+  for (let d = 1; d <= diasNoMes; d++){
+    const evsDia = porDia[d] || [];
+    const dataStr = ano + '-' + String(m).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+    const isHoje = dataStr === hojeStr;
+    const itens = evsDia.slice(0, 3).map(ev => '<div class="evento-mini" title="' + ev.titulo.replace(/"/g,'&quot;') + '">' + ev.titulo + '</div>').join('');
+    const mais = evsDia.length > 3 ? '<div class="evento-mais">+' + (evsDia.length - 3) + '</div>' : '';
+    celulas += '<div class="dia' + (isHoje ? ' hoje' : '') + '"><div class="dia-num">' + d + '</div>' + itens + mais + '</div>';
+  }
+
+  const labels = DIAS_SEMANA.map(d => '<div>' + d + '</div>').join('');
+  return '<div class="semana-labels">' + labels + '</div><div class="calendario-grid">' + celulas + '</div>';
+}
+
+async function criarEvento(){
+  const titulo = document.getElementById('f-titulo').value.trim();
+  const data = document.getElementById('f-data').value;
+  const horaIni = document.getElementById('f-hora-inicio').value || '09:00';
+  const horaFim = document.getElementById('f-hora-fim').value || '10:00';
+  if (!titulo || !data){ alert('Preencha título e data.'); return; }
+  const r = await fetch('/api/agenda/eventos', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({titulo, inicio: data + 'T' + horaIni + ':00', fim: data + 'T' + horaFim + ':00'})
+  });
+  const j = await r.json();
+  if (!j.ok){ alert('Não foi possível criar o evento: ' + (j.error || '')); return; }
+  mesAtual = data.slice(0,7);
+  carregar();
+}
+
+async function desconectar(){
+  if (!confirm('Desconectar o Google Calendar?')) return;
+  await fetch('/api/agenda/desconectar', {method: 'POST'});
+  carregar();
+}
+
+carregar();
+</script>
+</body>
+</html>
