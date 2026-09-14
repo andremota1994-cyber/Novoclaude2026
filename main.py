@@ -46,8 +46,13 @@ def require_login():
             return jsonify({'ok': False, 'error': 'Nao autorizado'}), 401
         return redirect('/login')
 
-def fetch_ads_data(preset):
-    params = {'api_key': WINDSOR_API_KEY, 'date_preset': preset, 'fields': FIELDS}
+def fetch_ads_data(date_preset=None, date_from=None, date_to=None):
+    params = {'api_key': WINDSOR_API_KEY, 'fields': FIELDS}
+    if date_from and date_to:
+        params['date_from'] = date_from
+        params['date_to'] = date_to
+    else:
+        params['date_preset'] = date_preset or 'last_30dT'
     r = requests.get(WINDSOR_BASE, params=params, timeout=30)
     r.raise_for_status()
     raw = r.json().get('data', r.json())
@@ -76,7 +81,7 @@ def fetch_ads_data(preset):
 
 def get_ads_resumo():
     try:
-        ads_data = fetch_ads_data('last_30dT')
+        ads_data = fetch_ads_data(date_preset='last_30dT')
     except Exception:
         ads_data = []
     total_spend = sum(d['spend'] for d in ads_data)
@@ -223,9 +228,16 @@ def logout():
 @app.route('/api/data')
 def api_data():
     period = request.args.get('period', '30')
-    preset = PRESETS.get(period, 'last_30dT')
     try:
-        data = fetch_ads_data(preset)
+        if period == 'hoje':
+            hoje = datetime.utcnow().strftime('%Y-%m-%d')
+            data = fetch_ads_data(date_from=hoje, date_to=hoje)
+        elif period == 'ontem':
+            ontem = (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d')
+            data = fetch_ads_data(date_from=ontem, date_to=ontem)
+        else:
+            preset = PRESETS.get(period, 'last_30dT')
+            data = fetch_ads_data(date_preset=preset)
         total_spend = sum(d['spend'] for d in data)
         total_results = sum(d['total'] for d in data)
         total_leads = sum(d['leads'] for d in data)
