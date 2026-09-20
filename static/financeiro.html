@@ -90,6 +90,13 @@ tr:last-child td { border-bottom: none; }
 .tag.fixo { background: rgba(212,175,55,0.15); color: var(--blue-bright); }
 .tag.variavel { background: rgba(255,157,66,0.15); color: var(--amber); }
 .tag.salario { background: rgba(201,168,255,0.15); color: var(--purple); }
+.tag-select { padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 500; border: none; cursor: pointer; font-family: inherit; appearance: auto; }
+.tag-select.fixo { background: rgba(212,175,55,0.15); color: var(--blue-bright); }
+.tag-select.variavel { background: rgba(255,157,66,0.15); color: var(--amber); }
+.tag-select.salario { background: rgba(201,168,255,0.15); color: var(--purple); }
+.tag-select option { background: #171206; color: var(--text-primary); }
+.valor-input { background: var(--card2); border: 0.5px solid var(--border); border-radius: 6px; color: var(--text-primary); padding: 6px 8px; font-size: 13px; font-family: inherit; width: 100px; }
+.valor-input:focus { border-color: var(--border-strong); outline: none; }
 .btn-icon { background: transparent; border: none; cursor: pointer; font-size: 15px; color: var(--text-secondary); padding: 4px; }
 .btn-icon:hover { color: var(--red); }
 .check-pago { width: 16px; height: 16px; cursor: pointer; accent-color: var(--green); }
@@ -183,8 +190,14 @@ function render(j){
   const linhas = (j.despesas || []).map(d => `
     <tr>
       <td>${d.descricao}</td>
-      <td><span class="tag ${d.categoria}">${d.categoria === 'fixo' ? 'Fixo' : d.categoria === 'variavel' ? 'Variável' : 'Salário'}</span></td>
-      <td>${fmt(d.valor)}</td>
+      <td>
+        <select class="tag-select ${d.categoria}" onchange="alterarCategoria(${d.id}, this.value, this)">
+          <option value="fixo" ${d.categoria === 'fixo' ? 'selected' : ''}>Fixo</option>
+          <option value="variavel" ${d.categoria === 'variavel' ? 'selected' : ''}>Variável</option>
+          <option value="salario" ${d.categoria === 'salario' ? 'selected' : ''}>Salário</option>
+        </select>
+      </td>
+      <td><input type="number" class="valor-input" value="${d.valor}" min="0.01" step="0.01" onchange="alterarValor(${d.id}, this.value, this)"></td>
       <td><input type="checkbox" class="check-pago" ${d.pago ? 'checked' : ''} onchange="togglePago(${d.id}, this.checked)"></td>
       <td><button class="btn-icon" onclick="excluirDespesa(${d.id})">🗑️</button></td>
     </tr>
@@ -244,6 +257,19 @@ async function adicionarDespesa(){
 
 async function togglePago(id, pago){
   await fetch('/api/despesas/' + id, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({pago})});
+  carregar();
+}
+
+async function alterarCategoria(id, categoria, select){
+  select.className = 'tag-select ' + categoria;
+  await fetch('/api/despesas/' + id, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({categoria})});
+  carregar();
+}
+
+async function alterarValor(id, valor, input){
+  const v = parseFloat(valor);
+  if (isNaN(v) || v <= 0) { alert('Informe um valor válido.'); carregar(); return; }
+  await fetch('/api/despesas/' + id, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({valor: v})});
   carregar();
 }
 
