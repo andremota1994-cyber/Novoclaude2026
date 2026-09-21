@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clientes - Mobilli Digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #060504; --card: rgba(228,190,110,0.055); --card2: rgba(228,190,110,0.10);
+  --border: rgba(228,190,110,0.16); --border-strong: rgba(228,190,110,0.30);
+  --blue: #d4af37; --blue-bright: #f3d888;
+  --grad: linear-gradient(135deg, #f3d888, #9c7a24);
+  --text-primary: #f7f3ea; --text-secondary: #a89a78; --text-muted: #6b6047;
+  --green: #2fd97f; --amber: #ff9d42; --purple: #c9a8ff;
+  --red: #ff5c72; --red-bg: rgba(255,92,114,0.08); --red-border: rgba(255,92,114,0.28);
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); display: flex; flex-direction: column; position: relative; }
+.bg-ambient { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.blob-a, .blob-b { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .32; }
+.blob-a { width: 520px; height: 520px; background: radial-gradient(circle, rgba(212,175,55,.35), transparent 70%); top: -160px; left: -120px; animation: driftA 24s ease-in-out infinite; }
+.blob-b { width: 480px; height: 480px; background: radial-gradient(circle, rgba(156,122,36,.28), transparent 70%); bottom: -180px; right: -140px; animation: driftB 28s ease-in-out infinite; }
+@keyframes driftA { 0%,100%{transform:translate(0,0)} 50%{transform:translate(60px,40px)} }
+@keyframes driftB { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-50px,-30px)} }
+.watermark { position: fixed; inset: 0; z-index: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.watermark img { width: 42vw; max-width: 480px; opacity: .045; filter: grayscale(1) brightness(1.8); }
+.topbar, .main { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .blob-a, .blob-b { animation: none !important; }
+  * { transition: none !important; }
+}
+
+.topbar { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1.5rem; border-bottom: 0.5px solid var(--border); flex-shrink: 0; flex-wrap: wrap; gap: 8px; }
+.topbar-logo { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--text-primary); font-family: 'Sora', sans-serif; }
+.topbar-logo img { height: 24px; width: auto; display: block; }
+.topbar-logo span { background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.topbar-nav { display: flex; gap: 2px; flex-wrap: wrap; }
+.topbar-link { padding: 6px 14px; border-radius: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; border: none; background: transparent; font-family: inherit; transition: all 0.15s; text-decoration: none; display: inline-block; }
+.topbar-link:hover { color: var(--text-primary); background: var(--card); }
+.topbar-link.active { color: var(--text-primary); }
+
+.main { flex: 1; overflow-y: auto; padding: 2rem; }
+.inner { max-width: 1080px; margin: 0 auto; }
+
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 12px; }
+.page-header-left h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+.page-header-left p { font-size: 13px; color: var(--text-secondary); }
+.btn-add { height: 36px; padding: 0 18px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: none; background: var(--grad); color: #171206; font-weight: 600; }
+.btn-add:hover { filter: brightness(1.08); }
+
+.search-input { width: 100%; height: 40px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 14px; font-size: 13px; background: var(--card); color: var(--text-primary); outline: none; font-family: inherit; margin-bottom: 1.5rem; }
+.search-input:focus { border-color: var(--border-strong); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+.cliente-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1.1rem; cursor: pointer; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; text-decoration: none; color: inherit; display: block; }
+.cliente-card:hover { transform: translateY(-3px); border-color: var(--border-strong); box-shadow: 0 10px 30px rgba(212,175,55,.10); }
+.cc-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; gap: 8px; }
+.cc-nome { font-size: 15px; font-weight: 600; }
+.cc-empresa { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+.nivel-badge { font-size: 10px; padding: 2px 7px; border-radius: 20px; flex-shrink: 0; }
+.nivel-ouro { background: #1a1500; color: var(--amber); border: 0.5px solid #3d3000; }
+.nivel-prata { background: #111827; color: #94a3b8; border: 0.5px solid #1f2937; }
+.nivel-bronze { background: #1a0f00; color: #d97706; border: 0.5px solid #3d2000; }
+.cc-valor { font-size: 18px; font-weight: 600; color: var(--blue-bright); margin-bottom: 8px; }
+.cc-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.cc-tag { font-size: 10px; padding: 2px 8px; border-radius: 20px; }
+.cc-tag.atrasado { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+.cc-tag.ocupacao { background: var(--card2); color: var(--text-secondary); border: 0.5px solid var(--border); }
+.empty-box, .loading-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 14px; grid-column: 1 / -1; }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: #0b0904; border: 1px solid var(--border-strong); border-radius: 16px; padding: 1.5rem; width: 360px; max-width: calc(100vw - 2.5rem); box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.modal h3 { font-size: 16px; font-weight: 600; margin-bottom: 1.25rem; }
+.form-group { margin-bottom: 1rem; }
+.form-group label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block; text-transform: uppercase; letter-spacing: 0.4px; }
+.form-group input, .form-group select { width: 100%; height: 38px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 14px; background: #0b0904; color: var(--text-primary); outline: none; font-family: inherit; }
+.modal-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
+.modal-actions .btn { flex: 1; justify-content: center; height: 40px; border-radius: var(--radius); font-size: 13px; cursor: pointer; font-family: inherit; border: none; display: flex; align-items: center; }
+.btn-primary { background: var(--grad); color: #171206; font-weight: 600; }
+.btn-ghost { background: var(--card); color: var(--text-secondary); border: 0.5px solid var(--border) !important; }
+
+@media (max-width: 560px) {
+  .main { padding: 1.25rem; }
+  .topbar { padding: 0.6rem 1rem; }
+  .topbar-link { padding: 6px 10px; font-size: 12px; }
+  .page-header { flex-wrap: wrap; gap: 12px; }
+  .grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-ambient"><div class="blob-a"></div><div class="blob-b"></div></div>
+<div class="watermark"><img src="/static/logo-mark.png" onerror="this.parentElement.style.display='none'" alt=""></div>
+
+<div class="topbar">
+  <a class="topbar-logo" href="/"><span style="font-size:20px">◆</span> Mobilli <span>Digital</span></a>
+  <div class="topbar-nav">
+    <a class="topbar-link" href="/">Início</a>
+    <a class="topbar-link" href="/faturamento">Faturamento</a>
+    <a class="topbar-link" href="/tarefas">Tarefas</a>
+    <a class="topbar-link" href="/financeiro">Financeiro</a>
+    <a class="topbar-link" href="/agenda">Agenda</a>
+    <a class="topbar-link active" href="/clientes">Clientes</a>
+  </div>
+</div>
+
+<div class="main">
+  <div class="inner">
+    <div class="page-header">
+      <div class="page-header-left">
+        <h2>👥 Clientes</h2>
+        <p>Ficha completa de cada cliente: contrato, receita, indicações, anúncios e risco de churn</p>
+      </div>
+      <button class="btn-add" onclick="openModal()">+ Novo cliente</button>
+    </div>
+
+    <input class="search-input" id="search" placeholder="Buscar por nome ou empresa..." oninput="renderGrid()">
+
+    <div class="grid" id="grid"><div class="loading-box">Carregando...</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal" style="display:none">
+  <div class="modal">
+    <h3>Novo cliente</h3>
+    <div class="form-group"><label>Nome</label><input id="f-nome" placeholder="Ex: João Corretor"></div>
+    <div class="form-group"><label>Valor mensal (R$)</label><input id="f-valor" type="number" min="0.01" step="0.01" placeholder="500"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="adicionarCliente()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let clientes = [];
+let atrasadosMap = {};
+
+const OCUPACAO_LABEL = {corretor:'Corretor', gerente:'Gerente', imobiliaria:'Imobiliária', superintendente:'Superintendente', diretor:'Diretor', outro:'Outro'};
+
+async function carregar(){
+  try {
+    const [rc, rp] = await Promise.all([
+      fetch('/api/clientes'),
+      fetch('/api/pagamentos/' + new Date().toISOString().slice(0,7))
+    ]);
+    const jc = await rc.json();
+    const jp = await rp.json();
+    if (!jc.ok) { document.getElementById('grid').innerHTML = '<div class="empty-box">Erro: ' + jc.error + '</div>'; return; }
+    clientes = jc.data || [];
+    atrasadosMap = {};
+    if (jp.ok) { (jp.data || []).forEach(c => { atrasadosMap[c.id] = c.atrasado && !c.pago; }); }
+    renderGrid();
+  } catch (e) {
+    document.getElementById('grid').innerHTML = '<div class="empty-box">Erro de conexão.</div>';
+  }
+}
+
+function fmt(v){ return 'R$ ' + Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+
+function renderGrid(){
+  const q = (document.getElementById('search').value || '').toLowerCase();
+  const filtrados = clientes.filter(c =>
+    (c.nome || '').toLowerCase().includes(q) || (c.empresa || '').toLowerCase().includes(q)
+  );
+  if (!filtrados.length) { document.getElementById('grid').innerHTML = '<div class="empty-box">Nenhum cliente encontrado.</div>'; return; }
+  document.getElementById('grid').innerHTML = filtrados.map(c => `
+    <a class="cliente-card" href="/cliente/${c.id}">
+      <div class="cc-top">
+        <div>
+          <div class="cc-nome">${c.nome}</div>
+          ${c.empresa ? `<div class="cc-empresa">${c.empresa}</div>` : ''}
+        </div>
+        <span class="nivel-badge nivel-${c.nivel}">${c.nivel === 'ouro' ? '🥇' : c.nivel === 'prata' ? '🥈' : '🥉'}</span>
+      </div>
+      <div class="cc-valor">${fmt(c.valor)}<span style="font-size:11px;color:var(--text-muted);font-weight:400"> /mês</span></div>
+      <div class="cc-tags">
+        ${atrasadosMap[c.id] ? '<span class="cc-tag atrasado">⚠️ Atrasado</span>' : ''}
+        ${c.ocupacao ? `<span class="cc-tag ocupacao">${OCUPACAO_LABEL[c.ocupacao] || c.ocupacao}</span>` : ''}
+      </div>
+    </a>
+  `).join('');
+}
+
+function openModal(){ document.getElementById('modal').style.display='flex'; document.getElementById('f-nome').focus(); }
+function closeModal(){ document.getElementById('modal').style.display='none'; document.getElementById('f-nome').value=''; document.getElementById('f-valor').value=''; }
+
+async function adicionarCliente(){
+  const nome = document.getElementById('f-nome').value.trim().toUpperCase();
+  const valor = parseFloat(document.getElementById('f-valor').value);
+  if (!nome || !valor || valor <= 0) { alert('Preencha nome e um valor válido.'); return; }
+  const nivel = valor >= 1500 ? 'ouro' : valor >= 1000 ? 'prata' : 'bronze';
+  const r = await fetch('/api/clientes', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({nome, valor, nivel})});
+  const j = await r.json();
+  if (!j.ok) { alert('Não foi possível adicionar o cliente.'); return; }
+  closeModal();
+  carregar();
+}
+
+carregar();
+</script>
+</body>
+</html>

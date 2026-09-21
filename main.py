@@ -637,6 +637,126 @@ def get_movimento():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+# ── Ficha do cliente ──
+OCUPACOES_VALIDAS = ['corretor', 'gerente', 'imobiliaria', 'superintendente', 'diretor', 'outro']
+
+def calcular_risco_churn(ads_info, atrasado_atual, meses_atraso_recente):
+    score = 0
+    motivos = []
+    if ads_info:
+        cpl = ads_info.get('cpl')
+        spend = ads_info.get('spend', 0)
+        total = ads_info.get('total', 0)
+        if spend == 0:
+            score += 2
+            motivos.append('Conta de anuncios sem investimento nos ultimos 30 dias')
+        else:
+            if cpl and cpl > 12:
+                score += 1
+                motivos.append('CPL acima de R$12 (R$' + str(cpl) + ')')
+            if total < 5:
+                score += 1
+                motivos.append('Poucos resultados nos ultimos 30 dias (' + str(total) + ')')
+    if atrasado_atual:
+        score += 1
+        motivos.append('Pagamento do mes atual em atraso')
+    if meses_atraso_recente >= 2:
+        score += 1
+        motivos.append('Atrasou pagamento em pelo menos 2 dos ultimos 6 meses')
+    nivel = 'alto' if score >= 3 else 'medio' if score >= 1 else 'baixo'
+    return {'nivel': nivel, 'score': score, 'motivos': motivos}
+
+@app.route('/api/clientes/<int:id>', methods=['GET'])
+def get_cliente_detalhe(id):
+    try:
+        r = requests.get(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers())
+        rows = r.json()
+        if not rows:
+            return jsonify({'ok': False, 'error': 'Cliente nao encontrado'}), 404
+        cliente = rows[0]
+
+        pag_r = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?cliente_id=eq.' + str(id) + '&order=mes.desc', headers=supa_headers())
+        pagamentos = pag_r.json()
+        meses_pagos = [p for p in pagamentos if p.get('pago')]
+        valor_atual = float(cliente.get('valor') or 0)
+        receita_total = round(valor_atual * len(meses_pagos), 2)
+
+        mes_atual = datetime.utcnow().strftime('%Y-%m')
+        pag_mes_atual = next((p for p in pagamentos if p.get('mes') == mes_atual), None)
+        atrasado_atual = bool(pag_mes_atual and pag_mes_atual.get('atrasado') and not pag_mes_atual.get('pago'))
+        meses_atraso_recente = len([p for p in pagamentos[:6] if p.get('atrasado') and not p.get('pago')])
+
+        tempo_casa_dias = None
+        if cliente.get('data_inicio'):
+            try:
+                d0 = datetime.strptime(cliente['data_inicio'][:10], '%Y-%m-%d')
+                tempo_casa_dias = (datetime.utcnow() - d0).days
+            except Exception:
+                pass
+
+        ads_info = None
+        if cliente.get('conta_anuncio'):
+            try:
+                ads_data = fetch_ads_data(date_preset='last_30dT')
+                ads_info = next((a for a in ads_data if a['account_name'] == cliente['conta_anuncio']), None)
+            except Exception:
+                ads_info = None
+
+        risco = calcular_risco_churn(ads_info, atrasado_atual, meses_atraso_recente)
+
+        return jsonify({'ok': True, 'data': {
+            **cliente,
+            'tempo_casa_dias': tempo_casa_dias,
+            'receita_total': receita_total,
+            'meses_pagos': len(meses_pagos),
+            'atrasado_atual': atrasado_atual,
+            'ads_info': ads_info,
+            'risco_churn': risco
+        }})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/clientes/<int:id>/perfil', methods=['PATCH'])
+def update_perfil_cliente(id):
+    try:
+        body = request.json or {}
+        campos = {}
+        for campo in ['nome', 'telefone', 'ocupacao', 'empresa', 'data_inicio', 'conta_anuncio']:
+            if campo in body:
+                campos[campo] = body[campo]
+        if campos.get('ocupacao') and campos['ocupacao'] not in OCUPACOES_VALIDAS:
+            return jsonify({'ok': False, 'error': 'Ocupacao invalida'}), 400
+        if not campos:
+            return jsonify({'ok': False, 'error': 'Nada para atualizar'}), 400
+        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json=campos)
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/clientes/<int:id>/indicacoes', methods=['PATCH'])
+def update_indicacoes(id):
+    try:
+        body = request.json or {}
+        delta = int(body.get('delta', 0))
+        r = requests.get(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id) + '&select=indicacoes', headers=supa_headers())
+        rows = r.json()
+        if not rows:
+            return jsonify({'ok': False, 'error': 'Cliente nao encontrado'}), 404
+        atual = rows[0].get('indicacoes') or 0
+        novo = max(0, atual + delta)
+        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json={'indicacoes': novo})
+        return jsonify({'ok': True, 'indicacoes': novo})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/contas-anuncio', methods=['GET'])
+def get_contas_anuncio():
+    try:
+        ads_data = fetch_ads_data(date_preset='last_30dT')
+        return jsonify({'ok': True, 'data': [{'account_name': a['account_name']} for a in ads_data]})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 # ── Pagamentos ──
 @app.route('/api/config/<chave>', methods=['GET'])
 def get_config(chave):
@@ -802,6 +922,14 @@ def financeiro_page():
 @app.route('/agenda')
 def agenda_page():
     return send_from_directory('static', 'agenda.html')
+
+@app.route('/clientes')
+def clientes_page():
+    return send_from_directory('static', 'clientes.html')
+
+@app.route('/cliente/<int:id>')
+def cliente_detalhe_page(id):
+    return send_from_directory('static', 'cliente.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
