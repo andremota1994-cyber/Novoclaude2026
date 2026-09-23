@@ -74,20 +74,25 @@
 
   <div class="card">
     <div class="form-group">
+      <label>Usuário</label>
+      <input type="text" id="usuario" placeholder="Digite seu usuário" onkeydown="handleKey(event)" autofocus autocapitalize="off" autocorrect="off">
+    </div>
+    <div class="form-group">
       <label>Senha</label>
-      <input type="password" id="senha" placeholder="Digite sua senha" onkeydown="handleKey(event)" autofocus>
+      <input type="password" id="senha" placeholder="Digite sua senha" onkeydown="handleKey(event)">
     </div>
     <button class="btn-login" id="btn-login" onclick="login()">Entrar</button>
-    <div class="error" id="error">Senha incorreta. Tente novamente.</div>
+    <div class="error" id="error">Usuário ou senha incorretos. Tente novamente.</div>
   </div>
 </div>
 
 <script>
 async function login(){
+  const usuario = document.getElementById('usuario').value.trim();
   const senha = document.getElementById('senha').value;
   const btn = document.getElementById('btn-login');
   const err = document.getElementById('error');
-  if(!senha) return;
+  if(!usuario||!senha) return;
   btn.disabled = true;
   btn.textContent = 'Entrando...';
   err.classList.remove('show');
@@ -95,11 +100,11 @@ async function login(){
     const r = await fetch('/api/login', {
       method: 'POST',
       headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({senha})
+      body: JSON.stringify({usuario, senha})
     });
     const j = await r.json();
     if(j.ok){
-      window.location.href = '/';
+      window.location.href = j.role === 'gestor' ? '/painel' : '/';
     } else {
       err.classList.add('show');
       btn.disabled = false;

@@ -1,7 +1,11 @@
 import os
+import re
 import requests
 import traceback
 import hashlib
+import secrets
+import string
+import unicodedata
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 from flask import Flask, jsonify, send_from_directory, request, session, redirect
@@ -15,7 +19,6 @@ WINDSOR_API_KEY = os.environ.get('WINDSOR_API_KEY', 'ab2a32d495a3d6c5f46565bd9ea
 ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://uhbmbmqoivoxgqnaighr.supabase.co')
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
-PASSWORD_HASH = hashlib.sha256('Enricomota@2018'.encode()).hexdigest()
 
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
@@ -36,15 +39,45 @@ def supa_headers():
 def check_auth():
     return session.get('autenticado') == True
 
+def current_user():
+    if not check_auth():
+        return None
+    return {'id': session.get('usuario_id'), 'nome': session.get('nome'),
+            'role': session.get('role'), 'username': session.get('username')}
+
+def hash_senha(senha):
+    return hashlib.sha256(senha.encode()).hexdigest()
+
+def gerar_senha_temp(n=8):
+    alfabeto = string.ascii_letters + string.digits
+    return ''.join(secrets.choice(alfabeto) for _ in range(n))
+
+ADMIN_ONLY_PAGES = {'/', '/faturamento', '/financeiro', '/agenda', '/clientes', '/gestores'}
+ADMIN_ONLY_API_PREFIXES = (
+    '/api/despesas', '/api/financeiro', '/api/agenda', '/api/google',
+    '/api/clientes', '/api/contas-anuncio', '/api/config', '/api/pagamentos',
+    '/api/historico', '/api/debug', '/api/briefing', '/api/chat',
+    '/api/usuarios', '/api/gestores'
+)
+ADMIN_ONLY_EXACT_API = {'/api/tarefas/resetar', '/api/data'}
+
 @app.before_request
 def require_login():
     public = ['/login', '/api/login', '/logout']
     if request.path in public or request.path.startswith('/static'):
         return None
+    if check_auth() and not session.get('usuario_id'):
+        # sessao antiga (do login por senha unica, antes dos usuarios por login) - forca novo login
+        session.clear()
     if not check_auth():
         if request.path.startswith('/api/'):
             return jsonify({'ok': False, 'error': 'Nao autorizado'}), 401
         return redirect('/login')
+    if session.get('role') != 'admin':
+        if request.path in ADMIN_ONLY_PAGES or request.path.startswith('/cliente/'):
+            return redirect('/painel')
+        if request.path.startswith(ADMIN_ONLY_API_PREFIXES) or request.path in ADMIN_ONLY_EXACT_API:
+            return jsonify({'ok': False, 'error': 'Acesso restrito'}), 403
 
 def fetch_ads_data(date_preset=None, date_from=None, date_to=None):
     params = {'api_key': WINDSOR_API_KEY, 'fields': FIELDS}
@@ -209,15 +242,31 @@ def login_page():
 def api_login():
     try:
         body = request.json or {}
+        username = (body.get('usuario') or '').strip().lower()
         senha = body.get('senha', '')
-        hash_input = hashlib.sha256(senha.encode()).hexdigest()
-        if hash_input == PASSWORD_HASH:
-            session['autenticado'] = True
-            session.permanent = True
-            return jsonify({'ok': True})
-        return jsonify({'ok': False, 'error': 'Senha incorreta'}), 401
+        if not username or not senha:
+            return jsonify({'ok': False, 'error': 'Informe usuario e senha'}), 400
+        r = requests.get(SUPABASE_URL + '/rest/v1/usuarios?username=eq.' + username + '&ativo=eq.true', headers=supa_headers(), timeout=10)
+        rows = r.json()
+        if not rows or rows[0]['senha_hash'] != hash_senha(senha):
+            return jsonify({'ok': False, 'error': 'Usuario ou senha incorretos'}), 401
+        u = rows[0]
+        session['autenticado'] = True
+        session['usuario_id'] = u['id']
+        session['nome'] = u['nome']
+        session['role'] = u['role']
+        session['username'] = u['username']
+        session.permanent = True
+        return jsonify({'ok': True, 'role': u['role']})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/me')
+def api_me():
+    u = current_user()
+    if not u:
+        return jsonify({'ok': False}), 401
+    return jsonify({'ok': True, 'usuario': u})
 
 @app.route('/logout')
 def logout():
@@ -757,6 +806,93 @@ def get_contas_anuncio():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+# ── Usuarios / Gestores ──
+@app.route('/api/usuarios', methods=['GET'])
+def get_usuarios():
+    try:
+        r = requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome,username,role&order=id.asc', headers=supa_headers())
+        return jsonify({'ok': True, 'data': r.json()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/usuarios', methods=['POST'])
+def add_usuario():
+    try:
+        body = request.json or {}
+        nome = (body.get('nome') or '').strip()
+        if not nome:
+            return jsonify({'ok': False, 'error': 'Nome obrigatorio'}), 400
+        base = re.sub(r'[^a-z0-9]', '', unicodedata.normalize('NFKD', nome.lower()).encode('ascii', 'ignore').decode()) or 'gestor'
+        username = base
+        i = 1
+        while True:
+            check = requests.get(SUPABASE_URL + '/rest/v1/usuarios?username=eq.' + username, headers=supa_headers())
+            if not check.json():
+                break
+            i += 1
+            username = base + str(i)
+        senha_temp = gerar_senha_temp()
+        payload = {'nome': nome, 'username': username, 'senha_hash': hash_senha(senha_temp), 'role': 'gestor'}
+        r = requests.post(SUPABASE_URL + '/rest/v1/usuarios', headers=supa_headers(), json=payload)
+        novo = r.json()[0]
+        return jsonify({'ok': True, 'data': {'id': novo['id'], 'nome': novo['nome'], 'username': novo['username'], 'senha_temp': senha_temp}})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/gestores/board', methods=['GET'])
+def gestores_board():
+    try:
+        ur = requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome,username,role&order=id.asc', headers=supa_headers())
+        usuarios = ur.json()
+        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,empresa,valor,nivel,gestor_id&order=nome.asc', headers=supa_headers())
+        clientes = cr.json()
+        return jsonify({'ok': True, 'usuarios': usuarios, 'clientes': clientes})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/clientes/<int:id>/gestor', methods=['PATCH'])
+def update_gestor_cliente(id):
+    try:
+        body = request.json or {}
+        gestor_id = body.get('gestor_id')
+        if not gestor_id:
+            return jsonify({'ok': False, 'error': 'gestor_id obrigatorio'}), 400
+        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json={'gestor_id': gestor_id})
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+# ── Meta Ads (visao limitada do gestor) ──
+@app.route('/api/meta-ads/minhas', methods=['GET'])
+def meta_ads_minhas():
+    try:
+        u = current_user()
+        if not u:
+            return jsonify({'ok': False, 'error': 'Nao autorizado'}), 401
+        period = request.args.get('period', '30')
+        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?gestor_id=eq.' + str(u['id']) + '&ativo=eq.true&select=conta_anuncio', headers=supa_headers())
+        contas = {c['conta_anuncio'] for c in cr.json() if c.get('conta_anuncio')}
+        if period == 'hoje':
+            hoje = datetime.utcnow().strftime('%Y-%m-%d')
+            data_all = fetch_ads_data(date_from=hoje, date_to=hoje)
+        elif period == 'ontem':
+            ontem = (datetime.utcnow() - timedelta(days=1)).strftime('%Y-%m-%d')
+            data_all = fetch_ads_data(date_from=ontem, date_to=ontem)
+        else:
+            preset = PRESETS.get(period, 'last_30dT')
+            data_all = fetch_ads_data(date_preset=preset)
+        data = [d for d in data_all if d['account_name'] in contas]
+        total_spend = sum(d['spend'] for d in data)
+        total_results = sum(d['total'] for d in data)
+        total_leads = sum(d['leads'] for d in data)
+        total_msg = sum(d['msg'] for d in data)
+        active = len([d for d in data if d['spend'] > 0])
+        cpl_avg = round(total_spend / total_results, 2) if total_results else 0
+        return jsonify({'ok': True, 'kpis': {'spend': round(total_spend, 2), 'results': total_results,
+            'leads': total_leads, 'msg': total_msg, 'cpl': cpl_avg, 'active': active, 'total': len(data)}, 'accounts': data})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 # ── Pagamentos ──
 @app.route('/api/config/<chave>', methods=['GET'])
 def get_config(chave):
@@ -840,7 +976,12 @@ def get_historico():
 @app.route('/api/tarefas', methods=['GET'])
 def get_tarefas():
     try:
-        r = requests.get(SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.false&order=created_at.asc', headers=supa_headers())
+        u = current_user()
+        responsavel_id = u['id'] if u['role'] == 'gestor' else request.args.get('responsavel', 'todos')
+        url = SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.false&order=created_at.asc'
+        if str(responsavel_id) != 'todos':
+            url += '&responsavel_id=eq.' + str(responsavel_id)
+        r = requests.get(url, headers=supa_headers())
         return jsonify({'ok': True, 'data': r.json()})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -848,8 +989,11 @@ def get_tarefas():
 @app.route('/api/tarefas', methods=['POST'])
 def add_tarefa():
     try:
-        body = request.json
-        r = requests.post(SUPABASE_URL + '/rest/v1/tarefas', headers=supa_headers(), json=body)
+        u = current_user()
+        body = request.json or {}
+        responsavel_id = u['id'] if u['role'] == 'gestor' else (body.get('responsavel_id') or u['id'])
+        payload = {'titulo': body.get('titulo'), 'prazo': body.get('prazo'), 'responsavel_id': responsavel_id}
+        r = requests.post(SUPABASE_URL + '/rest/v1/tarefas', headers=supa_headers(), json=payload)
         return jsonify({'ok': True, 'data': r.json()})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -857,6 +1001,12 @@ def add_tarefa():
 @app.route('/api/tarefas/<int:id>', methods=['DELETE'])
 def delete_tarefa(id):
     try:
+        u = current_user()
+        if u['role'] == 'gestor':
+            check = requests.get(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(id) + '&select=responsavel_id', headers=supa_headers())
+            rows = check.json()
+            if not rows or rows[0].get('responsavel_id') != u['id']:
+                return jsonify({'ok': False, 'error': 'Nao autorizado'}), 403
         now = datetime.utcnow().isoformat()
         requests.patch(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(id), headers=supa_headers(), json={'concluida': True, 'concluida_em': now})
         return jsonify({'ok': True})
@@ -866,6 +1016,8 @@ def delete_tarefa(id):
 @app.route('/api/tarefas/historico', methods=['GET'])
 def get_historico_tarefas():
     try:
+        u = current_user()
+        responsavel_id = u['id'] if u['role'] == 'gestor' else request.args.get('responsavel', 'todos')
         semana = request.args.get('semana', 'atual')
         hoje = datetime.utcnow()
         if semana == 'atual':
@@ -876,10 +1028,11 @@ def get_historico_tarefas():
             inicio = hoje - timedelta(days=hoje.weekday() + 7)
             inicio = inicio.replace(hour=0, minute=0, second=0, microsecond=0)
             fim = inicio + timedelta(days=7)
-        r = requests.get(
-            SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.true&concluida_em=gte.' + inicio.isoformat() + '&concluida_em=lte.' + fim.isoformat() + '&order=concluida_em.desc',
-            headers=supa_headers()
-        )
+        url = (SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.true&concluida_em=gte.' + inicio.isoformat() +
+               '&concluida_em=lte.' + fim.isoformat() + '&order=concluida_em.desc')
+        if str(responsavel_id) != 'todos':
+            url += '&responsavel_id=eq.' + str(responsavel_id)
+        r = requests.get(url, headers=supa_headers())
         return jsonify({'ok': True, 'data': r.json()})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -930,6 +1083,16 @@ def clientes_page():
 @app.route('/cliente/<int:id>')
 def cliente_detalhe_page(id):
     return send_from_directory('static', 'cliente.html')
+
+@app.route('/gestores')
+def gestores_page():
+    return send_from_directory('static', 'gestores.html')
+
+@app.route('/painel')
+def painel_gestor_page():
+    if session.get('role') == 'admin':
+        return redirect('/')
+    return send_from_directory('static', 'painel_gestor.html')
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
