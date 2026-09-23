@@ -43,6 +43,16 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .page-header-left h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
 .page-header-left p { font-size: 13px; color: var(--text-secondary); }
 
+.search-box { position: relative; width: 260px; max-width: 100%; }
+.search-box input { width: 100%; height: 38px; background: var(--card); border: 0.5px solid var(--border); border-radius: 8px; padding: 0 34px 0 12px; font-size: 13px; color: var(--text-primary); outline: none; font-family: inherit; transition: border-color .15s, background .15s; }
+.search-box input:focus { border-color: var(--border-strong); background: var(--card2); }
+.search-box input::placeholder { color: var(--text-muted); }
+.search-box .clear-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 4px; display: none; }
+.search-box .clear-btn:hover { color: var(--text-primary); }
+.search-box.has-value .clear-btn { display: block; }
+.ccard.search-hidden { display: none; }
+.col-noresult { text-align: center; padding: 1.5rem 0.5rem; color: var(--text-muted); font-size: 12px; }
+
 .board-wrap { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 1rem; align-items: flex-start; }
 .col { flex: 0 0 280px; background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; max-height: calc(100vh - 220px); transition: border-color .15s, background .15s; }
 .col.dragover { border-color: var(--blue); background: var(--card2); }
@@ -106,6 +116,10 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
         <h2>🧑‍💼 Gestores</h2>
         <p>Arraste um cliente de uma coluna para outra para trocar o gestor responsável</p>
       </div>
+      <div class="search-box" id="search-box">
+        <input type="text" id="busca-conta" placeholder="Buscar conta..." oninput="onBuscaInput()">
+        <button class="clear-btn" onclick="limparBusca()" title="Limpar">✕</button>
+      </div>
     </div>
     <div class="board-wrap" id="board-wrap">
       <div class="loading">Carregando...</div>
@@ -141,6 +155,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 let usuarios = [];
 let clientes = [];
 let dragCliente = null;
+let busca = '';
 
 async function carregar(){
   try{
@@ -163,31 +178,60 @@ function fmtValor(v){
   return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
 }
 
+function bate(c){
+  if(!busca) return true;
+  return (c.nome||'').toLowerCase().includes(busca) || (c.empresa||'').toLowerCase().includes(busca);
+}
+
 function render(){
   const wrap = document.getElementById('board-wrap');
   const cols = usuarios.map(u=>{
     const meusClientes = clientes.filter(c=>c.gestor_id===u.id);
+    const visiveis = meusClientes.filter(bate);
     const total = meusClientes.reduce((s,c)=>s+Number(c.valor||0),0);
     const titulo = u.role==='admin' ? ('Eu (' + u.nome + ')') : u.nome;
-    const cardsHtml = meusClientes.length
-      ? meusClientes.map(c=>`
+    let cardsHtml;
+    if(!meusClientes.length){
+      cardsHtml = '<div class="col-empty">Nenhum cliente</div>';
+    } else if(!visiveis.length){
+      cardsHtml = '<div class="col-noresult">Nenhum resultado</div>';
+    } else {
+      cardsHtml = visiveis.map(c=>`
         <div class="ccard" draggable="true" data-id="${c.id}"
              ondragstart="onDragStart(event,${c.id})" ondragend="onDragEnd(event)">
           <div class="nm">${c.nome}</div>
           <div class="emp">${c.empresa || '—'}</div>
           <div class="val">${fmtValor(c.valor)}/mês</div>
-        </div>`).join('')
-      : '<div class="col-empty">Nenhum cliente</div>';
+        </div>`).join('');
+    }
+    const subInfo = busca
+      ? (visiveis.length + ' de ' + meusClientes.length + ' cliente' + (meusClientes.length===1?'':'s'))
+      : (meusClientes.length + ' cliente' + (meusClientes.length===1?'':'s') + ' · ' + fmtValor(total) + '/mês');
     return `
       <div class="col" id="col-${u.id}" ondragover="onDragOver(event,${u.id})" ondragleave="onDragLeave(event,${u.id})" ondrop="onDrop(event,${u.id})">
         <div class="col-header">
           <div class="col-title ${u.role==='admin'?'admin':''}">${titulo}</div>
-          <div class="col-sub">${meusClientes.length} cliente${meusClientes.length===1?'':'s'} · ${fmtValor(total)}/mês</div>
+          <div class="col-sub">${subInfo}</div>
         </div>
         <div class="col-body" id="colbody-${u.id}">${cardsHtml}</div>
       </div>`;
   }).join('');
   wrap.innerHTML = cols + '<div class="col-add" onclick="openModalNovo()">+ Novo gestor</div>';
+}
+
+function onBuscaInput(){
+  const input = document.getElementById('busca-conta');
+  busca = input.value.toLowerCase().trim();
+  document.getElementById('search-box').classList.toggle('has-value', !!input.value);
+  render();
+}
+function limparBusca(){
+  const input = document.getElementById('busca-conta');
+  input.value = '';
+  busca = '';
+  document.getElementById('search-box').classList.remove('has-value');
+  render();
+  input.focus();
 }
 
 // ── DRAG & DROP ──
