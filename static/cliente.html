@@ -99,6 +99,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .combo-opt.atual { color: var(--blue-bright); }
 .combo-opt.remover { color: var(--red); }
 .combo-empty { padding: 10px; font-size: 12px; color: var(--text-muted); }
+.combo-tag { margin-left: 8px; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
 
 .risco-card { border-radius: 16px; padding: 1.25rem; border: 1px solid; }
 .risco-card.baixo { background: rgba(47,217,127,0.06); border-color: rgba(47,217,127,0.28); }
@@ -180,10 +181,14 @@ function comboAbrir(){
   const atual = cliente.conta_anuncio || '';
   // Com a conta atual no campo, mostra a lista inteira em vez de filtrar por ela
   const filtro = termo === atual ? '' : termo;
-  const nomes = contasDisponiveis.map(a => a.account_name).filter(Boolean)
-    .filter(n => !filtro || semAcento(n).includes(semAcento(filtro)))
-    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  comboOpcoes = nomes.map(n => ({valor: n, html: comboDestacar(n, filtro), classe: n === atual ? 'atual' : ''}));
+  const contas = contasDisponiveis.filter(a => a.account_name)
+    .filter(a => !filtro || semAcento(a.account_name).includes(semAcento(filtro)))
+    .sort((a, b) => a.account_name.localeCompare(b.account_name, 'pt-BR'));
+  comboOpcoes = contas.map(a => ({
+    valor: a.account_name,
+    html: comboDestacar(a.account_name, filtro) + (a.com_gasto === false ? '<span class="combo-tag">sem gasto em 30 dias</span>' : ''),
+    classe: a.account_name === atual ? 'atual' : ''
+  }));
   if (atual && !filtro) comboOpcoes.unshift({valor: '', html: 'Remover vínculo', classe: 'remover'});
   comboAtivo = comboOpcoes.length && filtro ? 0 : -1;
   comboRender();

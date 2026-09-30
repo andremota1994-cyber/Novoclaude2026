@@ -798,13 +798,32 @@ def update_indicacoes(id):
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+def fetch_contas_conectadas():
+    # Todas as contas Meta conectadas no Windsor, mesmo sem gasto no periodo
+    r = requests.get('https://onboard.windsor.ai/api/common/ds-accounts',
+                     params={'datasource': 'facebook', 'api_key': WINDSOR_API_KEY}, timeout=30)
+    r.raise_for_status()
+    return [(a.get('account_name') or '').strip() for a in r.json()]
+
 @app.route('/api/contas-anuncio', methods=['GET'])
 def get_contas_anuncio():
+    # Junta as contas conectadas com as que tiveram gasto em 30 dias,
+    # para que contas novas ou pausadas tambem aparecam na busca
+    erros = []
     try:
         ads_data = fetch_ads_data(date_preset='last_30dT')
-        return jsonify({'ok': True, 'data': [{'account_name': a['account_name']} for a in ads_data]})
     except Exception as e:
-        return jsonify({'ok': False, 'error': str(e)}), 500
+        ads_data, erros = [], erros + [str(e)]
+    com_dados = {a['account_name'] for a in ads_data}
+    com_gasto = {a['account_name'] for a in ads_data if a['spend'] > 0}
+    try:
+        conectadas = set(fetch_contas_conectadas())
+    except Exception as e:
+        conectadas, erros = set(), erros + [str(e)]
+    todas = sorted((conectadas | com_dados) - {''}, key=str.lower)
+    if not todas and erros:
+        return jsonify({'ok': False, 'error': '; '.join(erros)}), 500
+    return jsonify({'ok': True, 'data': [{'account_name': n, 'com_gasto': n in com_gasto} for n in todas]})
 
 # ── Usuarios / Gestores ──
 @app.route('/api/usuarios', methods=['GET'])
