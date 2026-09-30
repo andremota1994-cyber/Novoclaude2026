@@ -88,6 +88,17 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .ads-stat .lbl { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; }
 .ads-stat .val { font-size: 15px; font-weight: 600; margin-top: 2px; }
 .ads-empty { font-size: 13px; color: var(--text-muted); padding: 0.5rem 0; }
+.conta-combo { position: relative; }
+.conta-combo input { padding-right: 34px; }
+.conta-combo .combo-icon { position: absolute; right: 11px; bottom: 11px; width: 16px; height: 16px; color: var(--text-secondary); pointer-events: none; }
+.combo-list { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50; max-height: 280px; overflow-y: auto; background: #171206; border: 0.5px solid var(--border-strong); border-radius: var(--radius); padding: 4px; box-shadow: 0 12px 32px rgba(0,0,0,0.55); display: none; }
+.combo-list.open { display: block; }
+.combo-opt { padding: 8px 10px; border-radius: 7px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
+.combo-opt mark { background: none; color: var(--blue-bright); font-weight: 600; }
+.combo-opt.active { background: var(--card2); }
+.combo-opt.atual { color: var(--blue-bright); }
+.combo-opt.remover { color: var(--red); }
+.combo-empty { padding: 10px; font-size: 12px; color: var(--text-muted); }
 
 .risco-card { border-radius: 16px; padding: 1.25rem; border: 1px solid; }
 .risco-card.baixo { background: rgba(47,217,127,0.06); border-color: rgba(47,217,127,0.28); }
@@ -149,21 +160,79 @@ let contasDisponiveis = [];
 function fmt(v){ return 'R$ ' + Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 function escAttr(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 
-function onContaAnuncioChange(el){
-  const valor = el.value.trim();
-  if(!valor){
-    cliente.conta_anuncio = '';
-    salvarPerfil('conta_anuncio', '');
-    return;
+function escHtml(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function semAcento(v){ return String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+
+// Busca da conta de anúncios: filtra enquanto digita, sem depender do datalist do navegador
+let comboOpcoes = [];
+let comboAtivo = -1;
+
+function comboDestacar(nome, termo){
+  if (!termo) return escHtml(nome);
+  const i = semAcento(nome).indexOf(semAcento(termo));
+  if (i < 0) return escHtml(nome);
+  return escHtml(nome.slice(0, i)) + '<mark>' + escHtml(nome.slice(i, i + termo.length)) + '</mark>' + escHtml(nome.slice(i + termo.length));
+}
+
+function comboAbrir(){
+  const input = document.getElementById('input-conta-anuncio');
+  const termo = input.value.trim();
+  const atual = cliente.conta_anuncio || '';
+  // Com a conta atual no campo, mostra a lista inteira em vez de filtrar por ela
+  const filtro = termo === atual ? '' : termo;
+  const nomes = contasDisponiveis.map(a => a.account_name).filter(Boolean)
+    .filter(n => !filtro || semAcento(n).includes(semAcento(filtro)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  comboOpcoes = nomes.map(n => ({valor: n, html: comboDestacar(n, filtro), classe: n === atual ? 'atual' : ''}));
+  if (atual && !filtro) comboOpcoes.unshift({valor: '', html: 'Remover vínculo', classe: 'remover'});
+  comboAtivo = comboOpcoes.length && filtro ? 0 : -1;
+  comboRender();
+}
+
+function comboRender(){
+  const lista = document.getElementById('combo-contas');
+  lista.innerHTML = comboOpcoes.length
+    ? comboOpcoes.map((o, i) => `<div class="combo-opt ${o.classe} ${i === comboAtivo ? 'active' : ''}" role="option" onmousedown="event.preventDefault(); comboEscolher(${i})">${o.html}</div>`).join('')
+    : `<div class="combo-empty">${contasDisponiveis.length ? 'Nenhuma conta encontrada.' : 'Nenhuma conta de anúncios disponível.'}</div>`;
+  lista.classList.add('open');
+  const ativo = lista.querySelector('.combo-opt.active');
+  if (ativo) ativo.scrollIntoView({block: 'nearest'});
+}
+
+function comboFechar(){
+  const lista = document.getElementById('combo-contas');
+  if (lista) lista.classList.remove('open');
+  const input = document.getElementById('input-conta-anuncio');
+  if (input) input.value = cliente.conta_anuncio || '';
+  comboAtivo = -1;
+}
+
+function comboTeclas(e){
+  const aberta = document.getElementById('combo-contas').classList.contains('open');
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (!aberta) { comboAbrir(); return; }
+    if (!comboOpcoes.length) return;
+    comboAtivo = e.key === 'ArrowDown'
+      ? (comboAtivo + 1) % comboOpcoes.length
+      : (comboAtivo <= 0 ? comboOpcoes.length - 1 : comboAtivo - 1);
+    comboRender();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (aberta && comboAtivo >= 0) comboEscolher(comboAtivo);
+  } else if (e.key === 'Escape') {
+    comboFechar();
+    e.target.blur();
   }
-  const match = contasDisponiveis.find(a => a.account_name === valor);
-  if(!match){
-    alert('Conta não encontrada. Escolha uma das contas sugeridas na busca.');
-    el.value = cliente.conta_anuncio || '';
-    return;
-  }
-  cliente.conta_anuncio = match.account_name;
-  salvarPerfil('conta_anuncio', match.account_name);
+}
+
+function comboEscolher(i){
+  const o = comboOpcoes[i];
+  if (!o) return;
+  const mudou = o.valor !== (cliente.conta_anuncio || '');
+  cliente.conta_anuncio = o.valor;
+  document.getElementById('input-conta-anuncio').blur();
+  if (mudou) salvarPerfil('conta_anuncio', o.valor);
 }
 
 function fmtTempoCasa(dias){
@@ -197,10 +266,6 @@ function render(){
   const c = cliente;
   const risco = c.risco_churn || {nivel:'baixo', motivos:[]};
   const nivelIcon = c.nivel === 'ouro' ? '🥇 Ouro' : c.nivel === 'prata' ? '🥈 Prata' : '🥉 Bronze';
-
-  const opcoesContaDatalist = contasDisponiveis
-    .map(a => `<option value="${escAttr(a.account_name)}">`)
-    .join('');
 
   const opcoesOcupacao = ['<option value="">—</option>']
     .concat(OCUPACOES.map(o => `<option value="${o.v}" ${c.ocupacao === o.v ? 'selected' : ''}>${o.l}</option>`))
@@ -270,12 +335,13 @@ function render(){
     <div class="section-title">Conta de anúncios (Meta Ads)</div>
     <div class="ads-card">
       <div class="ads-select-row">
-        <div class="form-field">
-          <label>Conta vinculada</label>
-          <input type="text" id="input-conta-anuncio" list="dl-contas-anuncio" autocomplete="off"
-                 placeholder="Buscar conta..." value="${escAttr(c.conta_anuncio || '')}"
-                 onchange="onContaAnuncioChange(this)">
-          <datalist id="dl-contas-anuncio">${opcoesContaDatalist}</datalist>
+        <div class="form-field conta-combo">
+          <label for="input-conta-anuncio">Conta vinculada</label>
+          <input type="text" id="input-conta-anuncio" autocomplete="off" role="combobox" aria-controls="combo-contas"
+                 placeholder="Buscar conta pelo nome..." value="${escAttr(c.conta_anuncio || '')}"
+                 onfocus="this.select(); comboAbrir()" oninput="comboAbrir()" onkeydown="comboTeclas(event)" onblur="comboFechar()">
+          <svg class="combo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <div class="combo-list" id="combo-contas" role="listbox"></div>
         </div>
       </div>
       ${c.ads_info ? `
