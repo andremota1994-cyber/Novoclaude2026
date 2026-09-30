@@ -147,6 +147,24 @@ let cliente = null;
 let contasDisponiveis = [];
 
 function fmt(v){ return 'R$ ' + Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+function escAttr(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
+
+function onContaAnuncioChange(el){
+  const valor = el.value.trim();
+  if(!valor){
+    cliente.conta_anuncio = '';
+    salvarPerfil('conta_anuncio', '');
+    return;
+  }
+  const match = contasDisponiveis.find(a => a.account_name === valor);
+  if(!match){
+    alert('Conta não encontrada. Escolha uma das contas sugeridas na busca.');
+    el.value = cliente.conta_anuncio || '';
+    return;
+  }
+  cliente.conta_anuncio = match.account_name;
+  salvarPerfil('conta_anuncio', match.account_name);
+}
 
 function fmtTempoCasa(dias){
   if (dias === null || dias === undefined) return '—';
@@ -180,8 +198,8 @@ function render(){
   const risco = c.risco_churn || {nivel:'baixo', motivos:[]};
   const nivelIcon = c.nivel === 'ouro' ? '🥇 Ouro' : c.nivel === 'prata' ? '🥈 Prata' : '🥉 Bronze';
 
-  const opcoesConta = ['<option value="">— Nenhuma conta vinculada —</option>']
-    .concat(contasDisponiveis.map(a => `<option value="${a.account_name}" ${c.conta_anuncio === a.account_name ? 'selected' : ''}>${a.account_name}</option>`))
+  const opcoesContaDatalist = contasDisponiveis
+    .map(a => `<option value="${escAttr(a.account_name)}">`)
     .join('');
 
   const opcoesOcupacao = ['<option value="">—</option>']
@@ -254,7 +272,10 @@ function render(){
       <div class="ads-select-row">
         <div class="form-field">
           <label>Conta vinculada</label>
-          <select onchange="salvarPerfil('conta_anuncio', this.value)">${opcoesConta}</select>
+          <input type="text" id="input-conta-anuncio" list="dl-contas-anuncio" autocomplete="off"
+                 placeholder="Buscar conta..." value="${escAttr(c.conta_anuncio || '')}"
+                 onchange="onContaAnuncioChange(this)">
+          <datalist id="dl-contas-anuncio">${opcoesContaDatalist}</datalist>
         </div>
       </div>
       ${c.ads_info ? `
