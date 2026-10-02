@@ -138,6 +138,19 @@ tr.row-atrasado td:first-child { color: var(--red); }
 .form-group label { font-size: 12px; color: var(--text-secondary); margin-bottom: 4px; display: block; text-transform: uppercase; letter-spacing: 0.4px; }
 .form-group input, .form-group select { width: 100%; height: 38px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 14px; background: var(--bg2); color: var(--text-primary); outline: none; font-family: inherit; }
 .modal-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; margin-top: 4px; }
+.check-row input { width: 16px; height: 16px; accent-color: var(--blue); }
+.secao-titulo { font-size: 13px; font-weight: 600; color: var(--text-primary); margin: 1.75rem 0 10px; }
+.secao-titulo span { font-weight: 400; color: var(--text-muted); font-size: 12px; margin-left: 6px; }
+.avulsas-grid { grid-template-columns: repeat(3, 1fr); }
+.produtos-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.produto-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 0.85rem 1rem; }
+.produto-card .nome { font-size: 12px; color: var(--text-secondary); }
+.produto-card .valor { font-size: 17px; font-weight: 600; margin-top: 4px; }
+.produto-card .qtd { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.venda-desc { display: block; font-size: 11px; color: var(--text-muted); font-weight: 400; margin-top: 2px; }
+.venda-anterior { font-size: 10px; padding: 2px 7px; border-radius: 20px; background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); margin-left: 6px; }
 .modal-actions .btn { flex: 1; justify-content: center; height: 40px; }
 .btn-danger { background: var(--red); color: #fff; border: none; }
 .loading { color: var(--text-muted); font-size: 14px; padding: 2rem; text-align: center; }
@@ -179,6 +192,7 @@ tr.row-atrasado td:first-child { color: var(--red); }
 
   <div class="tabs">
     <button class="tab active" onclick="setTab('mes',this)">📅 Mês Atual</button>
+    <button class="tab" onclick="setTab('produtos',this)">🛍 Produtos</button>
     <button class="tab" onclick="setTab('historico',this)">🗂 Histórico</button>
   </div>
 
@@ -187,7 +201,7 @@ tr.row-atrasado td:first-child { color: var(--red); }
       <div class="status-card atrasado"><div class="label">⚠️ Atrasados</div><div class="value" id="val-atrasado">—</div><div class="sub" id="sub-atrasado">—</div></div>
       <div class="status-card receber"><div class="label">A receber</div><div class="value" id="val-receber">—</div><div class="sub" id="sub-receber">—</div></div>
       <div class="status-card recebido"><div class="label">Recebido</div><div class="value" id="val-recebido">—</div><div class="sub" id="sub-recebido">—</div></div>
-      <div class="status-card total"><div class="label">Total esperado</div><div class="value" id="val-total">—</div><div class="sub">todos os clientes</div></div>
+      <div class="status-card total"><div class="label">Total esperado</div><div class="value" id="val-total">—</div><div class="sub" id="sub-total">todos os clientes</div></div>
     </div>
     <div class="mes-header">
       <span class="mes-badge" id="mes-badge">📅 Carregando...</span>
@@ -205,6 +219,35 @@ tr.row-atrasado td:first-child { color: var(--red); }
       <table>
         <thead><tr><th style="width:33%">Cliente</th><th style="width:10%">Nível</th><th style="width:10%">Dia</th><th style="width:14%">Valor/mês</th><th style="width:20%">Status</th><th style="width:13%">Ação</th></tr></thead>
         <tbody id="tbody"><tr><td colspan="6" class="loading">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="page" id="page-produtos">
+    <div class="mes-header">
+      <span class="mes-badge" id="mes-badge-produtos">🛍 Vendas do mês</span>
+      <button class="btn btn-primary" onclick="openModalVenda()">+ Nova venda</button>
+    </div>
+    <div class="produtos-resumo" id="produtos-resumo"></div>
+
+    <div class="secao-titulo">Vendas para clientes <span>somam no faturamento do mês</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:12%">Data</th><th style="width:26%">Cliente</th><th style="width:28%">Produto</th><th style="width:14%">Valor</th><th style="width:14%">Status</th><th style="width:6%"></th></tr></thead>
+        <tbody id="tbody-vendas-clientes"><tr><td colspan="6" class="loading">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="secao-titulo">Vendas avulsas <span>quem não é cliente · totais separados</span></div>
+    <div class="status-grid avulsas-grid">
+      <div class="status-card receber"><div class="label">A receber</div><div class="value" id="val-av-receber">—</div><div class="sub" id="sub-av-receber">—</div></div>
+      <div class="status-card recebido"><div class="label">Recebido</div><div class="value" id="val-av-recebido">—</div><div class="sub" id="sub-av-recebido">—</div></div>
+      <div class="status-card total"><div class="label">Total vendido</div><div class="value" id="val-av-total">—</div><div class="sub" id="sub-av-total">—</div></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th style="width:12%">Data</th><th style="width:26%">Comprador</th><th style="width:28%">Produto</th><th style="width:14%">Valor</th><th style="width:14%">Status</th><th style="width:6%"></th></tr></thead>
+        <tbody id="tbody-vendas-avulsas"><tr><td colspan="6" class="loading">Carregando...</td></tr></tbody>
       </table>
     </div>
   </div>
@@ -234,11 +277,36 @@ tr.row-atrasado td:first-child { color: var(--red); }
   </div>
 </div>
 
+<!-- MODAL NOVA VENDA -->
+<div class="modal-overlay" id="modal-venda" style="display:none">
+  <div class="modal">
+    <h3>Nova venda</h3>
+    <div class="form-group"><label>Produto</label>
+      <select id="v-produto" onchange="document.getElementById('v-produto-outro-wrap').style.display=this.value==='Outro'?'block':'none'"></select>
+    </div>
+    <div class="form-group" id="v-produto-outro-wrap" style="display:none"><label>Qual produto?</label><input id="v-produto-outro" maxlength="60" placeholder="Ex: Identidade visual"/></div>
+    <div class="form-group"><label>Cliente</label>
+      <select id="v-cliente" onchange="document.getElementById('v-nome-wrap').style.display=this.value==='avulso'?'block':'none'"></select>
+    </div>
+    <div class="form-group" id="v-nome-wrap" style="display:none"><label>Nome do comprador</label><input id="v-nome" maxlength="120" placeholder="Ex: Maria Imóveis"/></div>
+    <div class="form-group"><label>Descrição (opcional)</label><input id="v-descricao" maxlength="300" placeholder="Ex: LP do lançamento Vila Nova"/></div>
+    <div class="form-row">
+      <div class="form-group"><label>Valor (R$)</label><input id="v-valor" type="number" min="1" step="0.01" placeholder="1500"/></div>
+      <div class="form-group"><label>Data</label><input id="v-data" type="date"/></div>
+    </div>
+    <label class="check-row"><input type="checkbox" id="v-pago"> Já foi pago</label>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModalVenda()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-salvar-venda" onclick="salvarVenda()">Salvar venda</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL RESET -->
 <div class="modal-overlay" id="modal-reset" style="display:none">
   <div class="modal" style="border-color:var(--red-border)">
     <h3>🔄 Virar para novo mês</h3>
-    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem">Clientes que <strong>não pagaram</strong> este mês serão marcados como <strong style="color:var(--red)">Atrasados</strong>. Os que pagaram serão zerados para o novo mês. Confirma?</p>
+    <p style="font-size:13px;color:var(--text-secondary);margin-bottom:1.25rem">Clientes que <strong>não pagaram</strong> este mês serão marcados como <strong style="color:var(--red)">Atrasados</strong>. Quem pagou continua registrado como pago, e o mês seguinte começa zerado. Confirma?</p>
     <div class="modal-actions">
       <button class="btn btn-ghost" onclick="closeConfirmReset()">Cancelar</button>
       <button class="btn btn-danger" onclick="resetMes()">Confirmar</button>
@@ -253,7 +321,9 @@ const HISTORICO_FIXO = {'2026-01':16000,'2026-02':10500,'2026-03':19250,'2026-04
 
 let MES_ATUAL = '';
 let clientes = [];
+let vendas = [];
 let filterMode = 'all';
+const PRODUTOS = ['Landing Page','Dashboard','Agente de IA','Treinamento','Mentoria'];
 
 const fmt = v => v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 
@@ -268,6 +338,117 @@ function setTab(tab, el){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.getElementById('page-'+tab).classList.add('active');
   if(tab==='historico') loadHistorico();
+}
+
+// ── Vendas de produtos ──
+async function loadVendas(){
+  try{
+    const j = await (await fetch('/api/vendas?mes='+MES_ATUAL)).json();
+    vendas = j.ok ? j.data : [];
+  }catch(e){ vendas = []; }
+  renderVendas();
+}
+
+function fmtData(d){ if(!d) return '—'; const [a,m,dia] = d.split('-'); return dia+'/'+m; }
+function escHtml(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function linhaVenda(v){
+  const anterior = v.mes !== MES_ATUAL ? `<span class="venda-anterior">de ${getNomeMes(v.mes)}</span>` : '';
+  return `<tr>
+    <td>${fmtData(v.data)}</td>
+    <td>${escHtml(v.nome)}${anterior}</td>
+    <td>${escHtml(v.produto)}${v.descricao?`<span class="venda-desc">${escHtml(v.descricao)}</span>`:''}</td>
+    <td style="color:var(--text-primary);font-weight:500">R$ ${fmt(Number(v.valor))}</td>
+    <td><div class="toggle-wrap">
+      <button class="toggle ${v.pago?'on':''}" onclick="togglePagoVenda(${v.id})"></button>
+      <span class="toggle-label ${v.pago?'on':'off'}">${v.pago?'Pago':'Pendente'}</span>
+    </div></td>
+    <td><button class="btn-remove" onclick="removerVenda(${v.id})" title="Excluir venda">✕</button></td>
+  </tr>`;
+}
+
+function renderVendas(){
+  const vazio = txt => `<tr><td colspan="6" style="text-align:center;padding:1.5rem;color:var(--text-muted)">${txt}</td></tr>`;
+  const cli = vendas.filter(v=>v.cliente_id);
+  const av = vendas.filter(v=>!v.cliente_id);
+  document.getElementById('tbody-vendas-clientes').innerHTML = cli.length ? cli.map(linhaVenda).join('') : vazio('Nenhuma venda para clientes neste mês');
+  document.getElementById('tbody-vendas-avulsas').innerHTML = av.length ? av.map(linhaVenda).join('') : vazio('Nenhuma venda avulsa neste mês');
+
+  const soma = l => l.reduce((s,v)=>s+Number(v.valor),0);
+  const avMes = av.filter(v=>v.mes===MES_ATUAL);
+  const avPend = av.filter(v=>!v.pago);
+  document.getElementById('val-av-receber').textContent = 'R$ '+fmt(soma(avPend));
+  document.getElementById('sub-av-receber').textContent = avPend.length+' pendente(s)';
+  document.getElementById('val-av-recebido').textContent = 'R$ '+fmt(soma(avMes.filter(v=>v.pago)));
+  document.getElementById('sub-av-recebido').textContent = avMes.filter(v=>v.pago).length+' paga(s)';
+  document.getElementById('val-av-total').textContent = 'R$ '+fmt(soma(avMes));
+  document.getElementById('sub-av-total').textContent = avMes.length+' venda(s) no mês';
+
+  // Resumo por produto (vendas do mês, clientes + avulsas)
+  const doMes = vendas.filter(v=>v.mes===MES_ATUAL);
+  const grupos = {};
+  doMes.forEach(v=>{ grupos[v.produto] = grupos[v.produto] || {qtd:0, valor:0}; grupos[v.produto].qtd++; grupos[v.produto].valor += Number(v.valor); });
+  const nomes = [...PRODUTOS, ...Object.keys(grupos).filter(p=>!PRODUTOS.includes(p))];
+  document.getElementById('produtos-resumo').innerHTML = nomes.map(p=>{
+    const g = grupos[p] || {qtd:0, valor:0};
+    return `<div class="produto-card"><div class="nome">${escHtml(p)}</div><div class="valor">R$ ${fmt(g.valor)}</div><div class="qtd">${g.qtd} venda(s)</div></div>`;
+  }).join('');
+  if(MES_ATUAL) document.getElementById('mes-badge-produtos').textContent = '🛍 Vendas de '+getNomeMes(MES_ATUAL);
+}
+
+function openModalVenda(){
+  document.getElementById('v-produto').innerHTML = [...PRODUTOS,'Outro'].map(p=>`<option value="${p}">${p}</option>`).join('');
+  const ordenados = [...clientes].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+  document.getElementById('v-cliente').innerHTML = '<option value="">Selecione...</option><option value="avulso">➕ Não é cliente (digitar nome)</option>'
+    + ordenados.map(c=>`<option value="${c.id}">${escHtml(c.nome)}</option>`).join('');
+  ['v-produto-outro','v-nome','v-descricao','v-valor'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('v-data').value = new Date().toLocaleDateString('en-CA');
+  document.getElementById('v-pago').checked = false;
+  document.getElementById('v-produto-outro-wrap').style.display = 'none';
+  document.getElementById('v-nome-wrap').style.display = 'none';
+  document.getElementById('modal-venda').style.display = 'flex';
+}
+function closeModalVenda(){ document.getElementById('modal-venda').style.display = 'none'; }
+
+async function salvarVenda(){
+  const sel = document.getElementById('v-produto').value;
+  const produto = sel==='Outro' ? document.getElementById('v-produto-outro').value.trim() : sel;
+  const cli = document.getElementById('v-cliente').value;
+  const nome = document.getElementById('v-nome').value.trim();
+  const valor = parseFloat(document.getElementById('v-valor').value);
+  if(!produto){ alert('Informe o produto.'); return; }
+  if(!cli || (cli==='avulso' && !nome)){ alert('Escolha o cliente ou digite o nome do comprador.'); return; }
+  if(!(valor>0)){ alert('Informe um valor válido.'); return; }
+  const btn = document.getElementById('btn-salvar-venda');
+  btn.disabled = true;
+  try{
+    const r = await fetch('/api/vendas', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({
+      produto, valor, descricao: document.getElementById('v-descricao').value.trim(),
+      cliente_id: cli==='avulso' ? null : parseInt(cli), cliente_nome: cli==='avulso' ? nome : null,
+      data: document.getElementById('v-data').value, pago: document.getElementById('v-pago').checked
+    })});
+    const j = await r.json();
+    if(!j.ok){ alert('Não foi possível salvar: '+j.error); return; }
+    closeModalVenda();
+    await loadVendas(); updateKPIs(); renderChart();
+  } finally { btn.disabled = false; }
+}
+
+async function togglePagoVenda(id){
+  const v = vendas.find(x=>x.id===id);
+  if(!v) return;
+  v.pago = !v.pago;
+  renderVendas(); updateKPIs();
+  await fetch('/api/vendas/'+id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify({pago:v.pago})});
+  renderChart();
+}
+
+async function removerVenda(id){
+  const v = vendas.find(x=>x.id===id);
+  if(!v || !confirm('Excluir a venda de '+v.produto+' para '+v.nome+' (R$ '+fmt(Number(v.valor))+')?')) return;
+  await fetch('/api/vendas/'+id, {method:'DELETE'});
+  vendas = vendas.filter(x=>x.id!==id);
+  renderVendas(); updateKPIs(); renderChart();
 }
 
 function nivelBadge(nivel){
@@ -314,15 +495,23 @@ function updateKPIs(){
   // Atrasados: dívida do mês anterior ainda não quitada
   const atrasados = clientes.filter(c=>c.atrasado&&!c.pagoAtrasado);
   const totalAtrasado = atrasados.reduce((s,c)=>s+Number(c.valor),0);
-  // A receber = mensalidades do mês ainda pendentes + atrasados
-  const receber = pendentes.reduce((s,c)=>s+Number(c.valor),0) + totalAtrasado;
+  // Vendas de produtos para clientes somam no faturamento (avulsas ficam na aba Produtos)
+  const vendasCli = vendas.filter(v=>v.cliente_id);
+  const vendasMes = vendasCli.filter(v=>v.mes===MES_ATUAL);
+  const vendasPagas = vendasMes.filter(v=>v.pago).reduce((s,v)=>s+Number(v.valor),0);
+  const vendasPendentes = vendasCli.filter(v=>!v.pago);
+  const vendasReceber = vendasPendentes.reduce((s,v)=>s+Number(v.valor),0);
+  const totalComVendas = total + vendasMes.reduce((s,v)=>s+Number(v.valor),0);
+  // A receber = mensalidades do mês ainda pendentes + atrasados + vendas a clientes não pagas
+  const receber = pendentes.reduce((s,c)=>s+Number(c.valor),0) + totalAtrasado + vendasReceber;
   document.getElementById('val-atrasado').textContent = 'R$ '+fmt(totalAtrasado);
   document.getElementById('val-receber').textContent = 'R$ '+fmt(receber);
-  document.getElementById('val-recebido').textContent = 'R$ '+fmt(recebido);
-  document.getElementById('val-total').textContent = 'R$ '+fmt(total);
+  document.getElementById('val-recebido').textContent = 'R$ '+fmt(recebido + vendasPagas);
+  document.getElementById('val-total').textContent = 'R$ '+fmt(totalComVendas);
   document.getElementById('sub-atrasado').textContent = atrasados.length+' cliente(s)';
-  document.getElementById('sub-receber').textContent = pendentes.length+' pendentes + '+atrasados.length+' atrasados';
-  document.getElementById('sub-recebido').textContent = pagos.length+' pagos';
+  document.getElementById('sub-receber').textContent = pendentes.length+' pendentes + '+atrasados.length+' atrasados'+(vendasPendentes.length?' + '+vendasPendentes.length+' venda(s)':'');
+  document.getElementById('sub-recebido').textContent = pagos.length+' pagos'+(vendasPagas?' · R$ '+fmt(vendasPagas)+' em produtos':'');
+  document.getElementById('sub-total').textContent = vendasMes.length ? 'clientes + '+vendasMes.length+' venda(s) de produtos' : 'todos os clientes';
 }
 
 function renderTable(){
@@ -382,6 +571,7 @@ async function loadMesAtual(){
 }
 
 async function loadClientes(){
+  await loadVendas();
   const r = await fetch('/api/pagamentos/'+MES_ATUAL);
   const j = await r.json();
   if(j.ok){ clientes=j.data; updateKPIs(); renderTable(); renderChart(); }
@@ -502,7 +692,8 @@ async function renderChart(){
         const r = await fetch('/api/pagamentos/'+mesKey);
         const j = await r.json();
         if(j.ok){
-          const rec = j.data.filter(c=>c.pago).reduce((s,c)=>s+Number(c.valor),0);
+          let rec = j.data.filter(c=>c.pago).reduce((s,c)=>s+Number(c.valor),0);
+          if(mesKey===MES_ATUAL) rec += vendas.filter(v=>v.cliente_id&&v.mes===MES_ATUAL&&v.pago).reduce((s,v)=>s+Number(v.valor),0);
           valores.push(rec);
         } else valores.push(0);
       } catch(e){ valores.push(0); }

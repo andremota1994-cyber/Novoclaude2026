@@ -58,7 +58,7 @@ ADMIN_ONLY_API_PREFIXES = (
     '/api/despesas', '/api/financeiro', '/api/agenda', '/api/google',
     '/api/clientes', '/api/contas-anuncio', '/api/config', '/api/pagamentos',
     '/api/historico', '/api/debug', '/api/briefing', '/api/chat',
-    '/api/usuarios', '/api/gestores', '/api/faturamento'
+    '/api/usuarios', '/api/gestores', '/api/faturamento', '/api/vendas'
 )
 ADMIN_ONLY_EXACT_API = {'/api/tarefas/resetar', '/api/data'}
 
@@ -373,12 +373,28 @@ def api_briefing():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 # ── Financeiro ──
+def despesas_do_mes(mes):
+    url = SUPABASE_URL + '/rest/v1/despesas?mes=eq.' + mes + '&order=categoria.asc,valor.desc'
+    despesas = requests.get(url, headers=supa_headers(), timeout=10).json()
+    # Mes ainda vazio (ate o mes corrente): traz as despesas do mes anterior, como pendentes
+    mes_corrente = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m')
+    if despesas or mes > mes_corrente:
+        return despesas
+    ano, m = int(mes[:4]), int(mes[5:])
+    mes_ant = str(ano - 1) + '-12' if m == 1 else str(ano) + '-' + str(m - 1).zfill(2)
+    anteriores = requests.get(SUPABASE_URL + '/rest/v1/despesas?mes=eq.' + mes_ant, headers=supa_headers(), timeout=10).json()
+    if not anteriores:
+        return despesas
+    copias = [{'mes': mes, 'descricao': d['descricao'], 'categoria': d['categoria'], 'valor': d['valor'],
+               'recorrente': d.get('recorrente', False), 'pago': False} for d in anteriores]
+    requests.post(SUPABASE_URL + '/rest/v1/despesas', headers=supa_headers(), json=copias, timeout=10).raise_for_status()
+    return requests.get(url, headers=supa_headers(), timeout=10).json()
+
 @app.route('/api/despesas', methods=['GET'])
 def get_despesas():
     try:
         mes = request.args.get('mes', datetime.utcnow().strftime('%Y-%m'))
-        r = requests.get(SUPABASE_URL + '/rest/v1/despesas?mes=eq.' + mes + '&order=categoria.asc,valor.desc', headers=supa_headers())
-        return jsonify({'ok': True, 'data': r.json()})
+        return jsonify({'ok': True, 'data': despesas_do_mes(mes)})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -416,11 +432,24 @@ def financeiro_resumo():
         clientes = {c['id']: c for c in cli_r.json()}
         pag_r = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=eq.' + mes, headers=supa_headers())
         pagamentos = pag_r.json()
-        entrada = sum(float(clientes[p['cliente_id']]['valor']) for p in pagamentos if p.get('pago') and p['cliente_id'] in clientes)
-        esperado = sum(float(c['valor']) for c in clientes.values())
+        fechamento = ler_fechamentos().get(mes)
+        if fechamento and mes != ler_config('mes_atual'):
+            # Mes ja fechado: usa o que foi gravado na virada (ja inclui vendas a clientes)
+            avulsas = fechamento.get('avulsas') or {}
+            entrada = float(fechamento['recebido']) + float(avulsas.get('recebido') or 0)
+            esperado = float(fechamento.get('total') or fechamento['recebido']) + float(avulsas.get('total') or 0)
+        else:
+            entrada = sum(float(clientes[p['cliente_id']]['valor']) for p in pagamentos if p.get('pago') and p['cliente_id'] in clientes)
+            esperado = sum(float(c['valor']) for c in clientes.values())
+            # Vendas de produtos do mes (clientes e avulsas)
+            try:
+                vendas = buscar_vendas('mes=eq.' + mes)
+            except Exception:
+                vendas = []
+            entrada += sum(float(v['valor']) for v in vendas if v['pago'])
+            esperado += sum(float(v['valor']) for v in vendas)
 
-        desp_r = requests.get(SUPABASE_URL + '/rest/v1/despesas?mes=eq.' + mes, headers=supa_headers())
-        despesas = desp_r.json()
+        despesas = despesas_do_mes(mes)
         saida_total = sum(float(d['valor']) for d in despesas)
         por_categoria = {'fixo': 0.0, 'variavel': 0.0, 'salario': 0.0}
         for d in despesas:
@@ -984,6 +1013,75 @@ def get_fechamentos():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+# ── Vendas de produtos (landing page, dashboard, agente de IA...) ──
+# Venda com cliente_id soma no faturamento do cliente; sem cliente_id e avulsa (totais separados)
+def buscar_vendas(filtro):
+    r = requests.get(SUPABASE_URL + '/rest/v1/vendas?select=*,clientes(nome)&order=data.desc,id.desc&' + filtro, headers=supa_headers(), timeout=10)
+    r.raise_for_status()
+    vendas = r.json()
+    for v in vendas:
+        v['nome'] = (v.pop('clientes', None) or {}).get('nome') or v.get('cliente_nome') or ''
+    return vendas
+
+@app.route('/api/vendas', methods=['GET'])
+def get_vendas():
+    try:
+        mes = request.args.get('mes') or ler_config('mes_atual')
+        # Do mes + as que ficaram sem pagar em meses anteriores
+        vendas = buscar_vendas('mes=eq.' + mes) + buscar_vendas('mes=lt.' + mes + '&pago=eq.false')
+        return jsonify({'ok': True, 'data': vendas})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/vendas', methods=['POST'])
+def add_venda():
+    try:
+        body = request.json or {}
+        cliente_id = body.get('cliente_id') or None
+        cliente_nome = (body.get('cliente_nome') or '').strip() or None
+        produto = (body.get('produto') or '').strip()
+        valor = float(body.get('valor') or 0)
+        if not produto or valor <= 0 or not (cliente_id or cliente_nome):
+            return jsonify({'ok': False, 'error': 'Informe produto, cliente e valor'}), 400
+        payload = {'mes': ler_config('mes_atual'), 'produto': produto, 'valor': valor,
+                   'descricao': (body.get('descricao') or '').strip() or None,
+                   'cliente_id': int(cliente_id) if cliente_id else None,
+                   'cliente_nome': None if cliente_id else cliente_nome,
+                   'pago': bool(body.get('pago'))}
+        if body.get('data'):
+            payload['data'] = body['data']
+        if payload['pago']:
+            payload['pago_em'] = datetime.utcnow().isoformat()
+        r = requests.post(SUPABASE_URL + '/rest/v1/vendas', headers=supa_headers(), json=payload, timeout=10)
+        r.raise_for_status()
+        return jsonify({'ok': True, 'data': r.json()[0]})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/vendas/<int:id>', methods=['PATCH'])
+def update_venda(id):
+    try:
+        body = request.json or {}
+        dados = {}
+        if 'pago' in body:
+            dados['pago'] = bool(body['pago'])
+            dados['pago_em'] = datetime.utcnow().isoformat() if body['pago'] else None
+        if 'valor' in body:
+            dados['valor'] = float(body['valor'])
+        r = requests.patch(SUPABASE_URL + '/rest/v1/vendas?id=eq.' + str(id), headers=supa_headers(), json=dados, timeout=10)
+        r.raise_for_status()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/vendas/<int:id>', methods=['DELETE'])
+def delete_venda(id):
+    try:
+        requests.delete(SUPABASE_URL + '/rest/v1/vendas?id=eq.' + str(id), headers=supa_headers(), timeout=10).raise_for_status()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/faturamento/virar-mes', methods=['POST'])
 def virar_mes():
     try:
@@ -1009,8 +1107,16 @@ def virar_mes():
                 requests.patch(SUPABASE_URL + '/rest/v1/pagamentos?id=eq.' + str(existentes[c['id']]), headers=supa_headers(), json=dados, timeout=10).raise_for_status()
             else:
                 requests.post(SUPABASE_URL + '/rest/v1/pagamentos', headers=supa_headers(), json={'mes': mes, 'cliente_id': c['id'], **dados}, timeout=10).raise_for_status()
+        # Vendas de produtos do mes: as de clientes somam no faturamento, as avulsas ficam a parte
+        vendas = buscar_vendas('mes=eq.' + mes)
+        de_clientes = [v for v in vendas if v.get('cliente_id')]
+        avulsas = [v for v in vendas if not v.get('cliente_id')]
+        total += sum(float(v['valor']) for v in de_clientes)
+        recebido += sum(float(v['valor']) for v in de_clientes if v['pago'])
         fechamentos = ler_fechamentos()
-        fechamentos[mes] = {'total': round(total, 2), 'recebido': round(recebido, 2), 'atrasado': round(atrasado, 2)}
+        fechamentos[mes] = {'total': round(total, 2), 'recebido': round(recebido, 2), 'atrasado': round(atrasado, 2),
+                            'avulsas': {'total': round(sum(float(v['valor']) for v in avulsas), 2),
+                                        'recebido': round(sum(float(v['valor']) for v in avulsas if v['pago']), 2)}}
         gravar_config('faturamento_fechamentos', json.dumps(fechamentos))
         ano, m = int(mes[:4]), int(mes[5:])
         novo_mes = str(ano + 1) + '-01' if m == 12 else str(ano) + '-' + str(m + 1).zfill(2)
