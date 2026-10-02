@@ -312,17 +312,18 @@ function updateKPIs(){
   const pagos = todos.filter(c=>c.pago);
   const pendentes = todos.filter(c=>!c.pago);
   const recebido = pagos.reduce((s,c)=>s+Number(c.valor),0);
-  const receber = pendentes.reduce((s,c)=>s+Number(c.valor),0);
   const total = todos.reduce((s,c)=>s+Number(c.valor),0);
-  // Atrasados: só a dívida do mês anterior, contada à parte
+  // Atrasados: dívida do mês anterior ainda não quitada
   const atrasados = clientes.filter(c=>c.atrasado&&!c.pagoAtrasado);
   const totalAtrasado = atrasados.reduce((s,c)=>s+Number(c.valor),0);
+  // A receber = mensalidades do mês ainda pendentes + atrasados
+  const receber = pendentes.reduce((s,c)=>s+Number(c.valor),0) + totalAtrasado;
   document.getElementById('val-atrasado').textContent = 'R$ '+fmt(totalAtrasado);
   document.getElementById('val-receber').textContent = 'R$ '+fmt(receber);
   document.getElementById('val-recebido').textContent = 'R$ '+fmt(recebido);
   document.getElementById('val-total').textContent = 'R$ '+fmt(total);
   document.getElementById('sub-atrasado').textContent = atrasados.length+' cliente(s)';
-  document.getElementById('sub-receber').textContent = pendentes.length+' pendentes';
+  document.getElementById('sub-receber').textContent = pendentes.length+' pendentes + '+atrasados.length+' atrasados';
   document.getElementById('sub-recebido').textContent = pagos.length+' pagos';
 }
 
