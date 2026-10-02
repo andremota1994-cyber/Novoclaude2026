@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import requests
 import traceback
@@ -57,7 +58,7 @@ ADMIN_ONLY_API_PREFIXES = (
     '/api/despesas', '/api/financeiro', '/api/agenda', '/api/google',
     '/api/clientes', '/api/contas-anuncio', '/api/config', '/api/pagamentos',
     '/api/historico', '/api/debug', '/api/briefing', '/api/chat',
-    '/api/usuarios', '/api/gestores'
+    '/api/usuarios', '/api/gestores', '/api/faturamento'
 )
 ADMIN_ONLY_EXACT_API = {'/api/tarefas/resetar', '/api/data'}
 
@@ -952,9 +953,69 @@ def get_pagamentos(mes):
         result = []
         for c in clientes:
             p = pagamentos.get(c['id'], {})
-            is_atrasado = p.get('atrasado', False) or (c['id'] in atrasados_ant and not p)
-            result.append({**c, 'pago': p.get('pago', False), 'atrasado': is_atrasado, 'pag_id': p.get('id')})
+            # 'atrasado' = ainda deve o mes anterior; nao depende do pagamento do mes atual
+            result.append({**c, 'pago': p.get('pago', False), 'atrasado': c['id'] in atrasados_ant, 'pag_id': p.get('id')})
         return jsonify({'ok': True, 'data': result})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+def ler_config(chave):
+    r = requests.get(SUPABASE_URL + '/rest/v1/config?chave=eq.' + chave, headers=supa_headers(), timeout=10)
+    data = r.json()
+    return data[0]['valor'] if data else None
+
+def gravar_config(chave, valor):
+    if ler_config(chave) is None:
+        requests.post(SUPABASE_URL + '/rest/v1/config', headers=supa_headers(), json={'chave': chave, 'valor': valor}, timeout=10).raise_for_status()
+    else:
+        requests.patch(SUPABASE_URL + '/rest/v1/config?chave=eq.' + chave, headers=supa_headers(), json={'valor': valor}, timeout=10).raise_for_status()
+
+def ler_fechamentos():
+    # Fechamento de cada mes ({mes: {total, recebido, atrasado}}), gravado na virada
+    try:
+        return json.loads(ler_config('faturamento_fechamentos') or '{}')
+    except Exception:
+        return {}
+
+@app.route('/api/faturamento/fechamentos', methods=['GET'])
+def get_fechamentos():
+    try:
+        return jsonify({'ok': True, 'data': ler_fechamentos()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/faturamento/virar-mes', methods=['POST'])
+def virar_mes():
+    try:
+        mes = ler_config('mes_atual')
+        # Evita virar duas vezes (duplo clique ou duas abas abertas)
+        if (request.json or {}).get('mes') != mes:
+            return jsonify({'ok': False, 'error': 'O mes ja foi virado. Recarregue a pagina.'}), 409
+        clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true', headers=supa_headers(), timeout=10).json()
+        pags = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=eq.' + mes, headers=supa_headers(), timeout=10).json()
+        pagos = {p['cliente_id'] for p in pags if p.get('pago')}
+        existentes = {p['cliente_id']: p['id'] for p in pags}
+        total = recebido = atrasado = 0.0
+        for c in clientes:
+            valor = float(c.get('valor') or 0)
+            total += valor
+            if c['id'] in pagos:
+                recebido += valor
+                continue
+            # Quem nao pagou fica atrasado; quem pagou continua marcado como pago
+            atrasado += valor
+            dados = {'pago': False, 'atrasado': True, 'updated_at': datetime.utcnow().isoformat()}
+            if c['id'] in existentes:
+                requests.patch(SUPABASE_URL + '/rest/v1/pagamentos?id=eq.' + str(existentes[c['id']]), headers=supa_headers(), json=dados, timeout=10).raise_for_status()
+            else:
+                requests.post(SUPABASE_URL + '/rest/v1/pagamentos', headers=supa_headers(), json={'mes': mes, 'cliente_id': c['id'], **dados}, timeout=10).raise_for_status()
+        fechamentos = ler_fechamentos()
+        fechamentos[mes] = {'total': round(total, 2), 'recebido': round(recebido, 2), 'atrasado': round(atrasado, 2)}
+        gravar_config('faturamento_fechamentos', json.dumps(fechamentos))
+        ano, m = int(mes[:4]), int(mes[5:])
+        novo_mes = str(ano + 1) + '-01' if m == 12 else str(ano) + '-' + str(m + 1).zfill(2)
+        gravar_config('mes_atual', novo_mes)
+        return jsonify({'ok': True, 'mes': novo_mes, 'fechamento': fechamentos[mes]})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

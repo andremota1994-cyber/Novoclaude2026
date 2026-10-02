@@ -307,21 +307,23 @@ function getDiaLabel(dia, pago){
 }
 
 function updateKPIs(){
+  // Mensalidade do mês atual: todos os clientes, inclusive quem deve o mês anterior
   const todos = clientes;
-  const atrasados = clientes.filter(c=>c.atrasado&&!c.pago);
-  const normais = clientes.filter(c=>!c.atrasado);
-  const recebido = normais.filter(c=>c.pago).reduce((s,c)=>s+Number(c.valor),0);
-  const receber = normais.filter(c=>!c.pago).reduce((s,c)=>s+Number(c.valor),0);
-  const totalAtrasado = atrasados.reduce((s,c)=>s+Number(c.valor),0);
-  // Total esperado = TODOS os clientes (incluindo atrasados)
+  const pagos = todos.filter(c=>c.pago);
+  const pendentes = todos.filter(c=>!c.pago);
+  const recebido = pagos.reduce((s,c)=>s+Number(c.valor),0);
+  const receber = pendentes.reduce((s,c)=>s+Number(c.valor),0);
   const total = todos.reduce((s,c)=>s+Number(c.valor),0);
+  // Atrasados: só a dívida do mês anterior, contada à parte
+  const atrasados = clientes.filter(c=>c.atrasado&&!c.pagoAtrasado);
+  const totalAtrasado = atrasados.reduce((s,c)=>s+Number(c.valor),0);
   document.getElementById('val-atrasado').textContent = 'R$ '+fmt(totalAtrasado);
   document.getElementById('val-receber').textContent = 'R$ '+fmt(receber);
   document.getElementById('val-recebido').textContent = 'R$ '+fmt(recebido);
   document.getElementById('val-total').textContent = 'R$ '+fmt(total);
   document.getElementById('sub-atrasado').textContent = atrasados.length+' cliente(s)';
-  document.getElementById('sub-receber').textContent = normais.filter(c=>!c.pago).length+' pendentes';
-  document.getElementById('sub-recebido').textContent = normais.filter(c=>c.pago).length+' pagos';
+  document.getElementById('sub-receber').textContent = pendentes.length+' pendentes';
+  document.getElementById('sub-recebido').textContent = pagos.length+' pagos';
 }
 
 function renderTable(){
@@ -463,23 +465,24 @@ function openConfirmReset(){ document.getElementById('modal-reset').style.displa
 function closeConfirmReset(){ document.getElementById('modal-reset').style.display='none'; }
 
 async function resetMes(){
-  // Marca não pagos como atrasados no mês atual
-  for(const c of clientes.filter(c=>!c.atrasado)){
-    await fetch('/api/pagamentos/'+MES_ATUAL+'/'+c.id, {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({pago:false, atrasado:!c.pago})
-    });
-  }
-  // Avança o mês
-  const [ano, m] = MES_ATUAL.split('-');
-  const novoM = parseInt(m)===12 ? 1 : parseInt(m)+1;
-  const novoAno = parseInt(m)===12 ? parseInt(ano)+1 : parseInt(ano);
-  const novoMes = novoAno+'-'+String(novoM).padStart(2,'0');
-  await fetch('/api/config/mes_atual', {method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({valor:novoMes})});
-  MES_ATUAL = novoMes;
-  document.getElementById('mes-badge').textContent = '📅 '+getNomeMes(MES_ATUAL);
+  // O servidor marca quem não pagou como atrasado, guarda o fechamento do mês e avança
+  const r = await fetch('/api/faturamento/virar-mes', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({mes:MES_ATUAL})
+  });
+  const j = await r.json();
   closeConfirmReset();
+  if(!j.ok){ alert('Não foi possível virar o mês: '+j.error); await loadMesAtual(); await loadClientes(); return; }
+  MES_ATUAL = j.mes;
+  document.getElementById('mes-badge').textContent = '📅 '+getNomeMes(MES_ATUAL);
   await loadClientes();
+}
+
+async function loadFechamentos(){
+  try{
+    const j = await (await fetch('/api/faturamento/fechamentos')).json();
+    return j.ok ? j.data : {};
+  }catch(e){ return {}; }
 }
 
 async function renderChart(){
@@ -487,17 +490,20 @@ async function renderChart(){
   const [anoAtual, mAtual] = MES_ATUAL.split('-');
   const meses = [];
   const valores = [];
+  const fechamentos = await loadFechamentos();
   for(let i=1; i<=parseInt(mAtual); i++){
     const mesKey = anoAtual+'-'+String(i).padStart(2,'0');
     meses.push(MESES_ABREV[i-1]);
-    if(HISTORICO_FIXO[mesKey] !== undefined){
+    if(fechamentos[mesKey] && mesKey !== MES_ATUAL){
+      valores.push(Number(fechamentos[mesKey].recebido));
+    } else if(HISTORICO_FIXO[mesKey] !== undefined){
       valores.push(HISTORICO_FIXO[mesKey]);
     } else {
       try{
         const r = await fetch('/api/pagamentos/'+mesKey);
         const j = await r.json();
         if(j.ok){
-          const rec = j.data.filter(c=>c.pago&&!c.atrasado).reduce((s,c)=>s+Number(c.valor),0);
+          const rec = j.data.filter(c=>c.pago).reduce((s,c)=>s+Number(c.valor),0);
           valores.push(rec);
         } else valores.push(0);
       } catch(e){ valores.push(0); }
@@ -517,9 +523,17 @@ async function loadHistorico(){
   const grid = document.getElementById('hist-grid');
   grid.innerHTML = '<div class="loading">Carregando...</div>';
   try{
-    const r = await fetch('/api/historico');
+    const [r, fechamentos] = await Promise.all([fetch('/api/historico'), loadFechamentos()]);
     const j = await r.json();
-    const data = j.data||[];
+    // Meses já fechados usam o valor gravado na virada, não o recálculo
+    const vivos = j.data||[];
+    const data = vivos.filter(d=>!fechamentos[d.mes]);
+    Object.entries(fechamentos).forEach(([mes, f])=>{
+      const vivo = vivos.find(d=>d.mes===mes) || {};
+      data.push({mes, recebido:Number(f.recebido),
+        total:Number(f.total ?? Math.max(vivo.total||0, f.recebido)),
+        atrasado:Number(f.atrasado ?? vivo.atrasado ?? 0)});
+    });
     const MESES_HIST = {'2026-01':16000,'2026-02':10500,'2026-03':19250,'2026-04':16550,'2026-05':31300,'2026-06':20550};
     const todosM = [...new Set([...Object.keys(MESES_HIST),...data.map(d=>d.mes)])].sort().reverse();
     if(!todosM.length){ grid.innerHTML='<div class="loading">Nenhum histórico.</div>'; return; }
