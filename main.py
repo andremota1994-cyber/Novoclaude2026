@@ -26,7 +26,7 @@ GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'https://novoclaude2026-1.onrender.com/api/google/callback')
 
 WINDSOR_BASE = 'https://connectors.windsor.ai/facebook'
-FIELDS = 'account_name,spend,actions_lead,actions_onsite_conversion_messaging_conversation_started_7d'
+FIELDS = 'account_name,account_id,spend,actions_lead,actions_onsite_conversion_messaging_conversation_started_7d'
 PRESETS = {'30': 'last_30dT', '15': 'last_15dT', '7': 'last_7dT'}
 
 def supa_headers():
@@ -110,12 +110,12 @@ def fetch_ads_data(date_preset=None, date_from=None, date_to=None):
             agg[name]['leads'] += leads
             agg[name]['msg'] += msg
         else:
-            agg[name] = {'account_name': name, 'spend': spend, 'leads': leads, 'msg': msg}
+            agg[name] = {'account_name': name, 'account_id': str(row.get('account_id') or ''), 'spend': spend, 'leads': leads, 'msg': msg}
     result = []
     for v in agg.values():
         total = v['leads'] + v['msg']
         cpl = round(v['spend'] / total, 2) if total else None
-        result.append({'account_name': v['account_name'], 'spend': round(v['spend'], 2),
+        result.append({'account_name': v['account_name'], 'account_id': v['account_id'], 'spend': round(v['spend'], 2),
                        'leads': int(v['leads']), 'msg': int(v['msg']), 'total': int(total), 'cpl': cpl})
     result.sort(key=lambda x: x['spend'], reverse=True)
     return result
@@ -784,6 +784,8 @@ def get_cliente_detalhe(id):
         if cliente.get('conta_anuncio'):
             try:
                 ads_data = fetch_ads_data(date_preset='last_30dT')
+                renomes = corrigir_vinculos_renomeados({cliente['conta_anuncio']}, ads_data)
+                cliente['conta_anuncio'] = renomes.get(cliente['conta_anuncio'], cliente['conta_anuncio'])
                 ads_info = next((a for a in ads_data if a['account_name'] == cliente['conta_anuncio']), None)
             except Exception:
                 ads_info = None
@@ -835,12 +837,37 @@ def update_indicacoes(id):
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+_contas_cache = {'em': None, 'dados': []}
+
 def fetch_contas_conectadas():
-    # Todas as contas Meta conectadas no Windsor, mesmo sem gasto no periodo
+    # Todas as contas Meta conectadas no Windsor, mesmo sem gasto no periodo: [(id, nome)].
+    # O nome desta lista pode estar desatualizado quando a conta e renomeada no Meta.
+    agora = datetime.utcnow()
+    if _contas_cache['em'] and agora - _contas_cache['em'] < timedelta(minutes=10):
+        return _contas_cache['dados']
     r = requests.get('https://onboard.windsor.ai/api/common/ds-accounts',
                      params={'datasource': 'facebook', 'api_key': WINDSOR_API_KEY}, timeout=30)
     r.raise_for_status()
-    return [(a.get('account_name') or '').strip() for a in r.json()]
+    dados = [(str(a.get('account_id') or ''), (a.get('account_name') or '').strip()) for a in r.json()]
+    _contas_cache.update(em=agora, dados=dados)
+    return dados
+
+def contas_renomeadas(ads_data):
+    # {nome antigo: nome atual}, comparando o id da conta na lista do Windsor com o dos dados
+    atual = {a['account_id']: a['account_name'] for a in ads_data if a.get('account_id')}
+    try:
+        conectadas = fetch_contas_conectadas()
+    except Exception:
+        return {}
+    return {nome: atual[i] for i, nome in conectadas if i in atual and nome and atual[i] != nome}
+
+def corrigir_vinculos_renomeados(nomes_vinculados, ads_data):
+    # Cliente vinculado ao nome antigo de uma conta renomeada passa a usar o nome atual
+    renomes = {antigo: novo for antigo, novo in contas_renomeadas(ads_data).items() if antigo in nomes_vinculados}
+    for antigo, novo in renomes.items():
+        requests.patch(SUPABASE_URL + '/rest/v1/clientes', params={'conta_anuncio': 'eq.' + antigo},
+                       headers=supa_headers(), json={'conta_anuncio': novo}, timeout=10)
+    return renomes
 
 @app.route('/api/contas-anuncio', methods=['GET'])
 def get_contas_anuncio():
@@ -853,8 +880,10 @@ def get_contas_anuncio():
         ads_data, erros = [], erros + [str(e)]
     com_dados = {a['account_name'] for a in ads_data}
     com_gasto = {a['account_name'] for a in ads_data if a['spend'] > 0}
+    atual = {a['account_id']: a['account_name'] for a in ads_data if a.get('account_id')}
     try:
-        conectadas = set(fetch_contas_conectadas())
+        # Conta renomeada no Meta aparece so com o nome atual
+        conectadas = {atual.get(i, nome) for i, nome in fetch_contas_conectadas()}
     except Exception as e:
         conectadas, erros = set(), erros + [str(e)]
     todas = sorted((conectadas | com_dados) - {''}, key=str.lower)
@@ -941,6 +970,8 @@ def meta_ads_minhas():
         else:
             preset = PRESETS.get(period, 'last_30dT')
             data_all = fetch_ads_data(date_preset=preset)
+        renomes = corrigir_vinculos_renomeados(contas, data_all)
+        contas = {renomes.get(n, n) for n in contas}
         data = [d for d in data_all if d['account_name'] in contas]
         # Contas vinculadas sem gasto no periodo tambem aparecem (zeradas), para bater com o quadro Gestores
         com_dados = {d['account_name'] for d in data}
