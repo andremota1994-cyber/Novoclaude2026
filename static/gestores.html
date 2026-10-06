@@ -70,6 +70,8 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .ccard .nm { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
 .ccard .emp { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
 .ccard .val { font-size: 11px; color: var(--text-muted); }
+.ccard .conta { font-size: 11px; color: var(--blue-bright); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ccard .conta.sem { color: var(--text-muted); font-style: italic; }
 
 .col-add { flex: 0 0 280px; border: 1.5px dashed var(--border); border-radius: var(--radius); display: flex; align-items: center; justify-content: center; min-height: 120px; cursor: pointer; color: var(--text-secondary); font-size: 13px; transition: all .15s; }
 .col-add:hover { border-color: var(--blue); color: var(--text-primary); background: var(--card); }
@@ -163,13 +165,14 @@ async function carregar(){
   }
 }
 
+function escHtml(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function fmtValor(v){
   return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
 }
 
 function bate(c){
   if(!busca) return true;
-  return (c.nome||'').toLowerCase().includes(busca) || (c.empresa||'').toLowerCase().includes(busca);
+  return [c.nome, c.empresa, c.conta_anuncio].some(v=>(v||'').toLowerCase().includes(busca));
 }
 
 function render(){
@@ -190,12 +193,14 @@ function render(){
              ondragstart="onDragStart(event,${c.id})" ondragend="onDragEnd(event)">
           <div class="nm">${c.nome}</div>
           <div class="emp">${c.empresa || '—'}</div>
+          <div class="conta ${c.conta_anuncio?'':'sem'}" title="Conta de anúncios que aparece no painel do gestor">${c.conta_anuncio ? '📊 '+escHtml(c.conta_anuncio) : 'Sem conta de anúncios'}</div>
           <div class="val">${fmtValor(c.valor)}/mês</div>
         </div>`).join('');
     }
+    const nContas = new Set(meusClientes.map(c=>c.conta_anuncio).filter(Boolean)).size;
     const subInfo = busca
       ? (visiveis.length + ' de ' + meusClientes.length + ' cliente' + (meusClientes.length===1?'':'s'))
-      : (meusClientes.length + ' cliente' + (meusClientes.length===1?'':'s') + ' · ' + fmtValor(total) + '/mês');
+      : (meusClientes.length + ' cliente' + (meusClientes.length===1?'':'s') + ' · ' + nContas + ' conta' + (nContas===1?'':'s') + ' no painel · ' + fmtValor(total) + '/mês');
     return `
       <div class="col" id="col-${u.id}" ondragover="onDragOver(event,${u.id})" ondragleave="onDragLeave(event,${u.id})" ondrop="onDrop(event,${u.id})">
         <div class="col-header">
@@ -251,12 +256,16 @@ async function onDrop(e, usuarioId){
   cliente.gestor_id = usuarioId;
   render();
   try{
-    await fetch('/api/clientes/'+clienteId+'/gestor', {
+    const r = await fetch('/api/clientes/'+clienteId+'/gestor', {
       method:'PATCH', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({gestor_id: usuarioId})
     });
+    const j = await r.json().catch(()=>({ok:false, error:'resposta inválida ('+r.status+')'}));
+    if(!j.ok) throw new Error(j.error || ('erro '+r.status));
   }catch(err){
+    // A troca não foi gravada: avisa e volta o quadro para o que está no banco
     console.error(err);
+    alert('Não foi possível trocar o gestor de '+cliente.nome+': '+err.message+'\nO quadro foi recarregado.');
     carregar();
   }
 }

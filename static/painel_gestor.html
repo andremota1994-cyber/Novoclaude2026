@@ -200,6 +200,12 @@ function renderTable(){
 // Init
 initAuth();
 loadAds();
+
+// Mantém a lista de contas em dia quando o admin troca clientes de gestor:
+// recarrega ao voltar para a aba e a cada 5 minutos
+function atualizarContas(){ cache = {}; loadAds(); }
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') atualizarContas(); });
+setInterval(()=>{ if(document.visibilityState==='visible') atualizarContas(); }, 5*60*1000);
 </script>
 </body>
 </html>

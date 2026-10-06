@@ -80,6 +80,13 @@ def require_login():
         if request.path.startswith(ADMIN_ONLY_API_PREFIXES) or request.path in ADMIN_ONLY_EXACT_API:
             return jsonify({'ok': False, 'error': 'Acesso restrito'}), 403
 
+@app.after_request
+def sem_cache_api(resp):
+    # Dados da API mudam a todo momento (ex.: troca de gestor); o navegador nao deve guardar
+    if request.path.startswith('/api/'):
+        resp.headers['Cache-Control'] = 'no-store'
+    return resp
+
 def fetch_ads_data(date_preset=None, date_from=None, date_to=None):
     params = {'api_key': WINDSOR_API_KEY, 'fields': FIELDS}
     if date_from and date_to:
@@ -893,7 +900,7 @@ def gestores_board():
     try:
         ur = requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome,username,role&order=id.asc', headers=supa_headers())
         usuarios = ur.json()
-        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,empresa,valor,nivel,gestor_id&order=nome.asc', headers=supa_headers())
+        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,empresa,valor,nivel,gestor_id,conta_anuncio&order=nome.asc', headers=supa_headers())
         clientes = cr.json()
         return jsonify({'ok': True, 'usuarios': usuarios, 'clientes': clientes})
     except Exception as e:
@@ -906,7 +913,11 @@ def update_gestor_cliente(id):
         gestor_id = body.get('gestor_id')
         if not gestor_id:
             return jsonify({'ok': False, 'error': 'gestor_id obrigatorio'}), 400
-        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json={'gestor_id': gestor_id})
+        r = requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json={'gestor_id': gestor_id}, timeout=10)
+        r.raise_for_status()
+        # Confirma que o cliente realmente mudou de gestor (antes uma falha passava em silencio)
+        if not r.json() or r.json()[0].get('gestor_id') != int(gestor_id):
+            return jsonify({'ok': False, 'error': 'O banco nao confirmou a troca'}), 500
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -931,6 +942,10 @@ def meta_ads_minhas():
             preset = PRESETS.get(period, 'last_30dT')
             data_all = fetch_ads_data(date_preset=preset)
         data = [d for d in data_all if d['account_name'] in contas]
+        # Contas vinculadas sem gasto no periodo tambem aparecem (zeradas), para bater com o quadro Gestores
+        com_dados = {d['account_name'] for d in data}
+        data += [{'account_name': n, 'spend': 0, 'leads': 0, 'msg': 0, 'total': 0, 'cpl': None}
+                 for n in sorted(contas - com_dados, key=str.lower)]
         total_spend = sum(d['spend'] for d in data)
         total_results = sum(d['total'] for d in data)
         total_leads = sum(d['leads'] for d in data)
