@@ -139,9 +139,15 @@ tr.row-atrasado td:first-child { color: var(--red); }
 .form-group input, .form-group select { width: 100%; height: 38px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 14px; background: var(--bg2); color: var(--text-primary); outline: none; font-family: inherit; }
 .modal-actions { display: flex; gap: 8px; margin-top: 1.25rem; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-row .form-group { min-width: 0; }
+.form-row input { min-width: 0; }
 .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-secondary); cursor: pointer; margin-top: 4px; }
 .check-row input { width: 16px; height: 16px; accent-color: var(--blue); }
 .secao-titulo { font-size: 13px; font-weight: 600; color: var(--text-primary); margin: 1.75rem 0 10px; }
+.secao-com-acao { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tipo-venda { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 1rem; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 4px; }
+.tipo-venda button { min-height: 34px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; border: none; border-radius: 7px; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 13px; cursor: pointer; }
+.tipo-venda button.on { background: var(--grad); color: #171206; font-weight: 600; }
 .secao-titulo span { font-weight: 400; color: var(--text-muted); font-size: 12px; margin-left: 6px; }
 .avulsas-grid { grid-template-columns: repeat(3, 1fr); }
 .produtos-resumo { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
@@ -161,6 +167,7 @@ tr.row-atrasado td:first-child { color: var(--red); }
   .hist-grid { grid-template-columns: repeat(2,1fr); }
 }
 @media (max-width: 560px) {
+  .form-row { grid-template-columns: 1fr; gap: 0; }
   .container { padding: 1.25rem; }
   .header { flex-wrap: wrap; gap: 12px; margin-bottom: 1.25rem; padding-bottom: 1rem; }
   .status-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
@@ -226,7 +233,7 @@ tr.row-atrasado td:first-child { color: var(--red); }
   <div class="page" id="page-produtos">
     <div class="mes-header">
       <span class="mes-badge" id="mes-badge-produtos">🛍 Vendas do mês</span>
-      <button class="btn btn-primary" onclick="openModalVenda()">+ Nova venda</button>
+      <button class="btn btn-primary" onclick="openModalVenda('cliente')">+ Nova venda</button>
     </div>
     <div class="produtos-resumo" id="produtos-resumo"></div>
 
@@ -238,7 +245,10 @@ tr.row-atrasado td:first-child { color: var(--red); }
       </table>
     </div>
 
-    <div class="secao-titulo">Vendas avulsas <span>quem não é cliente · totais separados</span></div>
+    <div class="secao-titulo secao-com-acao">
+      <div>Vendas autônomas <span>quem não é cliente · totais separados</span></div>
+      <button class="btn btn-ghost" onclick="openModalVenda('autonoma')">+ Venda autônoma</button>
+    </div>
     <div class="status-grid avulsas-grid">
       <div class="status-card receber"><div class="label">A receber</div><div class="value" id="val-av-receber">—</div><div class="sub" id="sub-av-receber">—</div></div>
       <div class="status-card recebido"><div class="label">Recebido</div><div class="value" id="val-av-recebido">—</div><div class="sub" id="sub-av-recebido">—</div></div>
@@ -281,12 +291,16 @@ tr.row-atrasado td:first-child { color: var(--red); }
 <div class="modal-overlay" id="modal-venda" style="display:none">
   <div class="modal">
     <h3>Nova venda</h3>
+    <div class="tipo-venda">
+      <button type="button" id="tipo-cliente" onclick="setTipoVenda('cliente')">Cliente</button>
+      <button type="button" id="tipo-autonoma" onclick="setTipoVenda('autonoma')">Autônoma</button>
+    </div>
     <div class="form-group"><label>Produto</label>
       <select id="v-produto" onchange="document.getElementById('v-produto-outro-wrap').style.display=this.value==='Outro'?'block':'none'"></select>
     </div>
     <div class="form-group" id="v-produto-outro-wrap" style="display:none"><label>Qual produto?</label><input id="v-produto-outro" maxlength="60" placeholder="Ex: Identidade visual"/></div>
-    <div class="form-group"><label>Cliente</label>
-      <select id="v-cliente" onchange="document.getElementById('v-nome-wrap').style.display=this.value==='avulso'?'block':'none'"></select>
+    <div class="form-group" id="v-cliente-wrap"><label>Cliente</label>
+      <select id="v-cliente"></select>
     </div>
     <div class="form-group" id="v-nome-wrap" style="display:none"><label>Nome do comprador</label><input id="v-nome" maxlength="120" placeholder="Ex: Maria Imóveis"/></div>
     <div class="form-group"><label>Descrição (opcional)</label><input id="v-descricao" maxlength="300" placeholder="Ex: LP do lançamento Vila Nova"/></div>
@@ -396,16 +410,25 @@ function renderVendas(){
   if(MES_ATUAL) document.getElementById('mes-badge-produtos').textContent = '🛍 Vendas de '+getNomeMes(MES_ATUAL);
 }
 
-function openModalVenda(){
+let tipoVenda = 'cliente';
+function setTipoVenda(tipo){
+  tipoVenda = tipo;
+  document.getElementById('tipo-cliente').classList.toggle('on', tipo==='cliente');
+  document.getElementById('tipo-autonoma').classList.toggle('on', tipo==='autonoma');
+  document.getElementById('v-cliente-wrap').style.display = tipo==='cliente' ? 'block' : 'none';
+  document.getElementById('v-nome-wrap').style.display = tipo==='autonoma' ? 'block' : 'none';
+}
+
+function openModalVenda(tipo){
   document.getElementById('v-produto').innerHTML = [...PRODUTOS,'Outro'].map(p=>`<option value="${p}">${p}</option>`).join('');
   const ordenados = [...clientes].sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
-  document.getElementById('v-cliente').innerHTML = '<option value="">Selecione...</option><option value="avulso">➕ Não é cliente (digitar nome)</option>'
+  document.getElementById('v-cliente').innerHTML = '<option value="">Selecione o cliente...</option>'
     + ordenados.map(c=>`<option value="${c.id}">${escHtml(c.nome)}</option>`).join('');
   ['v-produto-outro','v-nome','v-descricao','v-valor'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('v-data').value = new Date().toLocaleDateString('en-CA');
   document.getElementById('v-pago').checked = false;
   document.getElementById('v-produto-outro-wrap').style.display = 'none';
-  document.getElementById('v-nome-wrap').style.display = 'none';
+  setTipoVenda(tipo==='autonoma' ? 'autonoma' : 'cliente');
   document.getElementById('modal-venda').style.display = 'flex';
 }
 function closeModalVenda(){ document.getElementById('modal-venda').style.display = 'none'; }
@@ -413,11 +436,12 @@ function closeModalVenda(){ document.getElementById('modal-venda').style.display
 async function salvarVenda(){
   const sel = document.getElementById('v-produto').value;
   const produto = sel==='Outro' ? document.getElementById('v-produto-outro').value.trim() : sel;
-  const cli = document.getElementById('v-cliente').value;
+  const cli = tipoVenda==='autonoma' ? 'avulso' : document.getElementById('v-cliente').value;
   const nome = document.getElementById('v-nome').value.trim();
   const valor = parseFloat(document.getElementById('v-valor').value);
   if(!produto){ alert('Informe o produto.'); return; }
-  if(!cli || (cli==='avulso' && !nome)){ alert('Escolha o cliente ou digite o nome do comprador.'); return; }
+  if(!cli){ alert('Escolha o cliente.'); return; }
+  if(cli==='avulso' && !nome){ alert('Digite o nome do comprador.'); return; }
   if(!(valor>0)){ alert('Informe um valor válido.'); return; }
   const btn = document.getElementById('btn-salvar-venda');
   btn.disabled = true;
