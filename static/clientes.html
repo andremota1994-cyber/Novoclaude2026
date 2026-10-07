@@ -69,6 +69,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .cc-tags { display: flex; gap: 6px; flex-wrap: wrap; }
 .cc-tag { font-size: 10px; padding: 2px 8px; border-radius: 20px; }
 .cc-tag.atrasado { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+.cc-tag.prioridade { background: var(--red-bg); color: #ff7a8a; border: 0.5px solid var(--red-border); }
 .cc-tag.pausado { background: rgba(255,157,66,0.10); color: var(--amber); border: 0.5px solid rgba(255,157,66,0.30); }
 .cc-tag.inativo { background: var(--card2); color: var(--text-muted); border: 0.5px solid var(--border); }
 .cliente-card.fora { opacity: 0.62; }
@@ -190,6 +191,7 @@ function renderGrid(){
       </div>
       <div class="cc-valor">${fmt(c.valor)}<span style="font-size:11px;color:var(--text-muted);font-weight:400"> /mês</span></div>
       <div class="cc-tags">
+        ${c.prioridade ? '<span class="cc-tag prioridade">🔥 Prioridade</span>' : ''}
         ${statusDe(c)==='pausado' ? '<span class="cc-tag pausado">⏸ Pausado</span>' : ''}
         ${statusDe(c)==='inativo' ? '<span class="cc-tag inativo">Inativo</span>' : ''}
         ${atrasadosMap[c.id] ? '<span class="cc-tag atrasado">⚠️ Atrasado</span>' : ''}

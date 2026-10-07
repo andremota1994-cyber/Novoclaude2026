@@ -282,6 +282,36 @@ def logout():
     return redirect('/login')
 
 # ── Ads ──
+# ── Gestores: prioridade de clientes novos e quem cuida de cada conta ──
+PRIORIDADE_DIAS = 30  # cliente novo fica em prioridade nos primeiros 30 dias de contrato
+
+def eh_prioridade(cliente):
+    try:
+        inicio = datetime.strptime((cliente.get('data_inicio') or '')[:10], '%Y-%m-%d')
+    except ValueError:
+        return False
+    return (datetime.utcnow() - timedelta(hours=3) - inicio).days < PRIORIDADE_DIAS
+
+def mapa_contas():
+    # {conta_anuncio: {cliente, cliente_id, gestor_id, gestor, prioridade}} dos clientes ativos
+    clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,conta_anuncio,gestor_id,data_inicio', headers=supa_headers(), timeout=10).json()
+    usuarios = {u['id']: u['nome'] for u in requests.get(SUPABASE_URL + '/rest/v1/usuarios?select=id,nome', headers=supa_headers(), timeout=10).json()}
+    mapa = {}
+    for c in clientes:
+        if c.get('conta_anuncio'):
+            mapa[c['conta_anuncio']] = {'cliente': c['nome'], 'cliente_id': c['id'], 'gestor_id': c.get('gestor_id'),
+                                        'gestor': usuarios.get(c.get('gestor_id'), ''), 'prioridade': eh_prioridade(c)}
+    return mapa
+
+def com_gestor(contas):
+    # Acrescenta cliente, gestor e prioridade em cada conta do Meta Ads
+    try:
+        mapa = mapa_contas()
+    except Exception:
+        mapa = {}
+    vazio = {'cliente': '', 'cliente_id': None, 'gestor_id': None, 'gestor': '', 'prioridade': False}
+    return [{**d, **mapa.get(d['account_name'], vazio)} for d in contas]
+
 @app.route('/api/data')
 def api_data():
     period = request.args.get('period', '30')
@@ -302,7 +332,7 @@ def api_data():
         active = len([d for d in data if d['spend'] > 0])
         cpl_avg = round(total_spend / total_results, 2) if total_results else 0
         return jsonify({'ok': True, 'kpis': {'spend': round(total_spend, 2), 'results': total_results,
-            'leads': total_leads, 'msg': total_msg, 'cpl': cpl_avg, 'active': active, 'total': len(data)}, 'accounts': data})
+            'leads': total_leads, 'msg': total_msg, 'cpl': cpl_avg, 'active': active, 'total': len(data)}, 'accounts': com_gestor(data)})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -663,7 +693,7 @@ def get_clientes():
         # ?todos=1 traz tambem pausados e inativos (aba Clientes); o resto do painel usa so os ativos
         filtro = '' if request.args.get('todos') else 'ativo=eq.true&'
         r = requests.get(SUPABASE_URL + '/rest/v1/clientes?' + filtro + 'order=nivel.asc,valor.desc', headers=supa_headers())
-        return jsonify({'ok': True, 'data': r.json()})
+        return jsonify({'ok': True, 'data': [{**c, 'prioridade': bool(c.get('ativo')) and eh_prioridade(c)} for c in r.json()]})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -951,8 +981,8 @@ def gestores_board():
     try:
         ur = requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome,username,role&order=id.asc', headers=supa_headers())
         usuarios = ur.json()
-        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,empresa,valor,nivel,gestor_id,conta_anuncio&order=nome.asc', headers=supa_headers())
-        clientes = cr.json()
+        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,empresa,valor,nivel,gestor_id,conta_anuncio,data_inicio&order=nome.asc', headers=supa_headers())
+        clientes = [{**c, 'prioridade': eh_prioridade(c)} for c in cr.json()]
         return jsonify({'ok': True, 'usuarios': usuarios, 'clientes': clientes})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -1019,7 +1049,7 @@ def meta_ads_minhas():
         active = len([d for d in data if d['spend'] > 0])
         cpl_avg = round(total_spend / total_results, 2) if total_results else 0
         return jsonify({'ok': True, 'kpis': {'spend': round(total_spend, 2), 'results': total_results,
-            'leads': total_leads, 'msg': total_msg, 'cpl': cpl_avg, 'active': active, 'total': len(data)}, 'accounts': data})
+            'leads': total_leads, 'msg': total_msg, 'cpl': cpl_avg, 'active': active, 'total': len(data)}, 'accounts': com_gestor(data)})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -1245,11 +1275,15 @@ def get_tarefas():
     try:
         u = current_user()
         responsavel_id = u['id'] if u['role'] == 'gestor' else request.args.get('responsavel', 'todos')
-        url = SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.false&order=created_at.asc'
+        url = SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.false&order=created_at.asc&select=*,clientes(nome,data_inicio)'
         if str(responsavel_id) != 'todos':
             url += '&responsavel_id=eq.' + str(responsavel_id)
         r = requests.get(url, headers=supa_headers())
-        return jsonify({'ok': True, 'data': r.json()})
+        tarefas = []
+        for t in r.json():
+            c = t.pop('clientes', None) or {}
+            tarefas.append({**t, 'cliente_nome': c.get('nome', ''), 'prioridade': bool(c) and eh_prioridade(c)})
+        return jsonify({'ok': True, 'data': tarefas})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -1260,8 +1294,27 @@ def add_tarefa():
         body = request.json or {}
         responsavel_id = u['id'] if u['role'] == 'gestor' else (body.get('responsavel_id') or u['id'])
         payload = {'titulo': body.get('titulo'), 'prazo': body.get('prazo'), 'responsavel_id': responsavel_id}
+        cliente_id = body.get('cliente_id')
+        if cliente_id:
+            cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(int(cliente_id)) + '&select=gestor_id', headers=supa_headers(), timeout=10).json()
+            # Gestor so vincula tarefa a cliente dele
+            if cr and (u['role'] == 'admin' or cr[0].get('gestor_id') == u['id']):
+                payload['cliente_id'] = int(cliente_id)
         r = requests.post(SUPABASE_URL + '/rest/v1/tarefas', headers=supa_headers(), json=payload)
         return jsonify({'ok': True, 'data': r.json()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/tarefas/clientes', methods=['GET'])
+def tarefas_clientes():
+    # Clientes que podem ser vinculados a uma tarefa: todos (admin) ou so os do gestor
+    try:
+        u = current_user()
+        url = SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,gestor_id,data_inicio&order=nome.asc'
+        if u['role'] == 'gestor':
+            url += '&gestor_id=eq.' + str(u['id'])
+        clientes = requests.get(url, headers=supa_headers(), timeout=10).json()
+        return jsonify({'ok': True, 'data': [{**c, 'prioridade': eh_prioridade(c)} for c in clientes]})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

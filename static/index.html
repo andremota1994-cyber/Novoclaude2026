@@ -186,7 +186,7 @@
   .g4k { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 1rem; }
   .breakdown { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.25rem; display: flex; gap: 20px; }
   .breakdown strong { color: var(--blue-bright); }
-  .ctrls { display: flex; gap: 12px; margin-bottom: 0.5rem; }
+  .ctrls { display: flex; gap: 12px; margin-bottom: 0.5rem; flex-wrap: wrap; }
   input[type=text], select { height: 36px; border: 0.5px solid var(--border); border-radius: 8px; padding: 0 12px; font-size: 13px; background: var(--card); color: var(--text-primary); outline: none; font-family: inherit; }
   input[type=text] { flex: 1; }
   .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-secondary); margin-bottom: 0.5rem; }
@@ -195,10 +195,12 @@
   .twrap { max-height: 480px; overflow-y: auto; border: 0.5px solid var(--border); border-radius: var(--radius); }
   table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
   thead th { text-align: left; padding: 10px 8px; color: var(--text-secondary); font-weight: 500; background: rgba(228,190,110,.06); position: sticky; top: 0; border-bottom: 0.5px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
-  th:nth-child(1){width:34%;} th:nth-child(2),th:nth-child(3),th:nth-child(4),th:nth-child(5){text-align:right;width:16.5%;}
+  th:nth-child(1){width:30%;} th:nth-child(2){width:16%;} th:nth-child(n+3){text-align:right;width:13.5%;}
   td { padding: 9px 8px; border-top: 0.5px solid var(--border); color: var(--text-secondary); }
   td:nth-child(1){color:var(--text-primary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  td:nth-child(2),td:nth-child(3),td:nth-child(4),td:nth-child(5){text-align:right;}
+  td:nth-child(2){overflow:hidden;text-overflow:ellipsis;white-space:nowrap;} td:nth-child(n+3){text-align:right;}
+  .tag-prio { display:inline-block; font-size:10px; padding:1px 7px; border-radius:20px; margin-left:6px; background:rgba(255,92,114,.10); color:#ff7a8a; border:0.5px solid rgba(255,92,114,.35); vertical-align:1px; }
+  #gestor-filtro { max-width: 190px; }
   tr:hover td { background: rgba(228,190,110,.06); }
   .sline { font-size: 12px; color: var(--text-muted); margin-top: 1rem; text-align: right; }
 
@@ -329,6 +331,7 @@
         <div class="breakdown" id="breakdown">&nbsp;</div>
         <div class="ctrls">
           <input type="text" id="search" placeholder="Buscar conta..." oninput="renderTable()">
+          <select id="gestor-filtro" onchange="aplicarFiltroGestor()"><option value="">Todos os gestores</option></select>
           <select id="sortby" onchange="renderTable()">
             <option value="spend">Por gasto</option>
             <option value="results">Por resultados</option>
@@ -342,8 +345,8 @@
         </div>
         <div class="twrap">
           <table>
-            <thead><tr><th>Conta</th><th>Gasto</th><th>Leads</th><th>Conversas</th><th>CPL</th></tr></thead>
-            <tbody id="tbody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">Carregando...</td></tr></tbody>
+            <thead><tr><th>Conta</th><th>Gestor</th><th>Gasto</th><th>Leads</th><th>Conversas</th><th>CPL</th></tr></thead>
+            <tbody id="tbody"><tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">Carregando...</td></tr></tbody>
           </table>
         </div>
         <p class="sline" id="sline">Resultados = leads + conversas iniciadas</p>
@@ -484,13 +487,41 @@ function applyData(j){
   document.getElementById('ov-results').textContent=fmtI(k.results);
   document.getElementById('ov-sub').textContent=fmtI(k.leads)+' leads · '+fmtI(k.msg)+' conversas';
   document.getElementById('ov-cpl').textContent='R$ '+fmt(k.cpl);
-  document.getElementById('kpi-spend').textContent='R$ '+fmtI(k.spend);
-  document.getElementById('kpi-results').textContent=fmtI(k.results);
-  document.getElementById('kpi-cpl').textContent='R$ '+fmt(k.cpl);
-  document.getElementById('kpi-active').textContent=k.active+' / '+k.total;
-  document.getElementById('breakdown').innerHTML='<span><strong>'+fmtI(k.leads)+'</strong> leads</span><span><strong>'+fmtI(k.msg)+'</strong> conversas</span>';
   tableData=j.accounts;
-  renderAlerts(j.accounts);renderTable();
+  montarFiltroGestor();
+  aplicarFiltroGestor();
+  renderAlerts(j.accounts);
+}
+
+// ── Filtro por gestor (aba Meta Ads) ──
+function bateGestor(d){
+  const f=document.getElementById('gestor-filtro').value;
+  if(!f) return true;
+  if(f==='__prioridade') return !!d.prioridade;
+  if(f==='__sem') return !d.gestor;
+  return d.gestor===f;
+}
+function montarFiltroGestor(){
+  const sel=document.getElementById('gestor-filtro');
+  const atual=sel.value;
+  const nomes=[...new Set(tableData.map(d=>d.gestor).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  const qtd=f=>tableData.filter(f).length;
+  sel.innerHTML='<option value="">Todos os gestores ('+tableData.length+')</option>'
+    +'<option value="__prioridade">🔥 Prioridades ('+qtd(d=>d.prioridade)+')</option>'
+    +nomes.map(n=>'<option value="'+n.replace(/"/g,'&quot;')+'">'+n+' ('+qtd(d=>d.gestor===n)+')</option>').join('')
+    +'<option value="__sem">Sem cliente vinculado ('+qtd(d=>!d.gestor)+')</option>';
+  sel.value=[...sel.options].some(o=>o.value===atual)?atual:'';
+}
+function aplicarFiltroGestor(){
+  const rows=tableData.filter(bateGestor);
+  const spend=rows.reduce((s,d)=>s+d.spend,0), results=rows.reduce((s,d)=>s+d.total,0);
+  const leads=rows.reduce((s,d)=>s+d.leads,0), msg=rows.reduce((s,d)=>s+d.msg,0);
+  document.getElementById('kpi-spend').textContent='R$ '+fmtI(spend);
+  document.getElementById('kpi-results').textContent=fmtI(results);
+  document.getElementById('kpi-cpl').textContent='R$ '+fmt(results?spend/results:0);
+  document.getElementById('kpi-active').textContent=rows.filter(d=>d.spend>0).length+' / '+rows.length;
+  document.getElementById('breakdown').innerHTML='<span><strong>'+fmtI(leads)+'</strong> leads</span><span><strong>'+fmtI(msg)+'</strong> conversas</span>';
+  renderTable();
 }
 
 function renderAlerts(acc){
@@ -504,11 +535,11 @@ function renderAlerts(acc){
 function renderTable(){
   const q=document.getElementById('search').value.toLowerCase();
   const s=document.getElementById('sortby').value;
-  let rows=tableData.filter(d=>d.account_name.toLowerCase().includes(q));
+  let rows=tableData.filter(d=>bateGestor(d)&&(d.account_name.toLowerCase().includes(q)||(d.cliente||'').toLowerCase().includes(q)));
   if(s==='spend')rows.sort((a,b)=>b.spend-a.spend);
   if(s==='results')rows.sort((a,b)=>b.total-a.total);
   if(s==='cpl')rows.sort((a,b)=>(a.cpl??99999)-(b.cpl??99999));
-  document.getElementById('tbody').innerHTML=rows.map(d=>'<tr><td title="'+d.account_name+'">'+d.account_name+'</td><td>R$ '+fmt(d.spend)+'</td><td>'+fmtI(d.leads)+'</td><td>'+fmtI(d.msg)+'</td><td style="color:'+cplColor(d.cpl)+';font-weight:500">'+(d.cpl?'R$ '+fmt(d.cpl):'—')+'</td></tr>').join('');
+  document.getElementById('tbody').innerHTML=rows.map(d=>'<tr><td title="'+d.account_name+(d.cliente?' · '+d.cliente:'')+'">'+d.account_name+(d.prioridade?'<span class="tag-prio">🔥 Prioridade</span>':'')+'</td><td>'+(d.gestor||'<span style="color:var(--text-muted)">—</span>')+'</td><td>R$ '+fmt(d.spend)+'</td><td>'+fmtI(d.leads)+'</td><td>'+fmtI(d.msg)+'</td><td style="color:'+cplColor(d.cpl)+';font-weight:500">'+(d.cpl?'R$ '+fmt(d.cpl):'—')+'</td></tr>').join('');
 }
 
 

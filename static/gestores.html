@@ -70,6 +70,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .ccard .nm { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
 .ccard .emp { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
 .ccard .val { font-size: 11px; color: var(--text-muted); }
+.ccard .prio { margin-left: 6px; font-size: 11px; }
 .ccard .conta { font-size: 11px; color: var(--blue-bright); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ccard .conta.sem { color: var(--text-muted); font-style: italic; }
 
@@ -191,7 +192,7 @@ function render(){
       cardsHtml = visiveis.map(c=>`
         <div class="ccard" draggable="true" data-id="${c.id}"
              ondragstart="onDragStart(event,${c.id})" ondragend="onDragEnd(event)">
-          <div class="nm">${c.nome}</div>
+          <div class="nm">${c.nome}${c.prioridade ? '<span class="prio">🔥</span>' : ''}</div>
           <div class="emp">${c.empresa || '—'}</div>
           <div class="conta ${c.conta_anuncio?'':'sem'}" title="Conta de anúncios que aparece no painel do gestor">${c.conta_anuncio ? '📊 '+escHtml(c.conta_anuncio) : 'Sem conta de anúncios'}</div>
           <div class="val">${fmtValor(c.valor)}/mês</div>

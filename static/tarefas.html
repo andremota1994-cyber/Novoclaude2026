@@ -81,6 +81,11 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .task.completing .task-check { background: var(--green); border-color: var(--green); }
 .task.completing .task-text { text-decoration: line-through; color: var(--text-muted); opacity: 0.5; }
 .task-text { font-size: 13px; line-height: 1.4; color: var(--text-secondary); flex: 1; }
+.task-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
+.task-cliente { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: var(--card); color: var(--text-secondary); border: 0.5px solid var(--border); }
+.task-prio { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: rgba(255,92,114,.10); color: #ff7a8a; border: 0.5px solid rgba(255,92,114,.35); }
+.task-body { flex: 1; min-width: 0; }
+#task-cliente { max-width: 200px; }
 .task-owner { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: var(--card); color: var(--text-muted); white-space: nowrap; margin-top: 1px; }
 .resp-filter { background: var(--card2); border: 0.5px solid var(--border); border-radius: 6px; padding: 0 10px; font-size: 13px; color: var(--text-secondary); outline: none; font-family: inherit; height: 32px; cursor: pointer; margin-left: 8px; }
 .empty-board { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 13px; text-align: center; padding: 2rem; }
@@ -157,6 +162,8 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
     <!-- INPUT RÁPIDO -->
     <div class="quick-add">
       <input class="quick-input" id="task-input" placeholder="Nova tarefa..." onkeydown="handleKey(event)">
+      <select class="prazo-select" id="task-cliente" onchange="onClienteTarefa()" title="Cliente (opcional)"><option value="">👤 Sem cliente</option></select>
+      <select class="prazo-select" id="task-resp" style="display:none" title="Responsável"></select>
       <select class="prazo-select" id="task-prazo">
         <option value="hoje">📅 Hoje</option>
         <option value="amanha">📆 Amanhã</option>
@@ -228,6 +235,7 @@ let histSemana = 'atual';
 let me = null;
 let usuarios = [];
 let respFiltro = 'todos';
+let clientesTarefa = [];
 
 const PRAZO_LABEL = { hoje: 'Hoje', amanha: 'Amanhã', semana: 'Semana' };
 
@@ -256,6 +264,7 @@ async function initAuth(){
       sel.innerHTML = '<option value="todos">Todos</option>' +
         usuarios.map(u=>`<option value="${u.id}">${u.role==='admin'?'Eu ('+u.nome+')':u.nome}</option>`).join('');
       sel.value = 'todos';
+      montarResponsavel();
     }
   }catch(e){ console.error(e); }
 }
@@ -275,6 +284,7 @@ function nomeUsuario(id){
 
 function onRespFilterChange(){
   respFiltro = document.getElementById('resp-filter').value;
+  if(respFiltro !== 'todos') document.getElementById('task-resp').value = respFiltro;
   loadTarefas();
   loadHistorico();
 }
@@ -304,7 +314,10 @@ function renderBoards(){
     board.innerHTML = grupos[prazo].map(t=>`
       <div class="task" id="task-${t.id}" onclick="concluir(${t.id})">
         <div class="task-check"></div>
-        <div class="task-text">${t.titulo}</div>
+        <div class="task-body">
+          <div class="task-text">${escHtml(t.titulo)}</div>
+          ${t.cliente_nome ? `<div class="task-meta"><span class="task-cliente">👤 ${escHtml(t.cliente_nome)}</span>${t.prioridade ? '<span class="task-prio">🔥 Prioridade</span>' : ''}</div>` : ''}
+        </div>
         ${mostrarDono ? '<div class="task-owner">'+nomeUsuario(t.responsavel_id)+'</div>' : ''}
       </div>`).join('');
   }
@@ -330,9 +343,38 @@ async function addTarefa(){
   if(!titulo) return;
   input.value='';
   const body = {titulo,prazo};
-  if(me && me.role === 'admin' && respFiltro !== 'todos') body.responsavel_id = parseInt(respFiltro);
+  const cliente = document.getElementById('task-cliente').value;
+  if(cliente) body.cliente_id = parseInt(cliente);
+  if(me && me.role === 'admin') body.responsavel_id = parseInt(document.getElementById('task-resp').value);
   await fetch('/api/tarefas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   loadTarefas();
+}
+
+function escHtml(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Cliente e responsável da nova tarefa ──
+async function loadClientesTarefa(){
+  try{
+    const j = await (await fetch('/api/tarefas/clientes')).json();
+    if(!j.ok) return;
+    clientesTarefa = j.data;
+    // Prioridades (clientes novos) primeiro
+    const ord = [...clientesTarefa].sort((a,b)=>(b.prioridade-a.prioridade) || a.nome.localeCompare(b.nome,'pt-BR'));
+    document.getElementById('task-cliente').innerHTML = '<option value="">👤 Sem cliente</option>'
+      + ord.map(c=>`<option value="${c.id}">${c.prioridade?'🔥 ':''}${escHtml(c.nome)}</option>`).join('');
+  }catch(e){ console.error(e); }
+}
+function montarResponsavel(){
+  const sel = document.getElementById('task-resp');
+  sel.style.display = '';
+  sel.innerHTML = usuarios.map(u=>`<option value="${u.id}">${u.role==='admin'?'Eu ('+escHtml(u.nome)+')':escHtml(u.nome)}</option>`).join('');
+  sel.value = respFiltro !== 'todos' ? respFiltro : String(me.id);
+}
+function onClienteTarefa(){
+  // Ao escolher o cliente, a tarefa vai para o gestor dele
+  if(!me || me.role !== 'admin') return;
+  const c = clientesTarefa.find(x=>String(x.id)===document.getElementById('task-cliente').value);
+  if(c && c.gestor_id && usuarios.some(u=>u.id===c.gestor_id)) document.getElementById('task-resp').value = String(c.gestor_id);
 }
 
 function handleKey(e){ if(e.key==='Enter') addTarefa(); }
@@ -393,6 +435,7 @@ async function resetarSemana(){
 // Init
 async function init(){
   await initAuth();
+  loadClientesTarefa();
   loadTarefas();
   loadHistorico();
 }

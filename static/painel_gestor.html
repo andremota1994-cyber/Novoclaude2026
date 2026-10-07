@@ -68,6 +68,10 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 thead th { text-align: left; padding: 10px 8px; color: var(--text-secondary); font-weight: 500; background: rgba(228,190,110,.06); position: sticky; top: 0; border-bottom: 0.5px solid var(--border); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
 td { padding: 10px 8px; border-bottom: 0.5px solid var(--border); }
 .sline { font-size: 12px; color: var(--text-muted); margin-top: 1rem; text-align: right; }
+.tag-prio { display: inline-block; font-size: 10px; padding: 1px 7px; border-radius: 20px; margin-left: 6px; background: var(--red-bg); color: #ff7a8a; border: 0.5px solid var(--red-border); vertical-align: 1px; }
+.cliente-sub { display: block; font-size: 11px; color: var(--text-muted); }
+.prio-aviso { background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: 12px; padding: 0.8rem 1rem; font-size: 13px; color: var(--text-primary); margin-bottom: 1.25rem; line-height: 1.5; }
+.prio-aviso strong { color: #ff7a8a; }
 .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
 
 @media (max-width: 900px) {
@@ -97,6 +101,7 @@ td { padding: 10px 8px; border-bottom: 0.5px solid var(--border); }
       <h2>📊 Meta Ads</h2>
       <p>Visão geral das contas de anúncio dos seus clientes</p>
     </div>
+    <div class="prio-aviso" id="prio-aviso" style="display:none"></div>
 
     <div class="ptabs">
       <button class="ptab" onclick="setPeriod('hoje',this)">Hoje</button>
@@ -182,6 +187,16 @@ function applyData(j){
   renderTable();
 }
 
+function renderAvisoPrioridade(){
+  const prio=tableData.filter(d=>d.prioridade);
+  const el=document.getElementById('prio-aviso');
+  if(!prio.length){ el.style.display='none'; return; }
+  el.style.display='block';
+  el.innerHTML='🔥 <strong>'+prio.length+(prio.length===1?' cliente novo':' clientes novos')+' em prioridade:</strong> '
+    +prio.map(d=>d.cliente||d.account_name).join(', ')
+    +'. Foco total nestas contas: quanto antes performarem, mais rápido o cliente se fideliza.';
+}
+
 function renderTable(){
   const q=document.getElementById('search').value.toLowerCase();
   const s=document.getElementById('sortby').value;
@@ -189,12 +204,15 @@ function renderTable(){
   if(s==='spend')rows.sort((a,b)=>b.spend-a.spend);
   if(s==='results')rows.sort((a,b)=>b.total-a.total);
   if(s==='cpl')rows.sort((a,b)=>(a.cpl??99999)-(b.cpl??99999));
+  // Clientes novos (prioridade) sempre no topo
+  rows.sort((a,b)=>(b.prioridade?1:0)-(a.prioridade?1:0));
+  renderAvisoPrioridade();
   const tbody=document.getElementById('tbody');
   if(!rows.length){
     tbody.innerHTML='<tr><td colspan="5"><div class="empty-state">Nenhuma conta de anúncio vinculada aos seus clientes ainda.</div></td></tr>';
     return;
   }
-  tbody.innerHTML=rows.map(d=>'<tr><td title="'+d.account_name+'">'+d.account_name+'</td><td>R$ '+fmt(d.spend)+'</td><td>'+fmtI(d.leads)+'</td><td>'+fmtI(d.msg)+'</td><td style="color:'+cplColor(d.cpl)+';font-weight:500">'+(d.cpl?'R$ '+fmt(d.cpl):'—')+'</td></tr>').join('');
+  tbody.innerHTML=rows.map(d=>'<tr><td title="'+d.account_name+'">'+d.account_name+(d.prioridade?'<span class="tag-prio">🔥 Prioridade</span>':'')+(d.cliente?'<span class="cliente-sub">'+d.cliente+'</span>':'')+'</td><td>R$ '+fmt(d.spend)+'</td><td>'+fmtI(d.leads)+'</td><td>'+fmtI(d.msg)+'</td><td style="color:'+cplColor(d.cpl)+';font-weight:500">'+(d.cpl?'R$ '+fmt(d.cpl):'—')+'</td></tr>').join('');
 }
 
 // Init
