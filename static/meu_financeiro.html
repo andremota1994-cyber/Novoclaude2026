@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Financeiro - Mobilli Digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #060504; --card: rgba(228,190,110,0.055); --card2: rgba(228,190,110,0.10);
+  --border: rgba(228,190,110,0.16); --border-strong: rgba(228,190,110,0.30);
+  --blue: #d4af37; --blue-bright: #f3d888;
+  --grad: linear-gradient(135deg, #f3d888, #9c7a24);
+  --text-primary: #f7f3ea; --text-secondary: #a89a78; --text-muted: #6b6047;
+  --green: #2fd97f; --amber: #ff9d42; --purple: #c9a8ff;
+  --red: #ff5c72; --red-bg: rgba(255,92,114,0.08); --red-border: rgba(255,92,114,0.28);
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); display: flex; flex-direction: column; position: relative; }
+.bg-ambient { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.blob-a, .blob-b { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .32; }
+.blob-a { width: 520px; height: 520px; background: radial-gradient(circle, rgba(212,175,55,.35), transparent 70%); top: -160px; left: -120px; animation: driftA 24s ease-in-out infinite; }
+.blob-b { width: 480px; height: 480px; background: radial-gradient(circle, rgba(156,122,36,.28), transparent 70%); bottom: -180px; right: -140px; animation: driftB 28s ease-in-out infinite; }
+@keyframes driftA { 0%,100%{transform:translate(0,0)} 50%{transform:translate(60px,40px)} }
+@keyframes driftB { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-50px,-30px)} }
+.topbar, .main { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { .blob-a, .blob-b { animation: none !important; } * { transition: none !important; } }
+
+.main { flex: 1; overflow-y: auto; padding: 2rem; }
+.inner { max-width: 920px; margin: 0 auto; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 1.5rem; }
+.page-header h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+.page-header p { font-size: 13px; color: var(--text-secondary); }
+.controles { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.mes-nav { display: flex; align-items: center; gap: 6px; }
+.mes-nav button, .controles select { height: 34px; border: 0.5px solid var(--border); border-radius: 8px; background: var(--card); color: var(--text-primary); font-family: inherit; font-size: 13px; cursor: pointer; padding: 0 10px; }
+.mes-nav span { font-size: 14px; font-weight: 600; min-width: 130px; text-align: center; }
+.g4k { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 1.5rem; }
+.kcard { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.1rem; }
+.kcard .lbl { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.kcard .val { font-size: 22px; font-weight: 600; }
+.kcard .sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.kcard.verde .val { color: var(--green); } .kcard.ambar .val { color: var(--amber); } .kcard.ouro .val { color: var(--blue-bright); }
+.twrap { border: 0.5px solid var(--border); border-radius: 12px; overflow: hidden; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+thead th { text-align: left; padding: 10px 12px; color: var(--text-secondary); font-weight: 500; background: var(--card2); font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; }
+td { padding: 11px 12px; border-top: 0.5px solid var(--border); color: var(--text-secondary); vertical-align: middle; }
+td:first-child { color: var(--text-primary); white-space: nowrap; }
+td.valor { text-align: right; color: var(--text-primary); font-weight: 600; white-space: nowrap; }
+th.valor { text-align: right; }
+.nome { color: var(--text-primary); font-weight: 500; }
+.desc { display: block; font-size: 11px; color: var(--text-muted); }
+.st { font-size: 11px; padding: 3px 9px; border-radius: 20px; white-space: nowrap; display: inline-block; }
+.st.liberado { background: rgba(47,217,127,.10); color: var(--green); border: 0.5px solid rgba(47,217,127,.3); }
+.st.aguardando { background: var(--card2); color: var(--text-secondary); border: 0.5px solid var(--border); }
+.st.atrasado { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
+.st.previsto { background: rgba(243,216,136,.08); color: var(--blue-bright); border: 0.5px solid var(--border-strong); }
+.st.chegou { background: rgba(255,157,66,.10); color: var(--amber); border: 0.5px solid rgba(255,157,66,.3); }
+.vazio { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 13px; }
+.nota { font-size: 12px; color: var(--text-muted); margin-top: 1rem; line-height: 1.5; }
+@media (max-width: 700px) {
+  .main { padding: 1.25rem; }
+  .g4k { grid-template-columns: 1fr 1fr; }
+  td, thead th { padding: 9px 8px; }
+}
+</style>
+</head>
+<body>
+<div class="bg-ambient"><div class="blob-a"></div><div class="blob-b"></div></div>
+<div class="topbar" id="menu-principal"></div>
+<script src="/static/menu.js"></script>
+<div class="main">
+  <div class="inner">
+    <div class="page-header">
+      <div>
+        <h2>💰 Financeiro</h2>
+        <p id="regra">Carregando...</p>
+      </div>
+      <div class="controles">
+        <select id="gestor-sel" style="display:none" onchange="trocarGestor(this.value)"></select>
+        <div class="mes-nav">
+          <button onclick="mudarMes(-1)" aria-label="Mês anterior">◀</button>
+          <span id="mes-label">—</span>
+          <button onclick="mudarMes(1)" aria-label="Próximo mês">▶</button>
+        </div>
+      </div>
+    </div>
+    <div class="g4k" id="cards"></div>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>Data</th><th>Cliente / descrição</th><th>Situação</th><th class="valor">Valor</th></tr></thead>
+        <tbody id="tbody"><tr><td colspan="4" class="vazio">Carregando...</td></tr></tbody>
+      </table>
+    </div>
+    <p class="nota" id="nota"></p>
+  </div>
+</div>
+<script>
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const params = new URLSearchParams(location.search);
+let gestorId = params.get('gestor') || '';
+let mes = params.get('mes') || '';
+let me = null;
+
+const fmt = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const dataBR = d => d ? d.slice(8,10) + '/' + d.slice(5,7) : '—';
+const esc = v => String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+function mudarMes(delta){
+  let [a, m] = mes.split('-').map(Number);
+  m += delta; if (m < 1) { m = 12; a--; } if (m > 12) { m = 1; a++; }
+  mes = a + '-' + String(m).padStart(2,'0');
+  carregar();
+}
+function trocarGestor(id){ gestorId = id; carregar(); }
+
+// Situação de cada item, do ponto de vista do gestor
+function situacao(i, hoje){
+  if (i.status === 'liberado') return '<span class="st liberado">✓ Cliente pagou' + (i.data ? ' em ' + dataBR(i.data) : '') + '</span>';
+  if (i.status === 'atrasado') return '<span class="st atrasado">Cliente em atraso' + (i.vencimento ? ' · venceu ' + dataBR(i.vencimento) : '') + '</span>';
+  if (i.status === 'aguardando') return '<span class="st aguardando">' + (i.vencimento ? 'Aguardando o cliente · vence ' + dataBR(i.vencimento) : 'Aguardando o cliente · sem vencimento cadastrado') + '</span>';
+  if (i.data && i.data <= hoje) return '<span class="st chegou">Dia do pagamento: ' + dataBR(i.data) + '</span>';
+  return '<span class="st previsto">Previsto para ' + dataBR(i.data) + '</span>';
+}
+
+function render(j){
+  const [a, m] = j.mes.split('-').map(Number);
+  document.getElementById('mes-label').textContent = MESES[m-1] + ' ' + a;
+  const sel = document.getElementById('gestor-sel');
+  if (j.gestores && j.gestores.length) {
+    sel.style.display = '';
+    sel.innerHTML = j.gestores.map(g => '<option value="' + g.id + '">' + esc(g.nome) + '</option>').join('');
+    sel.value = String(j.gestor ? j.gestor.id : '');
+  }
+  const nomeG = j.gestor ? j.gestor.nome : '';
+  if (!j.regra) {
+    document.getElementById('regra').textContent = nomeG ? 'Remuneração de ' + nomeG + ' ainda não configurada.' : '';
+    document.getElementById('cards').innerHTML = '';
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="4" class="vazio">Remuneração ainda não configurada. Fale com o André.</td></tr>';
+    document.getElementById('nota').textContent = '';
+    return;
+  }
+  document.getElementById('regra').textContent = (me && me.role === 'admin' ? nomeG + ' · ' : '') + j.regra;
+
+  const itens = j.itens || [];
+  const soma = l => l.reduce((s, i) => s + Number(i.valor), 0);
+  const porCliente = itens.some(i => i.status === 'aguardando' || i.status === 'liberado' || i.status === 'atrasado');
+  const liberados = itens.filter(i => i.status === 'liberado');
+  const pendentes = itens.filter(i => i.status !== 'liberado');
+  const futuros = itens.filter(i => i.status !== 'liberado' && i.data && i.data >= j.hoje).sort((x, y) => x.data.localeCompare(y.data));
+  const prox = futuros.length ? futuros.filter(i => i.data === futuros[0].data) : [];
+  let cards = '<div class="kcard ouro"><div class="lbl">Total do mês</div><div class="val">' + fmt(soma(itens)) + '</div><div class="sub">' + itens.length + (itens.length === 1 ? ' lançamento' : ' lançamentos') + '</div></div>';
+  if (porCliente) {
+    cards += '<div class="kcard verde"><div class="lbl">Liberado</div><div class="val">' + fmt(soma(liberados)) + '</div><div class="sub">' + liberados.length + ' cliente(s) já pagaram</div></div>';
+    cards += '<div class="kcard ambar"><div class="lbl">Aguardando clientes</div><div class="val">' + fmt(soma(pendentes)) + '</div><div class="sub">' + pendentes.length + ' pendente(s)</div></div>';
+  } else {
+    const chegaram = itens.filter(i => i.data && i.data <= j.hoje);
+    cards += '<div class="kcard verde"><div class="lbl">Datas já chegaram</div><div class="val">' + fmt(soma(chegaram)) + '</div><div class="sub">' + chegaram.length + ' de ' + itens.length + '</div></div>';
+    cards += '<div class="kcard ambar"><div class="lbl">A receber</div><div class="val">' + fmt(soma(itens.filter(i => !(i.data && i.data <= j.hoje)))) + '</div><div class="sub">ainda neste mês</div></div>';
+  }
+  cards += '<div class="kcard"><div class="lbl">Próximo pagamento</div><div class="val">' + (prox.length ? fmt(soma(prox)) : '—') + '</div><div class="sub">' + (prox.length ? (porCliente ? 'vencimentos de ' : 'em ') + dataBR(prox[0].data) : 'nada previsto') + '</div></div>';
+  document.getElementById('cards').innerHTML = cards;
+
+  const ordem = {atrasado: 0, aguardando: 1, previsto: 1, liberado: 2};
+  const linhas = [...itens].sort((x, y) => (ordem[x.status] - ordem[y.status]) || (x.data || '9').localeCompare(y.data || '9'));
+  document.getElementById('tbody').innerHTML = linhas.length ? linhas.map(i => '<tr>'
+      + '<td>' + dataBR(i.data) + '</td>'
+      + '<td>' + (i.cliente ? '<span class="nome">' + esc(i.cliente) + '</span><span class="desc">' + esc(i.descricao) + '</span>' : '<span class="nome">' + esc(i.descricao) + '</span>') + '</td>'
+      + '<td>' + situacao(i, j.hoje) + '</td>'
+      + '<td class="valor">' + fmt(i.valor) + '</td></tr>').join('')
+    : '<tr><td colspan="4" class="vazio">Nenhum lançamento neste mês.</td></tr>';
+  document.getElementById('nota').textContent = porCliente
+    ? 'Os R$ de cada cliente são liberados quando o pagamento do cliente é confirmado no Faturamento.'
+    : 'Valores previstos pela regra de remuneração. A confirmação do pagamento é feita pelo André.';
+}
+
+async function carregar(){
+  const q = new URLSearchParams();
+  if (mes) q.set('mes', mes);
+  if (gestorId) q.set('gestor_id', gestorId);
+  try {
+    const j = await (await fetch('/api/meu-financeiro?' + q)).json();
+    if (!j.ok) { document.getElementById('tbody').innerHTML = '<tr><td colspan="4" class="vazio">Erro ao carregar: ' + esc(j.error) + '</td></tr>'; return; }
+    mes = j.mes;
+    if (j.gestor) gestorId = String(j.gestor.id);
+    render(j);
+  } catch (e) {
+    document.getElementById('tbody').innerHTML = '<tr><td colspan="4" class="vazio">Erro de conexão.</td></tr>';
+  }
+}
+
+async function init(){
+  try {
+    const j = await (await fetch('/api/me')).json();
+    if (j.ok) me = j.usuario;
+  } catch (e) {}
+  // Gestor vê o menu dele (Meta Ads, Tarefas, Financeiro)
+  if (me && me.role === 'gestor') {
+    document.getElementById('topbar-nav').innerHTML =
+      '<a class="topbar-link" href="/painel">Meta Ads</a>' +
+      '<a class="topbar-link" href="/tarefas">Tarefas</a>' +
+      '<a class="topbar-link active" href="/meu-financeiro">Financeiro</a>';
+  }
+  carregar();
+}
+init();
+</script>
+</body>
+</html>

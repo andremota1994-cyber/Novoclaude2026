@@ -255,7 +255,8 @@ async function initAuth(){
     if(me.role === 'gestor'){
       document.getElementById('topbar-nav').innerHTML =
         '<a class="topbar-link" href="/painel">Meta Ads</a>' +
-        '<a class="topbar-link active" href="/tarefas">Tarefas</a>';
+        '<a class="topbar-link active" href="/tarefas">Tarefas</a>' +
+        '<a class="topbar-link" href="/meu-financeiro">Financeiro</a>';
       document.getElementById('btn-reset-week').style.display = 'none';
     } else {
       await loadUsuarios();

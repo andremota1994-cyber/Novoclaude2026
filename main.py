@@ -1305,6 +1305,97 @@ def add_tarefa():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+# ── Financeiro do gestor (quanto cada gestor recebe no mes) ──
+# Regras em config.remuneracao_gestores, por id do usuario:
+#   fixo:              parcelas [{dia, valor}]           (Bruno: 500 dia 10 + 500 dia 20)
+#   por_cliente_pago:  valor por cliente que pagou       (Kelmer: 100, recebe conforme o cliente paga)
+#   por_cliente:       valor por cliente ativo, no dia X (Henrique: 100, todo dia 30)
+def reais(v):
+    return 'R$ ' + '{:,.0f}'.format(v).replace(',', '.')
+
+def data_no_mes(mes, dia):
+    ano, m = int(mes[:4]), int(mes[5:])
+    proximo = datetime(ano + (m == 12), m % 12 + 1, 1)
+    ultimo = (proximo - timedelta(days=1)).day
+    return '%s-%02d' % (mes, min(int(dia), ultimo))
+
+def data_br(iso):
+    # timestamp do banco (UTC) -> data no horario de Brasilia
+    try:
+        return (datetime.strptime(iso[:19], '%Y-%m-%dT%H:%M:%S') - timedelta(hours=3)).strftime('%Y-%m-%d')
+    except (TypeError, ValueError):
+        return None
+
+@app.route('/api/meu-financeiro', methods=['GET'])
+def meu_financeiro():
+    try:
+        u = current_user()
+        regras = json.loads(ler_config('remuneracao_gestores') or '{}')
+        usuarios = requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome,role&order=id.asc', headers=supa_headers(), timeout=10).json()
+        # Admin escolhe o gestor (para conferir); gestor so ve o proprio
+        gid = u['id'] if u['role'] == 'gestor' else int(request.args.get('gestor_id') or 0)
+        gestores = [{'id': x['id'], 'nome': x['nome']} for x in usuarios if str(x['id']) in regras]
+        if u['role'] == 'admin' and not gid and gestores:
+            gid = gestores[0]['id']
+        gestor = next((x for x in usuarios if x['id'] == gid), None)
+        mes = request.args.get('mes') or ler_config('mes_atual')
+        hoje = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m-%d')
+        resposta = {'ok': True, 'mes': mes, 'hoje': hoje, 'gestor': gestor and {'id': gestor['id'], 'nome': gestor['nome']},
+                    'gestores': gestores if u['role'] == 'admin' else [], 'regra': None, 'itens': []}
+        regra = regras.get(str(gid))
+        if not gestor or not regra:
+            return jsonify(resposta)
+
+        itens = []
+        if regra['tipo'] == 'fixo':
+            total = sum(p['valor'] for p in regra['parcelas'])
+            resposta['regra'] = reais(total) + ' fixos por mês'
+            for n, p in enumerate(regra['parcelas'], 1):
+                itens.append({'descricao': 'Parcela %d de %d' % (n, len(regra['parcelas'])), 'cliente': '',
+                              'data': data_no_mes(mes, p['dia']), 'valor': p['valor'], 'status': 'previsto'})
+        else:
+            clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&gestor_id=eq.' + str(gid) +
+                                    '&select=id,nome,dia_pagamento&order=nome.asc', headers=supa_headers(), timeout=10).json()
+            valor = regra['valor']
+            if regra['tipo'] == 'por_cliente':
+                resposta['regra'] = reais(valor) + ' por cliente, pago todo dia %d' % regra['dia']
+                for c in clientes:
+                    itens.append({'descricao': 'Cliente ativo', 'cliente': c['nome'], 'data': data_no_mes(mes, regra['dia']),
+                                  'valor': valor, 'status': 'previsto'})
+            else:
+                resposta['regra'] = reais(valor) + ' por cliente, liberado quando o cliente paga'
+                ano, m = int(mes[:4]), int(mes[5:])
+                mes_ant = '%d-12' % (ano - 1) if m == 1 else '%d-%02d' % (ano, m - 1)
+                nome_ant = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto',
+                            'setembro', 'outubro', 'novembro', 'dezembro'][int(mes_ant[5:]) - 1]
+                ids = ','.join(str(c['id']) for c in clientes) or '0'
+                pags = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=in.(' + mes + ',' + mes_ant + ')&cliente_id=in.(' + ids + ')',
+                                    headers=supa_headers(), timeout=10).json()
+                por_mes = {(p['mes'], p['cliente_id']): p for p in pags}
+                for c in clientes:
+                    p = por_mes.get((mes, c['id']))
+                    venc = data_no_mes(mes, c['dia_pagamento']) if c.get('dia_pagamento') else None
+                    if p and p.get('pago'):
+                        itens.append({'descricao': 'Mensalidade do mês', 'cliente': c['nome'], 'data': data_br(p.get('updated_at')),
+                                      'valor': valor, 'status': 'liberado', 'vencimento': venc})
+                    else:
+                        itens.append({'descricao': 'Mensalidade do mês', 'cliente': c['nome'], 'data': venc, 'valor': valor,
+                                      'status': 'atrasado' if venc and venc < hoje else 'aguardando', 'vencimento': venc})
+                    # Mensalidade do mes anterior: em atraso, ou paga atrasada dentro deste mes
+                    pa = por_mes.get((mes_ant, c['id']))
+                    if pa and pa.get('atrasado') and not pa.get('pago'):
+                        itens.append({'descricao': 'Mensalidade de ' + nome_ant + ' (em atraso)', 'cliente': c['nome'], 'data': None,
+                                      'valor': valor, 'status': 'atrasado', 'vencimento': None})
+                    elif pa and pa.get('pago') and (data_br(pa.get('updated_at')) or '')[:7] == mes:
+                        # quitada so neste mes = paga com atraso, libera agora
+                        itens.append({'descricao': 'Mensalidade de ' + nome_ant + ' (paga com atraso)', 'cliente': c['nome'],
+                                      'data': data_br(pa.get('updated_at')), 'valor': valor, 'status': 'liberado', 'vencimento': None})
+        resposta['itens'] = itens
+        return jsonify(resposta)
+    except Exception as e:
+        print('MEU FINANCEIRO ERROR:', traceback.format_exc())
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/tarefas/clientes', methods=['GET'])
 def tarefas_clientes():
     # Clientes que podem ser vinculados a uma tarefa: todos (admin) ou so os do gestor
@@ -1407,6 +1498,10 @@ def cliente_detalhe_page(id):
 @app.route('/gestores')
 def gestores_page():
     return send_from_directory('static', 'gestores.html')
+
+@app.route('/meu-financeiro')
+def meu_financeiro_page():
+    return send_from_directory('static', 'meu_financeiro.html')
 
 @app.route('/painel')
 def painel_gestor_page():

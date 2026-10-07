@@ -70,6 +70,8 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .ccard .nm { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
 .ccard .emp { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
 .ccard .val { font-size: 11px; color: var(--text-muted); }
+.col-fin { display: inline-block; margin-top: 6px; font-size: 11px; color: var(--blue-bright); text-decoration: none; }
+.col-fin:hover { text-decoration: underline; }
 .ccard .prio { margin-left: 6px; font-size: 11px; }
 .ccard .conta { font-size: 11px; color: var(--blue-bright); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ccard .conta.sem { color: var(--text-muted); font-style: italic; }
@@ -207,6 +209,7 @@ function render(){
         <div class="col-header">
           <div class="col-title ${u.role==='admin'?'admin':''}">${titulo}</div>
           <div class="col-sub">${subInfo}</div>
+          ${u.role!=='admin' ? `<a class="col-fin" href="/meu-financeiro?gestor=${u.id}">💰 Financeiro</a>` : ''}
         </div>
         <div class="col-body" id="colbody-${u.id}">${cardsHtml}</div>
       </div>`;
