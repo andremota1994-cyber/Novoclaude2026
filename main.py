@@ -660,7 +660,9 @@ def agenda_criar_evento():
 @app.route('/api/clientes', methods=['GET'])
 def get_clientes():
     try:
-        r = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&order=nivel.asc,valor.desc', headers=supa_headers())
+        # ?todos=1 traz tambem pausados e inativos (aba Clientes); o resto do painel usa so os ativos
+        filtro = '' if request.args.get('todos') else 'ativo=eq.true&'
+        r = requests.get(SUPABASE_URL + '/rest/v1/clientes?' + filtro + 'order=nivel.asc,valor.desc', headers=supa_headers())
         return jsonify({'ok': True, 'data': r.json()})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -674,11 +676,31 @@ def add_cliente():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+def dados_status(status):
+    # 'ativo' continua sendo o campo que o resto do painel usa; status diz se esta pausado ou inativo
+    agora = datetime.utcnow().isoformat()
+    return {'status': status, 'ativo': status == 'ativo',
+            'pausado_em': agora if status == 'pausado' else None,
+            'inativado_em': agora if status == 'inativo' else None}
+
+@app.route('/api/clientes/<int:id>/status', methods=['PATCH'])
+def update_status_cliente(id):
+    try:
+        status = (request.json or {}).get('status')
+        if status not in ('ativo', 'pausado', 'inativo'):
+            return jsonify({'ok': False, 'error': 'Status invalido'}), 400
+        r = requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json=dados_status(status), timeout=10)
+        r.raise_for_status()
+        if not r.json():
+            return jsonify({'ok': False, 'error': 'Cliente nao encontrado'}), 404
+        return jsonify({'ok': True, 'data': r.json()[0]})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/clientes/<int:id>', methods=['DELETE'])
 def delete_cliente(id):
     try:
-        now = datetime.utcnow().isoformat()
-        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json={'ativo': False, 'inativado_em': now})
+        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json=dados_status('inativo'))
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -952,6 +974,19 @@ def update_gestor_cliente(id):
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 # ── Meta Ads (visao limitada do gestor) ──
+@app.route('/api/meta-ads/minhas-contas', methods=['GET'])
+def meta_ads_minhas_contas():
+    # Consulta leve (so banco): o painel do gestor chama a cada poucos segundos
+    # para refletir na hora as trocas feitas no quadro Gestores
+    try:
+        u = current_user()
+        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?gestor_id=eq.' + str(u['id']) + '&ativo=eq.true&select=conta_anuncio', headers=supa_headers(), timeout=10)
+        cr.raise_for_status()
+        contas = sorted({c['conta_anuncio'] for c in cr.json() if c.get('conta_anuncio')}, key=str.lower)
+        return jsonify({'ok': True, 'contas': contas})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/meta-ads/minhas', methods=['GET'])
 def meta_ads_minhas():
     try:

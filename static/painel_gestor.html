@@ -201,11 +201,30 @@ function renderTable(){
 initAuth();
 loadAds();
 
-// Mantém a lista de contas em dia quando o admin troca clientes de gestor:
-// recarrega ao voltar para a aba e a cada 5 minutos
-function atualizarContas(){ cache = {}; loadAds(); }
-document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') atualizarContas(); });
-setInterval(()=>{ if(document.visibilityState==='visible') atualizarContas(); }, 5*60*1000);
+// Mantém a lista de contas em dia quando o admin troca clientes de gestor.
+// A cada 5s confere (só no banco) quais contas são deste gestor; se mudou,
+// tira na hora as que saíram e recarrega os números para incluir as que entraram.
+let assinaturaContas = null;
+async function conferirContas(){
+  try{
+    const j = await (await fetch('/api/meta-ads/minhas-contas')).json();
+    if(!j.ok) return;
+    const assinatura = j.contas.join('\n');
+    if(assinaturaContas !== null && assinatura !== assinaturaContas){
+      const minhas = new Set(j.contas);
+      tableData = tableData.filter(d=>minhas.has(d.account_name));
+      renderTable();
+      cache = {};
+      loadAds();
+    }
+    assinaturaContas = assinatura;
+  }catch(e){ console.error(e); }
+}
+conferirContas();
+setInterval(()=>{ if(document.visibilityState==='visible') conferirContas(); }, 5000);
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') conferirContas(); });
+// Números do Meta Ads atualizados a cada 5 minutos
+setInterval(()=>{ if(document.visibilityState==='visible'){ cache = {}; loadAds(); } }, 5*60*1000);
 </script>
 </body>
 </html>
