@@ -59,6 +59,10 @@ th.valor { text-align: right; }
 .st.atrasado { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); }
 .st.previsto { background: rgba(243,216,136,.08); color: var(--blue-bright); border: 0.5px solid var(--border-strong); }
 .st.chegou { background: rgba(255,157,66,.10); color: var(--amber); border: 0.5px solid rgba(255,157,66,.3); }
+.st.pago { background: rgba(47,217,127,.16); color: var(--green); border: 0.5px solid rgba(47,217,127,.45); font-weight: 600; }
+.btn-pg { height: 30px; padding: 0 12px; border-radius: 8px; border: 0.5px solid rgba(47,217,127,.4); background: rgba(47,217,127,.08); color: var(--green); font-family: inherit; font-size: 12px; cursor: pointer; white-space: nowrap; }
+.btn-pg.desfazer { border-color: var(--border); background: transparent; color: var(--text-muted); }
+td.acao { text-align: right; width: 1%; }
 .vazio { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 13px; }
 .nota { font-size: 12px; color: var(--text-muted); margin-top: 1rem; line-height: 1.5; }
 @media (max-width: 700px) {
@@ -81,6 +85,7 @@ th.valor { text-align: right; }
       </div>
       <div class="controles">
         <select id="gestor-sel" style="display:none" onchange="trocarGestor(this.value)"></select>
+        <button class="btn-pg" id="btn-mes-pago" style="display:none" onclick="marcar(null, true)">Marcar mês todo como pago</button>
         <div class="mes-nav">
           <button onclick="mudarMes(-1)" aria-label="Mês anterior">◀</button>
           <span id="mes-label">—</span>
@@ -91,7 +96,7 @@ th.valor { text-align: right; }
     <div class="g4k" id="cards"></div>
     <div class="twrap">
       <table>
-        <thead><tr><th>Data</th><th>Cliente / descrição</th><th>Situação</th><th class="valor">Valor</th></tr></thead>
+        <thead><tr><th>Data</th><th>Cliente / descrição</th><th>Situação</th><th class="valor">Valor</th><th id="th-acao" style="display:none"></th></tr></thead>
         <tbody id="tbody"><tr><td colspan="4" class="vazio">Carregando...</td></tr></tbody>
       </table>
     </div>
@@ -103,6 +108,8 @@ const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Ag
 const params = new URLSearchParams(location.search);
 let gestorId = params.get('gestor') || '';
 let mes = params.get('mes') || '';
+// Só fixa o mês se a pessoa escolheu um; senão acompanha o mês atual (vira sozinho)
+let mesEscolhido = !!params.get('mes');
 let me = null;
 
 const fmt = v => 'R$ ' + Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2});
@@ -113,12 +120,28 @@ function mudarMes(delta){
   let [a, m] = mes.split('-').map(Number);
   m += delta; if (m < 1) { m = 12; a--; } if (m > 12) { m = 1; a++; }
   mes = a + '-' + String(m).padStart(2,'0');
+  mesEscolhido = true;
   carregar();
 }
 function trocarGestor(id){ gestorId = id; carregar(); }
 
+// Admin marca o que já pagou ao gestor (uma linha ou o mês todo)
+let itensAtuais = [];
+async function marcar(chaves, pago){
+  const itens = itensAtuais.filter(i => chaves ? chaves.includes(i.chave) : !i.pago);
+  if (!itens.length) return;
+  if (!chaves && !confirm('Marcar como pago todo o restante do mês (' + fmt(itens.reduce((s, i) => s + Number(i.valor), 0)) + ')?')) return;
+  const r = await fetch('/api/repasses', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({gestor_id: gestorId, mes, pago, itens: itens.map(i => ({chave: i.chave, valor: i.valor}))})});
+  const j = await r.json().catch(() => ({ok: false, error: 'erro ' + r.status}));
+  if (!j.ok) alert('Não foi possível salvar: ' + j.error);
+  mesEscolhido = true;
+  carregar();
+}
+
 // Situação de cada item, do ponto de vista do gestor
 function situacao(i, hoje){
+  if (i.pago) return '<span class="st pago">✓ Pago' + (i.pago_em ? ' em ' + dataBR(i.pago_em) : '') + '</span>';
   if (i.status === 'liberado') return '<span class="st liberado">✓ Cliente pagou' + (i.data ? ' em ' + dataBR(i.data) : '') + '</span>';
   if (i.status === 'atrasado') return '<span class="st atrasado">Cliente em atraso' + (i.vencimento ? ' · venceu ' + dataBR(i.vencimento) : '') + '</span>';
   if (i.status === 'aguardando') return '<span class="st aguardando">' + (i.vencimento ? 'Aguardando o cliente · vence ' + dataBR(i.vencimento) : 'Aguardando o cliente · sem vencimento cadastrado') + '</span>';
@@ -148,30 +171,31 @@ function render(j){
   const itens = j.itens || [];
   const soma = l => l.reduce((s, i) => s + Number(i.valor), 0);
   const porCliente = itens.some(i => i.status === 'aguardando' || i.status === 'liberado' || i.status === 'atrasado');
-  const liberados = itens.filter(i => i.status === 'liberado');
-  const pendentes = itens.filter(i => i.status !== 'liberado');
-  const futuros = itens.filter(i => i.status !== 'liberado' && i.data && i.data >= j.hoje).sort((x, y) => x.data.localeCompare(y.data));
+  const pagos = itens.filter(i => i.pago);
+  const abertos = itens.filter(i => !i.pago);
+  const liberados = abertos.filter(i => i.status === 'liberado');
+  const futuros = abertos.filter(i => i.data && i.data >= j.hoje).sort((x, y) => x.data.localeCompare(y.data));
   const prox = futuros.length ? futuros.filter(i => i.data === futuros[0].data) : [];
   let cards = '<div class="kcard ouro"><div class="lbl">Total do mês</div><div class="val">' + fmt(soma(itens)) + '</div><div class="sub">' + itens.length + (itens.length === 1 ? ' lançamento' : ' lançamentos') + '</div></div>';
-  if (porCliente) {
-    cards += '<div class="kcard verde"><div class="lbl">Liberado</div><div class="val">' + fmt(soma(liberados)) + '</div><div class="sub">' + liberados.length + ' cliente(s) já pagaram</div></div>';
-    cards += '<div class="kcard ambar"><div class="lbl">Aguardando clientes</div><div class="val">' + fmt(soma(pendentes)) + '</div><div class="sub">' + pendentes.length + ' pendente(s)</div></div>';
-  } else {
-    const chegaram = itens.filter(i => i.data && i.data <= j.hoje);
-    cards += '<div class="kcard verde"><div class="lbl">Datas já chegaram</div><div class="val">' + fmt(soma(chegaram)) + '</div><div class="sub">' + chegaram.length + ' de ' + itens.length + '</div></div>';
-    cards += '<div class="kcard ambar"><div class="lbl">A receber</div><div class="val">' + fmt(soma(itens.filter(i => !(i.data && i.data <= j.hoje)))) + '</div><div class="sub">ainda neste mês</div></div>';
-  }
+  cards += '<div class="kcard verde"><div class="lbl">Recebido</div><div class="val">' + fmt(soma(pagos)) + '</div><div class="sub">' + pagos.length + ' de ' + itens.length + ' pagos</div></div>';
+  cards += '<div class="kcard ambar"><div class="lbl">A receber</div><div class="val">' + fmt(soma(abertos)) + '</div><div class="sub">' + (porCliente ? fmt(soma(liberados)) + ' já liberado(s)' : 'ainda neste mês') + '</div></div>';
   cards += '<div class="kcard"><div class="lbl">Próximo pagamento</div><div class="val">' + (prox.length ? fmt(soma(prox)) : '—') + '</div><div class="sub">' + (prox.length ? (porCliente ? 'vencimentos de ' : 'em ') + dataBR(prox[0].data) : 'nada previsto') + '</div></div>';
   document.getElementById('cards').innerHTML = cards;
 
+  const admin = me && me.role === 'admin';
+  itensAtuais = itens;
+  document.getElementById('th-acao').style.display = admin ? '' : 'none';
+  document.getElementById('btn-mes-pago').style.display = admin && abertos.length ? '' : 'none';
   const ordem = {atrasado: 0, aguardando: 1, previsto: 1, liberado: 2};
-  const linhas = [...itens].sort((x, y) => (ordem[x.status] - ordem[y.status]) || (x.data || '9').localeCompare(y.data || '9'));
+  const linhas = [...itens].sort((x, y) => ((x.pago ? 3 : ordem[x.status]) - (y.pago ? 3 : ordem[y.status])) || (x.data || '9').localeCompare(y.data || '9'));
   document.getElementById('tbody').innerHTML = linhas.length ? linhas.map(i => '<tr>'
       + '<td>' + dataBR(i.data) + '</td>'
       + '<td>' + (i.cliente ? '<span class="nome">' + esc(i.cliente) + '</span><span class="desc">' + esc(i.descricao) + '</span>' : '<span class="nome">' + esc(i.descricao) + '</span>') + '</td>'
       + '<td>' + situacao(i, j.hoje) + '</td>'
-      + '<td class="valor">' + fmt(i.valor) + '</td></tr>').join('')
-    : '<tr><td colspan="4" class="vazio">Nenhum lançamento neste mês.</td></tr>';
+      + '<td class="valor">' + fmt(i.valor) + '</td>'
+      + (admin ? '<td class="acao"><button class="btn-pg ' + (i.pago ? 'desfazer' : '') + '" onclick="marcar([\'' + i.chave + '\'], ' + !i.pago + ')">' + (i.pago ? 'Desfazer' : 'Marcar pago') + '</button></td>' : '')
+      + '</tr>').join('')
+    : '<tr><td colspan="5" class="vazio">Nenhum lançamento neste mês.</td></tr>';
   document.getElementById('nota').textContent = porCliente
     ? 'Os R$ de cada cliente são liberados quando o pagamento do cliente é confirmado no Faturamento.'
     : 'Valores previstos pela regra de remuneração. A confirmação do pagamento é feita pelo André.';
@@ -179,7 +203,7 @@ function render(j){
 
 async function carregar(){
   const q = new URLSearchParams();
-  if (mes) q.set('mes', mes);
+  if (mes && mesEscolhido) q.set('mes', mes);
   if (gestorId) q.set('gestor_id', gestorId);
   try {
     const j = await (await fetch('/api/meu-financeiro?' + q)).json();
@@ -207,6 +231,11 @@ async function init(){
   carregar();
 }
 init();
+
+// Mantém os valores em dia com o Faturamento e o quadro Gestores:
+// recalcula a cada 30s enquanto a página está aberta e ao voltar para a aba
+setInterval(() => { if (document.visibilityState === 'visible') carregar(); }, 30000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') carregar(); });
 </script>
 </body>
 </html>

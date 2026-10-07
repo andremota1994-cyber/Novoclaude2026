@@ -99,6 +99,13 @@ tr:last-child td { border-bottom: none; }
 .valor-input:focus { border-color: var(--border-strong); outline: none; }
 .btn-icon { background: transparent; border: none; cursor: pointer; font-size: 15px; color: var(--text-secondary); padding: 4px; }
 .btn-icon:hover { color: var(--red); }
+.rep-link { color: var(--text-primary); font-weight: 600; text-decoration: none; }
+.rep-link:hover { text-decoration: underline; }
+.rep-regra { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+.rep-auto { font-size: 10px; font-weight: 500; text-transform: none; letter-spacing: 0; padding: 2px 8px; border-radius: 20px; background: var(--card2); color: var(--text-muted); margin-left: 6px; }
+.rep-st { font-size: 11px; padding: 3px 9px; border-radius: 20px; background: var(--card2); color: var(--text-secondary); white-space: nowrap; }
+.rep-st.ok { background: rgba(47,217,127,.10); color: var(--green); }
+.rep-st.parcial, .rep-st.aberto { background: rgba(255,157,66,.10); color: var(--amber); }
 .check-pago { width: 16px; height: 16px; cursor: pointer; accent-color: var(--green); }
 .empty-row { text-align: center; color: var(--text-muted); padding: 2rem !important; }
 .loading-box { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 2rem; text-align: center; color: var(--text-secondary); font-size: 14px; }
@@ -163,9 +170,9 @@ function mudarMes(delta){
 
 function fmt(v){ return 'R$ ' + Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 
-async function carregar(){
+async function carregar(silencioso){
   document.getElementById('mes-label').textContent = labelMes(mesAtual);
-  document.getElementById('conteudo').innerHTML = '<div class="loading-box">Carregando...</div>';
+  if (!silencioso) document.getElementById('conteudo').innerHTML = '<div class="loading-box">Carregando...</div>';
   try {
     const r = await fetch('/api/financeiro/resumo?mes=' + mesAtual);
     const j = await r.json();
@@ -206,7 +213,10 @@ function render(j){
       <div class="cat-chip"><div class="lbl">Custos fixos</div><div class="val">${fmt(cat.fixo)}</div></div>
       <div class="cat-chip"><div class="lbl">Custos variáveis</div><div class="val">${fmt(cat.variavel)}</div></div>
       <div class="cat-chip"><div class="lbl">Salários</div><div class="val">${fmt(cat.salario)}</div></div>
+      <div class="cat-chip"><div class="lbl">Repasses gestores</div><div class="val">${fmt(cat.repasses || 0)}</div></div>
     </div>
+
+    ${blocoRepasses(j.repasses || [])}
 
     <div class="section-title">Nova despesa</div>
     <div class="add-form">
@@ -230,6 +240,44 @@ function render(j){
       </table>
     </div>
   `;
+}
+
+// ── Repasses aos gestores (calculados sozinhos pela regra e pelos clientes de cada um) ──
+let repassesAtuais = [];
+function blocoRepasses(lista){
+  repassesAtuais = lista;
+  if (!lista.length) return '';
+  const linhas = lista.map((r, i) => {
+    const tudoPago = r.itens.length && r.pago >= r.total;
+    const situacao = !r.itens.length ? '<span class="rep-st">sem lançamentos</span>'
+      : tudoPago ? '<span class="rep-st ok">Pago</span>'
+      : r.pago > 0 ? '<span class="rep-st parcial">Pago ' + fmt(r.pago) + ' · falta ' + fmt(r.total - r.pago) + '</span>'
+      : '<span class="rep-st aberto">A pagar</span>';
+    return `<tr>
+      <td><a class="rep-link" href="/meu-financeiro?gestor=${r.gestor_id}&mes=${mesAtual}">${r.gestor}</a><span class="rep-regra">${r.regra}</span></td>
+      <td>${fmt(r.total)}</td>
+      <td>${situacao}</td>
+      <td><input type="checkbox" class="check-pago" ${tudoPago ? 'checked' : ''} ${r.itens.length ? '' : 'disabled'} onchange="marcarRepasse(${i}, this.checked)" title="Marcar o mês todo como pago"></td>
+    </tr>`;
+  }).join('');
+  return `<div class="section-title">Repasses aos gestores <span class="rep-auto">automático</span></div>
+    <div class="table-scroll" style="margin-bottom:1.75rem">
+      <table>
+        <thead><tr><th>Gestor</th><th>Total do mês</th><th>Situação</th><th>Pago</th></tr></thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    </div>`;
+}
+
+async function marcarRepasse(i, pago){
+  const r = repassesAtuais[i];
+  if (!r) return;
+  if (!confirm((pago ? 'Marcar como pago ' : 'Desmarcar o pagamento de ') + fmt(r.total) + ' de ' + r.gestor + ' em ' + labelMes(mesAtual) + '?')) { carregar(true); return; }
+  const resp = await fetch('/api/repasses', {method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({gestor_id: r.gestor_id, mes: mesAtual, pago, itens: r.itens})});
+  const j = await resp.json().catch(() => ({ok: false, error: 'erro ' + resp.status}));
+  if (!j.ok) alert('Não foi possível salvar: ' + j.error);
+  carregar(true);
 }
 
 async function adicionarDespesa(){
@@ -271,6 +319,16 @@ async function excluirDespesa(id){
 }
 
 carregar();
+
+// Atualiza sozinho (repasses mudam quando clientes trocam de gestor ou pagam),
+// sem atrapalhar quem estiver digitando uma despesa
+setInterval(() => {
+  if (document.visibilityState !== 'visible') return;
+  const ativo = document.activeElement;
+  if (ativo && ['INPUT', 'SELECT', 'TEXTAREA'].includes(ativo.tagName)) return;
+  const rascunho = ['f-descricao', 'f-valor'].some(id => (document.getElementById(id) || {}).value);
+  if (!rascunho) carregar(true);
+}, 30000);
 </script>
 </body>
 </html>

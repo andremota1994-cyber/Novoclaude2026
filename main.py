@@ -58,7 +58,7 @@ ADMIN_ONLY_API_PREFIXES = (
     '/api/despesas', '/api/financeiro', '/api/agenda', '/api/google',
     '/api/clientes', '/api/contas-anuncio', '/api/config', '/api/pagamentos',
     '/api/historico', '/api/debug', '/api/briefing', '/api/chat',
-    '/api/usuarios', '/api/gestores', '/api/faturamento', '/api/vendas'
+    '/api/usuarios', '/api/gestores', '/api/faturamento', '/api/vendas', '/api/repasses'
 )
 ADMIN_ONLY_EXACT_API = {'/api/tarefas/resetar', '/api/data'}
 
@@ -488,18 +488,38 @@ def financeiro_resumo():
 
         despesas = despesas_do_mes(mes)
         saida_total = sum(float(d['valor']) for d in despesas)
-        por_categoria = {'fixo': 0.0, 'variavel': 0.0, 'salario': 0.0}
+        por_categoria = {'fixo': 0.0, 'variavel': 0.0, 'salario': 0.0, 'repasses': 0.0}
         for d in despesas:
             cat = d.get('categoria')
             if cat in por_categoria:
                 por_categoria[cat] += float(d['valor'])
+        # Repasses aos gestores: calculados pela regra de cada um e pelos clientes que ele tem hoje
+        repasses = []
+        try:
+            regras = json.loads(ler_config('remuneracao_gestores') or '{}')
+            nomes = {x['id']: x['nome'] for x in requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome', headers=supa_headers(), timeout=10).json()}
+            hoje = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m-%d')
+            for gid_txt, regra in regras.items():
+                gid = int(gid_txt)
+                if gid not in nomes:
+                    continue
+                texto, itens = calcular_repasses(gid, regra, mes, hoje)
+                total = sum(float(i['valor']) for i in itens)
+                pago = sum(float(i['valor']) for i in itens if i.get('pago'))
+                repasses.append({'gestor_id': gid, 'gestor': nomes[gid], 'regra': texto, 'total': round(total, 2),
+                                 'pago': round(pago, 2), 'itens': [{'chave': i['chave'], 'valor': i['valor']} for i in itens]})
+        except Exception:
+            print('REPASSES ERROR:', traceback.format_exc())
+        total_repasses = sum(r['total'] for r in repasses)
+        por_categoria['repasses'] = total_repasses
+        saida_total += total_repasses
         saldo = entrada - saida_total
         return jsonify({
             'ok': True, 'mes': mes,
             'entrada': round(entrada, 2), 'esperado': round(esperado, 2),
             'saida': round(saida_total, 2), 'saldo': round(saldo, 2),
             'por_categoria': {k: round(v, 2) for k, v in por_categoria.items()},
-            'despesas': despesas
+            'despesas': despesas, 'repasses': repasses
         })
     except Exception as e:
         print('FINANCEIRO ERROR:', traceback.format_exc())
@@ -1326,6 +1346,67 @@ def data_br(iso):
     except (TypeError, ValueError):
         return None
 
+def calcular_repasses(gid, regra, mes, hoje):
+    # Itens que o gestor tem a receber no mes, pela regra dele, ja marcando os que o admin pagou.
+    # Usado na pagina Financeiro do gestor e nas despesas do Financeiro do admin.
+    texto = ''
+    itens = []
+    # Antes do mes em que o gestor comecou nao ha nada a receber
+    if regra.get('inicio') and mes < regra['inicio']:
+        return texto, itens
+    if regra['tipo'] == 'fixo':
+        total = sum(p['valor'] for p in regra['parcelas'])
+        texto = reais(total) + ' fixos por mês'
+        for n, p in enumerate(regra['parcelas'], 1):
+            itens.append({'chave': 'parcela-%d' % n, 'descricao': 'Parcela %d de %d' % (n, len(regra['parcelas'])), 'cliente': '',
+                          'data': data_no_mes(mes, p['dia']), 'valor': p['valor'], 'status': 'previsto'})
+    else:
+        clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&gestor_id=eq.' + str(gid) +
+                                '&select=id,nome,dia_pagamento&order=nome.asc', headers=supa_headers(), timeout=10).json()
+        valor = regra['valor']
+        if regra['tipo'] == 'por_cliente':
+            texto = reais(valor) + ' por cliente, pago todo dia %d' % regra['dia']
+            for c in clientes:
+                itens.append({'chave': 'cliente-%d' % c['id'], 'descricao': 'Cliente ativo', 'cliente': c['nome'], 'data': data_no_mes(mes, regra['dia']),
+                              'valor': valor, 'status': 'previsto'})
+        else:
+            texto = reais(valor) + ' por cliente, liberado quando o cliente paga'
+            ano, m = int(mes[:4]), int(mes[5:])
+            mes_ant = '%d-12' % (ano - 1) if m == 1 else '%d-%02d' % (ano, m - 1)
+            nome_ant = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto',
+                        'setembro', 'outubro', 'novembro', 'dezembro'][int(mes_ant[5:]) - 1]
+            ids = ','.join(str(c['id']) for c in clientes) or '0'
+            pags = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=in.(' + mes + ',' + mes_ant + ')&cliente_id=in.(' + ids + ')',
+                                headers=supa_headers(), timeout=10).json()
+            por_mes = {(p['mes'], p['cliente_id']): p for p in pags}
+            for c in clientes:
+                p = por_mes.get((mes, c['id']))
+                venc = data_no_mes(mes, c['dia_pagamento']) if c.get('dia_pagamento') else None
+                if p and p.get('pago'):
+                    itens.append({'chave': 'cliente-%d' % c['id'], 'descricao': 'Mensalidade do mês', 'cliente': c['nome'], 'data': data_br(p.get('updated_at')),
+                                  'valor': valor, 'status': 'liberado', 'vencimento': venc})
+                else:
+                    itens.append({'chave': 'cliente-%d' % c['id'], 'descricao': 'Mensalidade do mês', 'cliente': c['nome'], 'data': venc, 'valor': valor,
+                                  'status': 'atrasado' if venc and venc < hoje else 'aguardando', 'vencimento': venc})
+                # Mensalidade do mes anterior: em atraso, ou paga atrasada dentro deste mes
+                pa = por_mes.get((mes_ant, c['id']))
+                if pa and pa.get('atrasado') and not pa.get('pago'):
+                    itens.append({'chave': 'cliente-%d-ant' % c['id'], 'descricao': 'Mensalidade de ' + nome_ant + ' (em atraso)', 'cliente': c['nome'], 'data': None,
+                                  'valor': valor, 'status': 'atrasado', 'vencimento': None})
+                elif pa and pa.get('pago') and (data_br(pa.get('updated_at')) or '')[:7] == mes:
+                    # quitada so neste mes = paga com atraso, libera agora
+                    itens.append({'chave': 'cliente-%d-ant' % c['id'], 'descricao': 'Mensalidade de ' + nome_ant + ' (paga com atraso)', 'cliente': c['nome'],
+                                  'data': data_br(pa.get('updated_at')), 'valor': valor, 'status': 'liberado', 'vencimento': None})
+    # Repasses que o admin ja marcou como pagos ao gestor
+    pagos = requests.get(SUPABASE_URL + '/rest/v1/repasses_gestores?usuario_id=eq.' + str(gid) + '&mes=eq.' + mes,
+                         headers=supa_headers(), timeout=10).json()
+    pagos = {p['chave']: p for p in pagos} if isinstance(pagos, list) else {}
+    for i in itens:
+        if i['chave'] in pagos:
+            i['pago'] = True
+            i['pago_em'] = data_br((pagos[i['chave']].get('pago_em') or '').replace(' ', 'T'))
+    return texto, itens
+
 @app.route('/api/meu-financeiro', methods=['GET'])
 def meu_financeiro():
     try:
@@ -1346,55 +1427,35 @@ def meu_financeiro():
         if not gestor or not regra:
             return jsonify(resposta)
 
-        itens = []
-        if regra['tipo'] == 'fixo':
-            total = sum(p['valor'] for p in regra['parcelas'])
-            resposta['regra'] = reais(total) + ' fixos por mês'
-            for n, p in enumerate(regra['parcelas'], 1):
-                itens.append({'descricao': 'Parcela %d de %d' % (n, len(regra['parcelas'])), 'cliente': '',
-                              'data': data_no_mes(mes, p['dia']), 'valor': p['valor'], 'status': 'previsto'})
-        else:
-            clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&gestor_id=eq.' + str(gid) +
-                                    '&select=id,nome,dia_pagamento&order=nome.asc', headers=supa_headers(), timeout=10).json()
-            valor = regra['valor']
-            if regra['tipo'] == 'por_cliente':
-                resposta['regra'] = reais(valor) + ' por cliente, pago todo dia %d' % regra['dia']
-                for c in clientes:
-                    itens.append({'descricao': 'Cliente ativo', 'cliente': c['nome'], 'data': data_no_mes(mes, regra['dia']),
-                                  'valor': valor, 'status': 'previsto'})
-            else:
-                resposta['regra'] = reais(valor) + ' por cliente, liberado quando o cliente paga'
-                ano, m = int(mes[:4]), int(mes[5:])
-                mes_ant = '%d-12' % (ano - 1) if m == 1 else '%d-%02d' % (ano, m - 1)
-                nome_ant = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto',
-                            'setembro', 'outubro', 'novembro', 'dezembro'][int(mes_ant[5:]) - 1]
-                ids = ','.join(str(c['id']) for c in clientes) or '0'
-                pags = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=in.(' + mes + ',' + mes_ant + ')&cliente_id=in.(' + ids + ')',
-                                    headers=supa_headers(), timeout=10).json()
-                por_mes = {(p['mes'], p['cliente_id']): p for p in pags}
-                for c in clientes:
-                    p = por_mes.get((mes, c['id']))
-                    venc = data_no_mes(mes, c['dia_pagamento']) if c.get('dia_pagamento') else None
-                    if p and p.get('pago'):
-                        itens.append({'descricao': 'Mensalidade do mês', 'cliente': c['nome'], 'data': data_br(p.get('updated_at')),
-                                      'valor': valor, 'status': 'liberado', 'vencimento': venc})
-                    else:
-                        itens.append({'descricao': 'Mensalidade do mês', 'cliente': c['nome'], 'data': venc, 'valor': valor,
-                                      'status': 'atrasado' if venc and venc < hoje else 'aguardando', 'vencimento': venc})
-                    # Mensalidade do mes anterior: em atraso, ou paga atrasada dentro deste mes
-                    pa = por_mes.get((mes_ant, c['id']))
-                    if pa and pa.get('atrasado') and not pa.get('pago'):
-                        itens.append({'descricao': 'Mensalidade de ' + nome_ant + ' (em atraso)', 'cliente': c['nome'], 'data': None,
-                                      'valor': valor, 'status': 'atrasado', 'vencimento': None})
-                    elif pa and pa.get('pago') and (data_br(pa.get('updated_at')) or '')[:7] == mes:
-                        # quitada so neste mes = paga com atraso, libera agora
-                        itens.append({'descricao': 'Mensalidade de ' + nome_ant + ' (paga com atraso)', 'cliente': c['nome'],
-                                      'data': data_br(pa.get('updated_at')), 'valor': valor, 'status': 'liberado', 'vencimento': None})
-        resposta['itens'] = itens
+        resposta['regra'], resposta['itens'] = calcular_repasses(gid, regra, mes, hoje)
         return jsonify(resposta)
+
     except Exception as e:
         print('MEU FINANCEIRO ERROR:', traceback.format_exc())
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/repasses', methods=['POST'])
+def marcar_repasses():
+    # Admin marca (ou desmarca) itens do financeiro de um gestor como pagos
+    try:
+        body = request.json or {}
+        gid, mes = int(body.get('gestor_id') or 0), body.get('mes') or ''
+        itens = body.get('itens') or []
+        if not gid or not re.match(r'^\d{4}-\d{2}$', mes) or not itens:
+            return jsonify({'ok': False, 'error': 'Informe gestor, mes e itens'}), 400
+        if body.get('pago', True):
+            linhas = [{'usuario_id': gid, 'mes': mes, 'chave': str(i['chave'])[:60], 'valor': float(i.get('valor') or 0),
+                       'pago_em': datetime.utcnow().isoformat()} for i in itens]
+            h = {**supa_headers(), 'Prefer': 'resolution=merge-duplicates,return=representation'}
+            requests.post(SUPABASE_URL + '/rest/v1/repasses_gestores?on_conflict=usuario_id,mes,chave', headers=h, json=linhas, timeout=10).raise_for_status()
+        else:
+            chaves = ','.join('"' + str(i['chave']).replace('"', '') + '"' for i in itens)
+            requests.delete(SUPABASE_URL + '/rest/v1/repasses_gestores', headers=supa_headers(), timeout=10,
+                            params={'usuario_id': 'eq.%d' % gid, 'mes': 'eq.' + mes, 'chave': 'in.(' + chaves + ')'}).raise_for_status()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 
 @app.route('/api/tarefas/clientes', methods=['GET'])
 def tarefas_clientes():
