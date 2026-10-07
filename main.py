@@ -4,9 +4,11 @@ import re
 import requests
 import traceback
 import hashlib
+import base64
 import secrets
 import string
 import unicodedata
+import threading
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 from flask import Flask, jsonify, send_from_directory, request, session, redirect
@@ -37,6 +39,59 @@ def supa_headers():
         'Prefer': 'return=representation'
     }
 
+# ── Notificacoes no celular (Web Push) ──
+# Chaves VAPID e segredo do agendamento ficam em push_chaves (RLS ligado). Na primeira vez
+# o proprio servidor gera e grava, para a chave privada nunca sair do banco.
+_push = {'chaves': None}
+
+def chaves_push():
+    if _push['chaves']:
+        return _push['chaves']
+    url = SUPABASE_URL + '/rest/v1/push_chaves?id=eq.1'
+    linhas = requests.get(url, headers=supa_headers(), timeout=10).json()
+    if isinstance(linhas, list) and not linhas:
+        from py_vapid import Vapid01
+        from cryptography.hazmat.primitives import serialization
+        v = Vapid01()
+        v.generate_keys()
+        b64 = lambda b: base64.urlsafe_b64encode(b).rstrip(b'=').decode()
+        nova = {'id': 1, 'segredo_cron': secrets.token_urlsafe(32),
+                'vapid_privada': b64(v.private_key.private_numbers().private_value.to_bytes(32, 'big')),
+                'vapid_publica': b64(v.public_key.public_bytes(serialization.Encoding.X962, serialization.PublicFormat.UncompressedPoint))}
+        requests.post(SUPABASE_URL + '/rest/v1/push_chaves', json=nova, timeout=10,
+                      headers={**supa_headers(), 'Prefer': 'resolution=ignore-duplicates,return=minimal'})
+        linhas = requests.get(url, headers=supa_headers(), timeout=10).json()
+    if isinstance(linhas, list) and linhas:
+        _push['chaves'] = linhas[0]
+    return _push['chaves']
+
+def _enviar_push(usuario_ids, titulo, corpo, link):
+    try:
+        from pywebpush import webpush, WebPushException
+        chaves = chaves_push()
+        ids = ','.join(str(int(i)) for i in set(usuario_ids) if i)
+        if not chaves or not ids:
+            return
+        inscricoes = requests.get(SUPABASE_URL + '/rest/v1/push_inscricoes?usuario_id=in.(' + ids + ')', headers=supa_headers(), timeout=10).json()
+        dados = json.dumps({'titulo': titulo, 'corpo': corpo, 'url': link or '/'})
+        for s in inscricoes if isinstance(inscricoes, list) else []:
+            try:
+                webpush(subscription_info={'endpoint': s['endpoint'], 'keys': {'p256dh': s['p256dh'], 'auth': s['auth']}},
+                        data=dados, vapid_private_key=chaves['vapid_privada'], ttl=86400,
+                        vapid_claims={'sub': 'https://novoclaude2026-1.onrender.com'})
+            except WebPushException as e:
+                # Aparelho desinscrito ou trocado: remove para nao tentar de novo
+                if e.response is not None and e.response.status_code in (404, 410):
+                    requests.delete(SUPABASE_URL + '/rest/v1/push_inscricoes', params={'endpoint': 'eq.' + s['endpoint']}, headers=supa_headers(), timeout=10)
+                else:
+                    print('PUSH falhou:', repr(e)[:300])
+    except Exception:
+        print('PUSH ERROR:', traceback.format_exc())
+
+def notificar(usuario_ids, titulo, corpo, link='/'):
+    # Envia em segundo plano para nao atrasar a resposta da tela
+    threading.Thread(target=_enviar_push, args=(list(usuario_ids), titulo, corpo, link), daemon=True).start()
+
 def check_auth():
     return session.get('autenticado') == True
 
@@ -64,7 +119,7 @@ ADMIN_ONLY_EXACT_API = {'/api/tarefas/resetar', '/api/data'}
 
 @app.before_request
 def require_login():
-    public = ['/login', '/api/login', '/logout']
+    public = ['/login', '/api/login', '/logout', '/sw.js', '/manifest.webmanifest', '/api/cron/alertas']
     if request.path in public or request.path.startswith('/static'):
         return None
     if check_auth() and not session.get('usuario_id'):
@@ -1019,6 +1074,9 @@ def update_gestor_cliente(id):
         # Confirma que o cliente realmente mudou de gestor (antes uma falha passava em silencio)
         if not r.json() or r.json()[0].get('gestor_id') != int(gestor_id):
             return jsonify({'ok': False, 'error': 'O banco nao confirmou a troca'}), 500
+        c = r.json()[0]
+        if int(gestor_id) != current_user()['id']:
+            notificar([gestor_id], '🆕 Novo cliente para você', c['nome'] + (' · 🔥 prioridade: cliente novo' if eh_prioridade(c) else ''), '/painel')
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -1321,6 +1379,13 @@ def add_tarefa():
             if cr and (u['role'] == 'admin' or cr[0].get('gestor_id') == u['id']):
                 payload['cliente_id'] = int(cliente_id)
         r = requests.post(SUPABASE_URL + '/rest/v1/tarefas', headers=supa_headers(), json=payload)
+        if responsavel_id != u['id']:
+            corpo = payload['titulo'] or ''
+            if payload.get('cliente_id'):
+                cl = requests.get(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(payload['cliente_id']) + '&select=nome', headers=supa_headers(), timeout=10).json()
+                if cl:
+                    corpo += ' · ' + cl[0]['nome']
+            notificar([responsavel_id], '📋 Nova tarefa', corpo, '/tarefas')
         return jsonify({'ok': True, 'data': r.json()})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -1559,6 +1624,93 @@ def cliente_detalhe_page(id):
 @app.route('/gestores')
 def gestores_page():
     return send_from_directory('static', 'gestores.html')
+
+# ── Notificacoes: inscricao do aparelho e alertas automaticos ──
+@app.route('/api/push/chave', methods=['GET'])
+def push_chave():
+    chaves = chaves_push()
+    if not chaves:
+        return jsonify({'ok': False, 'error': 'Notificacoes indisponiveis'}), 503
+    return jsonify({'ok': True, 'chave': chaves['vapid_publica']})
+
+@app.route('/api/push/inscrever', methods=['POST'])
+def push_inscrever():
+    try:
+        body = request.json or {}
+        s = body.get('inscricao') or {}
+        chaves = s.get('keys') or {}
+        if not s.get('endpoint') or not chaves.get('p256dh') or not chaves.get('auth'):
+            return jsonify({'ok': False, 'error': 'Inscricao invalida'}), 400
+        linha = {'endpoint': s['endpoint'], 'usuario_id': current_user()['id'], 'p256dh': chaves['p256dh'],
+                 'auth': chaves['auth'], 'aparelho': (body.get('aparelho') or '')[:290]}
+        requests.post(SUPABASE_URL + '/rest/v1/push_inscricoes?on_conflict=endpoint', json=linha, timeout=10,
+                      headers={**supa_headers(), 'Prefer': 'resolution=merge-duplicates,return=minimal'}).raise_for_status()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/push/cancelar', methods=['POST'])
+def push_cancelar():
+    endpoint = (request.json or {}).get('endpoint') or ''
+    requests.delete(SUPABASE_URL + '/rest/v1/push_inscricoes', params={'endpoint': 'eq.' + endpoint, 'usuario_id': 'eq.%d' % current_user()['id']},
+                    headers=supa_headers(), timeout=10)
+    return jsonify({'ok': True})
+
+@app.route('/api/push/teste', methods=['POST'])
+def push_teste():
+    u = current_user()
+    notificar([u['id']], '🔔 Notificações ativadas', 'Pronto, ' + (u.get('nome') or '') + '! Você vai receber os avisos do painel aqui.', '/')
+    return jsonify({'ok': True})
+
+CPL_ALERTA = 20.0          # CPL do dia acima disso gera aviso
+GASTO_MINIMO_ALERTA = 20.0  # so avalia contas que ja gastaram isso no dia
+
+@app.route('/api/cron/alertas', methods=['GET', 'POST'])
+def cron_alertas():
+    # Chamado pelo agendamento do Supabase (pg_cron) a cada 30 min, com o segredo de push_chaves
+    chaves = chaves_push()
+    if not chaves or not secrets.compare_digest(request.headers.get('X-Segredo', ''), chaves['segredo_cron']):
+        return jsonify({'ok': False, 'error': 'Nao autorizado'}), 401
+    try:
+        hoje = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m-%d')
+        contas = com_gestor(fetch_ads_data(date_from=hoje, date_to=hoje))
+        enviados = 0
+        for d in contas:
+            if not d.get('gestor_id') or d['spend'] < GASTO_MINIMO_ALERTA:
+                continue
+            cpl = d['spend'] / d['total'] if d['total'] else None
+            if cpl is not None and cpl <= CPL_ALERTA:
+                continue
+            # Um aviso por conta por dia
+            chave = 'cpl:%s:%s' % (d.get('account_id') or d['account_name'], hoje)
+            r = requests.post(SUPABASE_URL + '/rest/v1/push_alertas_enviados', json={'chave': chave}, timeout=10,
+                              headers={**supa_headers(), 'Prefer': 'resolution=ignore-duplicates,return=representation'})
+            if not (r.ok and r.json()):
+                continue
+            gasto = 'R$ ' + '{:,.2f}'.format(d['spend']).replace(',', 'X').replace('.', ',').replace('X', '.')
+            if cpl is None:
+                corpo = d['account_name'] + ': ' + gasto + ' investidos hoje e nenhum resultado ainda.'
+            else:
+                corpo = d['account_name'] + ': CPL de hoje R$ ' + ('%.2f' % cpl).replace('.', ',') + ' (' + gasto + ', ' + str(d['total']) + ' resultados).'
+            notificar([d['gestor_id']], '⚠️ CPL acima de R$ 20', corpo, '/painel')
+            enviados += 1
+        return jsonify({'ok': True, 'avisos': enviados})
+    except Exception as e:
+        print('CRON ALERTAS ERROR:', traceback.format_exc())
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/sw.js')
+def service_worker():
+    resp = send_from_directory('static', 'sw.js')
+    resp.headers['Service-Worker-Allowed'] = '/'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+@app.route('/manifest.webmanifest')
+def manifesto():
+    resp = send_from_directory('static', 'manifest.webmanifest')
+    resp.headers['Content-Type'] = 'application/manifest+json'
+    return resp
 
 @app.route('/meu-financeiro')
 def meu_financeiro_page():
