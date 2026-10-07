@@ -54,6 +54,13 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .nivel-ouro { background: #1a1500; color: var(--amber); border: 0.5px solid #3d3000; }
 .nivel-prata { background: #111827; color: #94a3b8; border: 0.5px solid #1f2937; }
 .nivel-bronze { background: #1a0f00; color: #d97706; border: 0.5px solid #3d2000; }
+.status-acoes { display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
+.btn-sit { height: 34px; padding: 0 14px; border-radius: var(--radius); font-size: 12px; cursor: pointer; font-family: inherit; flex-shrink: 0; }
+.btn-sit.pausar { border: 0.5px solid rgba(255,157,66,0.35); background: rgba(255,157,66,0.08); color: var(--amber); }
+.btn-sit.reativar { border: 0.5px solid rgba(47,217,127,0.35); background: rgba(47,217,127,0.08); color: var(--green); }
+.sit-badge { font-size: 11px; padding: 2px 9px; border-radius: 20px; }
+.sit-badge.pausado { background: rgba(255,157,66,0.10); color: var(--amber); border: 0.5px solid rgba(255,157,66,0.30); }
+.sit-badge.inativo { background: var(--card2); color: var(--text-muted); border: 0.5px solid var(--border); }
 .btn-remover { height: 34px; padding: 0 14px; border-radius: var(--radius); font-size: 12px; cursor: pointer; font-family: inherit; border: 0.5px solid var(--red-border); background: var(--red-bg); color: var(--red); flex-shrink: 0; }
 
 .section-title { font-size: 13px; font-weight: 600; margin: 1.5rem 0 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.03em; }
@@ -274,9 +281,10 @@ function render(){
         <div class="perfil-sub">
           <span class="nivel-badge nivel-${c.nivel}">${nivelIcon}</span>
           ${c.empresa ? '<span>' + c.empresa + '</span>' : ''}
+          ${situacaoBadge(c)}
         </div>
       </div>
-      <button class="btn-remover" onclick="removerCliente()">🗑️ Remover cliente</button>
+      <div class="status-acoes">${situacaoBotoes(c)}</div>
     </div>
 
     <div class="section-title">Contrato e financeiro</div>
@@ -383,10 +391,38 @@ async function alterarIndicacoes(delta){
   if (j.ok) { document.getElementById('indic-valor').textContent = j.indicacoes; cliente.indicacoes = j.indicacoes; }
 }
 
-async function removerCliente(){
-  if (!confirm('Remover ' + (cliente ? cliente.nome : 'este cliente') + '? Ele deixará de aparecer no Faturamento e na lista de Clientes.')) return;
-  await fetch('/api/clientes/' + clienteId, {method: 'DELETE'});
-  window.location.href = '/clientes';
+// Situação: ativo (entra no faturamento, gestores e painéis), pausado (parou por um tempo) ou inativo (saiu)
+function situacao(c){ return c.ativo ? 'ativo' : (c.status === 'pausado' ? 'pausado' : 'inativo'); }
+function dataBR(d){ return d ? new Date(d + (d.length > 10 && !/[zZ+]/.test(d.slice(10)) ? 'Z' : '')).toLocaleDateString('pt-BR') : ''; }
+
+function situacaoBadge(c){
+  const s = situacao(c);
+  if (s === 'pausado') return `<span class="sit-badge pausado">⏸ Pausado${c.pausado_em ? ' desde ' + dataBR(c.pausado_em) : ''}</span>`;
+  if (s === 'inativo') return `<span class="sit-badge inativo">Inativo${c.inativado_em ? ' desde ' + dataBR(c.inativado_em) : ''}</span>`;
+  return '';
+}
+
+function situacaoBotoes(c){
+  const s = situacao(c);
+  const b = [];
+  if (s !== 'ativo') b.push(`<button class="btn-sit reativar" onclick="mudarSituacao('ativo')">▶ Reativar</button>`);
+  if (s === 'ativo') b.push(`<button class="btn-sit pausar" onclick="mudarSituacao('pausado')">⏸ Pausar</button>`);
+  if (s !== 'inativo') b.push(`<button class="btn-remover" onclick="mudarSituacao('inativo')">Inativar</button>`);
+  return b.join('');
+}
+
+const CONFIRMA = {
+  pausado: n => 'Pausar ' + n + '? Ele sai do Faturamento, do quadro Gestores e do painel do gestor até ser reativado. O card continua em Clientes.',
+  inativo: n => 'Inativar ' + n + '? Ele sai do Faturamento, do quadro Gestores e do painel do gestor. O card continua em Clientes, como Inativo.',
+  ativo:   n => 'Reativar ' + n + '? Ele volta para o Faturamento (mensalidade do mês atual), o quadro Gestores e o painel do gestor.'
+};
+
+async function mudarSituacao(status){
+  if (!confirm(CONFIRMA[status](cliente ? cliente.nome : 'este cliente'))) return;
+  const r = await fetch('/api/clientes/' + clienteId + '/status', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status})});
+  const j = await r.json().catch(() => ({ok: false, error: 'erro ' + r.status}));
+  if (!j.ok) { alert('Não foi possível mudar a situação: ' + j.error); return; }
+  await carregar();
 }
 
 carregar();
