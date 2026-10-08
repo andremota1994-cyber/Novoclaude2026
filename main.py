@@ -1664,7 +1664,7 @@ def gestores_page():
 
 # ── Em negociacao: possiveis clientes (so admin) ──
 CAMPOS_NEGOCIACAO = ('nome', 'origem', 'telefone', 'cargo', 'valor_previsto', 'status', 'previsao_mes')
-STATUS_NEGOCIACAO = ('especulacao', 'em_contato', 'reuniao_marcada', 'avaliando_proposta', 'quente', 'frio')
+STATUS_NEGOCIACAO = ('especulacao', 'em_contato', 'reuniao_marcada', 'avaliando_proposta', 'quente', 'frio')  # 'fechado' so pela rota /fechar
 
 def dados_negociacao(body):
     dados = {}
@@ -1720,6 +1720,39 @@ def update_negociacao(id):
         return jsonify({'ok': True, 'data': r.json()[0]})
     except ValueError as e:
         return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+OCUPACAO_POR_CARGO = {'corretor': 'corretor', 'gerente': 'gerente', 'imobiliaria': 'imobiliaria',
+                      'superintendente': 'superintendente', 'diretor': 'diretor'}
+
+@app.route('/api/negociacoes/<int:id>/fechar', methods=['POST'])
+def fechar_negociacao(id):
+    # Negociacao fechada vira cliente ativo (com o admin), e sai do quadro de negociacao
+    try:
+        n = requests.get(SUPABASE_URL + '/rest/v1/negociacoes?id=eq.' + str(id), headers=supa_headers(), timeout=10).json()
+        if not n:
+            return jsonify({'ok': False, 'error': 'Negociacao nao encontrada'}), 404
+        n = n[0]
+        if n.get('status') == 'fechado' and n.get('cliente_id'):
+            return jsonify({'ok': False, 'error': 'Essa negociacao ja foi fechada'}), 409
+        valor = float((request.json or {}).get('valor') or n.get('valor_previsto') or 0)
+        if valor <= 0:
+            return jsonify({'ok': False, 'error': 'Informe a mensalidade do cliente'}), 400
+        cargo = unicodedata.normalize('NFKD', (n.get('cargo') or '').lower()).encode('ascii', 'ignore').decode().strip()
+        hoje = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m-%d')
+        cliente = {'nome': n['nome'].strip().upper(), 'valor': valor,
+                   'nivel': 'ouro' if valor >= 1500 else 'prata' if valor >= 1000 else 'bronze',
+                   'telefone': n.get('telefone'), 'ocupacao': OCUPACAO_POR_CARGO.get(cargo, 'outro' if cargo else None),
+                   'data_inicio': hoje, 'gestor_id': current_user()['id'], 'status': 'ativo', 'ativo': True}
+        r = requests.post(SUPABASE_URL + '/rest/v1/clientes', headers=supa_headers(), json=cliente, timeout=10)
+        r.raise_for_status()
+        novo = r.json()[0]
+        agora = datetime.utcnow().isoformat()
+        requests.patch(SUPABASE_URL + '/rest/v1/negociacoes?id=eq.' + str(id), headers=supa_headers(), timeout=10,
+                       json={'status': 'fechado', 'cliente_id': novo['id'], 'fechado_em': agora, 'atualizado_em': agora,
+                             'valor_previsto': valor}).raise_for_status()
+        return jsonify({'ok': True, 'cliente': {'id': novo['id'], 'nome': novo['nome']}})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

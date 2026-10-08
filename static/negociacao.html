@@ -90,6 +90,18 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .campo input:focus, .campo select:focus { border-color: var(--border-strong); }
 .campo select option { background: #171206; }
 .modal-acoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: .4rem; flex-wrap: wrap; }
+.btn-fechar { background: rgba(47,217,127,.12); color: var(--green); border: .5px solid rgba(47,217,127,.4); }
+.fech-titulo { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 1.5rem 0 10px; text-transform: uppercase; letter-spacing: .03em; }
+.fech-titulo span { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
+.fech-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.fech { display: block; padding: 9px 12px; border-radius: 10px; background: rgba(47,217,127,.06); border: .5px solid rgba(47,217,127,.25); text-decoration: none; color: var(--text-primary); }
+.fech:hover { border-color: rgba(47,217,127,.5); }
+.fech b { display: block; font-size: 13px; }
+.fech span { font-size: 11px; color: var(--text-secondary); }
+.aviso { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); opacity: 0; pointer-events: none; transition: all .25s; z-index: 150;
+  background: #10241a; border: 1px solid rgba(47,217,127,.45); color: var(--text-primary); padding: 12px 18px; border-radius: 12px; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+.aviso.visivel { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.aviso a { color: var(--green); font-weight: 600; margin-left: 6px; }
 .loading { text-align: center; padding: 3rem; color: var(--text-muted); }
 
 @media (max-width: 860px) { .kpis { grid-template-columns: 1fr 1fr; } }
@@ -117,7 +129,9 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
   </div>
   <div class="kpis" id="kpis"></div>
   <div class="board" id="board"><div class="loading">Carregando...</div></div>
+  <div id="fechados"></div>
 </div>
+<div class="aviso" id="aviso"></div>
 
 <div class="modal-overlay" id="modal" style="display:none" onclick="if(event.target===this)fechar()">
   <div class="modal">
@@ -136,6 +150,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
     </div>
     <div class="modal-acoes">
       <button class="btn btn-perigo" id="btn-excluir" onclick="excluir()">Excluir</button>
+      <button class="btn btn-fechar" id="btn-fechar" onclick="fecharNegocio()">✅ Cliente fechado</button>
       <button class="btn btn-ghost" onclick="fechar()">Cancelar</button>
       <button class="btn btn-primary" id="btn-salvar" onclick="salvar()">Salvar</button>
     </div>
@@ -191,16 +206,18 @@ function render(){
   const q = document.getElementById('busca').value.toLowerCase().trim();
   const bate = n => !q || [n.nome, n.origem, n.telefone, n.cargo].some(v => (v || '').toLowerCase().includes(q));
   // Resumo: o que está quente (tudo menos "frio")
-  const quentes = lista.filter(n => n.status !== 'frio');
+  const quentes = lista.filter(n => n.status !== 'frio' && n.status !== 'fechado');
+  const fechadosMes = lista.filter(n => n.status === 'fechado' && (n.fechado_em || '').slice(0, 7) === mesRelativo(0));
   const soma = l => l.reduce((s, n) => s + Number(n.valor_previsto || 0), 0);
   const esteMes = quentes.filter(n => n.previsao_mes === mesRelativo(0));
   const proxMes = quentes.filter(n => n.previsao_mes === mesRelativo(1));
-  const reunioes = lista.filter(n => n.status === 'reuniao_marcada');
+
   document.getElementById('kpis').innerHTML =
     '<div class="kpi ouro"><div class="lbl">Em negociação</div><div class="val">' + quentes.length + '</div><div class="sub">' + fmt(soma(quentes)) + '/mês previstos (sem os frios)</div></div>' +
     '<div class="kpi verde"><div class="lbl">Entrada em ' + nomeMes(mesRelativo(0)) + '</div><div class="val">' + fmt(soma(esteMes)) + '</div><div class="sub">' + esteMes.length + ' negociação(ões)</div></div>' +
     '<div class="kpi"><div class="lbl">Entrada em ' + nomeMes(mesRelativo(1)) + '</div><div class="val">' + fmt(soma(proxMes)) + '</div><div class="sub">' + proxMes.length + ' negociação(ões)</div></div>' +
-    '<div class="kpi"><div class="lbl">Reuniões marcadas</div><div class="val">' + reunioes.length + '</div><div class="sub">' + fmt(soma(reunioes)) + '/mês em jogo</div></div>';
+    '<div class="kpi verde"><div class="lbl">Fechados em ' + nomeMes(mesRelativo(0)) + '</div><div class="val">' + fechadosMes.length + '</div><div class="sub">' + fmt(soma(fechadosMes)) + '/mês em novos clientes</div></div>';
+  renderFechados();
 
   document.getElementById('board').innerHTML = STATUS.map(s => {
     const todos = lista.filter(n => n.status === s.v);
@@ -222,6 +239,44 @@ function render(){
       + '<div class="col-sub">' + todos.length + ' · ' + fmt(soma(todos)) + '/mês</div></div>'
       + '<div class="col-body">' + cards + '</div></div>';
   }).join('');
+}
+
+// ── Fechados: viram clientes e saem do quadro ──
+function renderFechados(){
+  const fechados = lista.filter(n => n.status === 'fechado').sort((a, b) => (b.fechado_em || '').localeCompare(a.fechado_em || ''));
+  const el = document.getElementById('fechados');
+  if (!fechados.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div class="fech-titulo">✅ Fechados <span>' + fechados.length + '</span></div><div class="fech-lista">'
+    + fechados.slice(0, 12).map(n => '<a class="fech" href="' + (n.cliente_id ? '/cliente/' + n.cliente_id : '#') + '">'
+      + '<b>' + esc(n.nome) + '</b><span>' + fmt(n.valor_previsto) + '/mês · ' + (n.fechado_em ? new Date(n.fechado_em).toLocaleDateString('pt-BR') : '') + '</span></a>').join('')
+    + '</div>';
+}
+
+async function fecharNegocio(){
+  const n = lista.find(x => x.id === editando);
+  if (!n) return;
+  let valor = Number(document.getElementById('f-valor').value || n.valor_previsto || 0);
+  if (!(valor > 0)) {
+    const v = prompt('Qual a mensalidade de ' + n.nome + '? (R$)');
+    if (v === null) return;
+    valor = Number(String(v).replace(/\./g, '').replace(',', '.'));
+    if (!(valor > 0)) { alert('Informe um valor válido.'); return; }
+  }
+  if (!confirm('Fechar com ' + n.nome + ' por ' + fmt(valor) + '/mês?\n\nEle vira cliente ativo: aparece em Clientes, no Faturamento do mês e na sua coluna do quadro Gestores.')) return;
+  const btn = document.getElementById('btn-fechar'); btn.disabled = true;
+  try {
+    const j = await (await fetch('/api/negociacoes/' + n.id + '/fechar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({valor})})).json();
+    if (!j.ok) { alert('Não foi possível fechar: ' + j.error); return; }
+    fechar();
+    await carregar();
+    aviso('✅ ' + j.cliente.nome + ' agora é cliente! <a href="/cliente/' + j.cliente.id + '">Abrir ficha →</a>');
+  } finally { btn.disabled = false; }
+}
+
+function aviso(html){
+  const a = document.getElementById('aviso');
+  a.innerHTML = html; a.classList.add('visivel');
+  clearTimeout(a._t); a._t = setTimeout(() => a.classList.remove('visivel'), 7000);
 }
 
 // ── Arrastar card entre colunas = mudar status ──
@@ -248,6 +303,7 @@ function abrir(id){
   editando = n ? n.id : null;
   document.getElementById('modal-titulo').textContent = n ? 'Editar negociação' : 'Nova negociação';
   document.getElementById('btn-excluir').style.display = n ? '' : 'none';
+  document.getElementById('btn-fechar').style.display = n ? '' : 'none';
   document.getElementById('f-nome').value = n ? n.nome : '';
   document.getElementById('f-telefone').value = n ? (n.telefone || '') : '';
   document.getElementById('f-valor').value = n && n.valor_previsto != null ? Number(n.valor_previsto) : '';
