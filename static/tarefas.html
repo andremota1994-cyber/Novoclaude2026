@@ -93,7 +93,16 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .task-cliente { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: var(--card); color: var(--text-secondary); border: 0.5px solid var(--border); }
 .task-prio { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: rgba(255,92,114,.10); color: #ff7a8a; border: 0.5px solid rgba(255,92,114,.35); }
 .task-body { flex: 1; min-width: 0; }
-#task-cliente { max-width: 200px; }
+.cli-combo { position: relative; }
+#task-cliente { width: 200px; cursor: text; }
+.cli-lista { position: absolute; top: calc(100% + 6px); left: 0; width: 260px; max-height: 280px; overflow-y: auto; z-index: 60; background: #171206;
+  border: 0.5px solid var(--border-strong); border-radius: 10px; padding: 4px; box-shadow: 0 12px 32px rgba(0,0,0,.55); display: none; }
+.cli-lista.aberta { display: block; }
+.cli-op { padding: 8px 10px; border-radius: 7px; font-size: 13px; color: var(--text-primary); cursor: pointer; }
+.cli-op mark { background: none; color: var(--blue-bright, #f3d888); font-weight: 600; }
+.cli-op.ativa { background: var(--card2); }
+.cli-op.nenhum { color: var(--text-muted); }
+.cli-vazio { padding: 10px; font-size: 12px; color: var(--text-muted); }
 .task-owner { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: var(--card); color: var(--text-muted); white-space: nowrap; margin-top: 1px; }
 .resp-filter { background: var(--card2); border: 0.5px solid var(--border); border-radius: 6px; padding: 0 10px; font-size: 13px; color: var(--text-secondary); outline: none; font-family: inherit; height: 32px; cursor: pointer; margin-left: 8px; }
 .empty-board { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 13px; text-align: center; padding: 2rem; }
@@ -170,7 +179,11 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
     <!-- INPUT RÁPIDO -->
     <div class="quick-add">
       <input class="quick-input" id="task-input" placeholder="Nova tarefa..." onkeydown="handleKey(event)">
-      <select class="prazo-select" id="task-cliente" onchange="onClienteTarefa()" title="Cliente (opcional)"><option value="">👤 Sem cliente</option></select>
+      <div class="cli-combo">
+        <input class="prazo-select" id="task-cliente" autocomplete="off" placeholder="👤 Cliente (opcional)" title="Cliente (opcional)"
+               onfocus="this.select(); abrirClientes()" oninput="abrirClientes()" onkeydown="teclasClientes(event)" onblur="fecharClientes()">
+        <div class="cli-lista" id="cli-lista"></div>
+      </div>
       <select class="prazo-select" id="task-resp" style="display:none" title="Responsável"></select>
       <select class="prazo-select" id="task-prazo">
         <option value="hoje">📅 Hoje</option>
@@ -244,6 +257,8 @@ let me = null;
 let usuarios = [];
 let respFiltro = 'todos';
 let clientesTarefa = [];
+let clienteEscolhido = null;   // id do cliente da nova tarefa
+let opcoesCli = [], cliAtiva = -1;
 
 const PRAZO_LABEL = { hoje: 'Hoje', amanha: 'Amanhã', semana: 'Semana' };
 
@@ -352,10 +367,11 @@ async function addTarefa(){
   if(!titulo) return;
   input.value='';
   const body = {titulo,prazo};
-  const cliente = document.getElementById('task-cliente').value;
-  if(cliente) body.cliente_id = parseInt(cliente);
+  if(clienteEscolhido) body.cliente_id = clienteEscolhido;
   if(me && me.role === 'admin') body.responsavel_id = parseInt(document.getElementById('task-resp').value);
   await fetch('/api/tarefas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  clienteEscolhido = null;
+  document.getElementById('task-cliente').value = '';
   loadTarefas();
 }
 
@@ -367,11 +383,63 @@ async function loadClientesTarefa(){
     const j = await (await fetch('/api/tarefas/clientes')).json();
     if(!j.ok) return;
     clientesTarefa = j.data;
-    // Prioridades (clientes novos) primeiro
-    const ord = [...clientesTarefa].sort((a,b)=>(b.prioridade-a.prioridade) || a.nome.localeCompare(b.nome,'pt-BR'));
-    document.getElementById('task-cliente').innerHTML = '<option value="">👤 Sem cliente</option>'
-      + ord.map(c=>`<option value="${c.id}">${c.prioridade?'🔥 ':''}${escHtml(c.nome)}</option>`).join('');
   }catch(e){ console.error(e); }
+}
+
+// ── Busca de cliente (digita e filtra) ──
+const semAcento = v => String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+function destacar(nome, termo){
+  if(!termo) return escHtml(nome);
+  const i = semAcento(nome).indexOf(semAcento(termo));
+  if(i < 0) return escHtml(nome);
+  return escHtml(nome.slice(0,i)) + '<mark>' + escHtml(nome.slice(i,i+termo.length)) + '</mark>' + escHtml(nome.slice(i+termo.length));
+}
+function nomeEscolhido(){ const c = clientesTarefa.find(x=>x.id===clienteEscolhido); return c ? c.nome : ''; }
+function abrirClientes(){
+  const input = document.getElementById('task-cliente');
+  const termo = input.value.trim() === nomeEscolhido() ? '' : input.value.trim();
+  // Prioridades (clientes novos) primeiro
+  const lista = clientesTarefa.filter(c=>!termo || semAcento(c.nome).includes(semAcento(termo)))
+    .sort((a,b)=>(b.prioridade-a.prioridade) || a.nome.localeCompare(b.nome,'pt-BR'));
+  opcoesCli = lista.map(c=>({id:c.id, html:(c.prioridade?'🔥 ':'')+destacar(c.nome, termo)}));
+  if(clienteEscolhido && !termo) opcoesCli.unshift({id:null, html:'Sem cliente', nenhum:true});
+  cliAtiva = termo && opcoesCli.length ? 0 : -1;
+  desenharClientes();
+}
+function desenharClientes(){
+  const el = document.getElementById('cli-lista');
+  el.innerHTML = opcoesCli.length
+    ? opcoesCli.map((o,i)=>`<div class="cli-op ${o.nenhum?'nenhum':''} ${i===cliAtiva?'ativa':''}" onmousedown="event.preventDefault(); escolherCliente(${i})">${o.html}</div>`).join('')
+    : '<div class="cli-vazio">Nenhum cliente encontrado.</div>';
+  el.classList.add('aberta');
+  const a = el.querySelector('.cli-op.ativa'); if(a) a.scrollIntoView({block:'nearest'});
+}
+function fecharClientes(){
+  document.getElementById('cli-lista').classList.remove('aberta');
+  document.getElementById('task-cliente').value = nomeEscolhido();
+}
+function teclasClientes(e){
+  const aberta = document.getElementById('cli-lista').classList.contains('aberta');
+  if(e.key==='ArrowDown' || e.key==='ArrowUp'){
+    e.preventDefault();
+    if(!aberta){ abrirClientes(); return; }
+    if(!opcoesCli.length) return;
+    cliAtiva = e.key==='ArrowDown' ? (cliAtiva+1)%opcoesCli.length : (cliAtiva<=0 ? opcoesCli.length-1 : cliAtiva-1);
+    desenharClientes();
+  } else if(e.key==='Enter'){
+    e.preventDefault();
+    if(aberta && cliAtiva>=0) escolherCliente(cliAtiva);
+  } else if(e.key==='Escape'){
+    e.target.blur();
+  }
+}
+function escolherCliente(i){
+  const o = opcoesCli[i];
+  if(!o) return;
+  clienteEscolhido = o.id;
+  fecharClientes();
+  document.getElementById('task-cliente').blur();
+  onClienteTarefa();
 }
 function montarResponsavel(){
   const sel = document.getElementById('task-resp');
@@ -382,7 +450,7 @@ function montarResponsavel(){
 function onClienteTarefa(){
   // Ao escolher o cliente, a tarefa vai para o gestor dele
   if(!me || me.role !== 'admin') return;
-  const c = clientesTarefa.find(x=>String(x.id)===document.getElementById('task-cliente').value);
+  const c = clientesTarefa.find(x=>x.id===clienteEscolhido);
   if(c && c.gestor_id && usuarios.some(u=>u.id===c.gestor_id)) document.getElementById('task-resp').value = String(c.gestor_id);
 }
 
