@@ -367,6 +367,12 @@ def com_gestor(contas):
     vazio = {'cliente': '', 'cliente_id': None, 'gestor_id': None, 'gestor': '', 'prioridade': False}
     return [{**d, **mapa.get(d['account_name'], vazio)} for d in contas]
 
+def contas_fora_do_painel():
+    # Contas de anuncios de clientes pausados/inativos (e que nao estao em nenhum cliente ativo)
+    clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?select=conta_anuncio,ativo&conta_anuncio=not.is.null', headers=supa_headers(), timeout=10).json()
+    ativas = {c['conta_anuncio'] for c in clientes if c.get('ativo')}
+    return {c['conta_anuncio'] for c in clientes if not c.get('ativo')} - ativas
+
 @app.route('/api/data')
 def api_data():
     period = request.args.get('period', '30')
@@ -380,6 +386,12 @@ def api_data():
         else:
             preset = PRESETS.get(period, 'last_30dT')
             data = fetch_ads_data(date_preset=preset)
+        # Cliente pausado ou inativo: a conta dele sai da aba Meta Ads (e dos totais)
+        try:
+            fora = contas_fora_do_painel()
+            data = [d for d in data if d['account_name'] not in fora]
+        except Exception:
+            print('CONTAS FORA ERROR:', traceback.format_exc())
         total_spend = sum(d['spend'] for d in data)
         total_results = sum(d['total'] for d in data)
         total_leads = sum(d['leads'] for d in data)
@@ -1671,12 +1683,20 @@ def cron_alertas():
     chaves = chaves_push()
     if not chaves or not secrets.compare_digest(request.headers.get('X-Segredo', ''), chaves['segredo_cron']):
         return jsonify({'ok': False, 'error': 'Nao autorizado'}), 401
+    # Responde na hora e checa em segundo plano (a consulta ao Windsor pode passar de 30s)
+    threading.Thread(target=checar_cpl, daemon=True).start()
+    return jsonify({'ok': True, 'status': 'checando'})
+
+def checar_cpl():
     try:
         hoje = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m-%d')
         contas = com_gestor(fetch_ads_data(date_from=hoje, date_to=hoje))
+        # So avisa (e so marca como avisado) quem ja ativou as notificacoes em algum aparelho
+        inscritos = requests.get(SUPABASE_URL + '/rest/v1/push_inscricoes?select=usuario_id', headers=supa_headers(), timeout=10).json()
+        inscritos = {i['usuario_id'] for i in inscritos} if isinstance(inscritos, list) else set()
         enviados = 0
         for d in contas:
-            if not d.get('gestor_id') or d['spend'] < GASTO_MINIMO_ALERTA:
+            if not d.get('gestor_id') or d['gestor_id'] not in inscritos or d['spend'] < GASTO_MINIMO_ALERTA:
                 continue
             cpl = d['spend'] / d['total'] if d['total'] else None
             if cpl is not None and cpl <= CPL_ALERTA:
@@ -1694,10 +1714,9 @@ def cron_alertas():
                 corpo = d['account_name'] + ': CPL de hoje R$ ' + ('%.2f' % cpl).replace('.', ',') + ' (' + gasto + ', ' + str(d['total']) + ' resultados).'
             notificar([d['gestor_id']], '⚠️ CPL acima de R$ 20', corpo, '/painel')
             enviados += 1
-        return jsonify({'ok': True, 'avisos': enviados})
-    except Exception as e:
+        print('CRON ALERTAS: %d aviso(s) de CPL' % enviados)
+    except Exception:
         print('CRON ALERTAS ERROR:', traceback.format_exc())
-        return jsonify({'ok': False, 'error': str(e)}), 500
 
 @app.route('/sw.js')
 def service_worker():
