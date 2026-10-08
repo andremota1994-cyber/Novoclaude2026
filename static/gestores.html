@@ -78,6 +78,12 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .ccard .nm { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
 .ccard .emp { font-size: 11px; color: var(--text-secondary); margin-bottom: 4px; }
 .ccard .val { font-size: 11px; color: var(--text-muted); }
+.col-tarefas { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 7px 10px; border-radius: 8px; background: var(--card2); border: 0.5px solid var(--border); text-decoration: none; color: var(--text-primary); font-size: 12px; transition: border-color .15s; }
+.col-tarefas:hover { border-color: var(--border-strong); }
+.col-tarefas b { font-size: 16px; }
+.col-tarefas .hoje { margin-left: auto; font-size: 10.5px; padding: 2px 8px; border-radius: 20px; background: rgba(255,157,66,.12); color: var(--amber); }
+.col-tarefas.zerado { color: var(--text-muted); }
+.col-tarefas.zerado b { color: var(--green); }
 .col-fin { display: inline-block; margin-top: 6px; font-size: 11px; color: var(--blue-bright); text-decoration: none; }
 .col-fin:hover { text-decoration: underline; }
 .ccard .prio { margin-left: 6px; font-size: 11px; }
@@ -169,6 +175,7 @@ async function carregar(){
     }
     usuarios = j.usuarios;
     clientes = j.clientes;
+    tarefasPend = j.tarefas || {};
     render();
   }catch(e){
     console.error(e);
@@ -177,6 +184,14 @@ async function carregar(){
 }
 
 function escHtml(v){ return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+let tarefasPend = {};
+function blocoTarefas(u){
+  const t = tarefasPend[String(u.id)] || {total: 0, hoje: 0};
+  const txt = t.total === 1 ? 'tarefa pendente' : 'tarefas pendentes';
+  return `<a class="col-tarefas ${t.total ? '' : 'zerado'}" href="/tarefas?responsavel=${u.id}" title="Ver as tarefas de ${escHtml(u.nome)}">
+    📋 <b>${t.total}</b> ${txt}${t.hoje ? `<span class="hoje">${t.hoje} para hoje</span>` : ''}</a>`;
+}
+
 function fmtValor(v){
   return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
 }
@@ -188,6 +203,7 @@ function bate(c){
 
 function render(){
   const wrap = document.getElementById('board-wrap');
+  const rolagem = wrap.scrollLeft;
   const cols = usuarios.map(u=>{
     const meusClientes = clientes.filter(c=>c.gestor_id===u.id);
     const visiveis = meusClientes.filter(bate);
@@ -217,12 +233,14 @@ function render(){
         <div class="col-header">
           <div class="col-title ${u.role==='admin'?'admin':''}">${titulo}</div>
           <div class="col-sub">${subInfo}</div>
+          ${blocoTarefas(u)}
           ${u.role!=='admin' ? `<a class="col-fin" href="/meu-financeiro?gestor=${u.id}">💰 Financeiro</a>` : ''}
         </div>
         <div class="col-body" id="colbody-${u.id}">${cardsHtml}</div>
       </div>`;
   }).join('');
   wrap.innerHTML = cols + '<div class="col-add" onclick="openModalNovo()">+ Novo gestor</div>';
+  wrap.scrollLeft = rolagem;
 }
 
 function onBuscaInput(){
@@ -315,6 +333,13 @@ function closeModalCred(){ document.getElementById('modal-cred').style.display =
 
 // Init
 carregar();
+
+// Atualiza sozinho a cada minuto (tarefas pendentes, clientes), sem atrapalhar arraste ou janela aberta
+setInterval(() => {
+  if (document.visibilityState !== 'visible' || dragCliente) return;
+  if ([...document.querySelectorAll('.modal-overlay')].some(m => m.style.display !== 'none')) return;
+  carregar();
+}, 60000);
 </script>
 <script src="/static/push.js"></script>
 </body>

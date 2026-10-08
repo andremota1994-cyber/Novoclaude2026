@@ -1070,7 +1070,14 @@ def gestores_board():
         usuarios = ur.json()
         cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,empresa,valor,nivel,gestor_id,conta_anuncio,data_inicio&order=nome.asc', headers=supa_headers())
         clientes = [{**c, 'prioridade': eh_prioridade(c)} for c in cr.json()]
-        return jsonify({'ok': True, 'usuarios': usuarios, 'clientes': clientes})
+        # Tarefas pendentes de cada pessoa (total e para hoje)
+        tr = requests.get(SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.false&select=responsavel_id,prazo', headers=supa_headers(), timeout=10).json()
+        tarefas = {}
+        for t in tr if isinstance(tr, list) else []:
+            p = tarefas.setdefault(str(t['responsavel_id']), {'total': 0, 'hoje': 0})
+            p['total'] += 1
+            p['hoje'] += t.get('prazo') == 'hoje'
+        return jsonify({'ok': True, 'usuarios': usuarios, 'clientes': clientes, 'tarefas': tarefas})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

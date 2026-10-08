@@ -293,7 +293,10 @@ async function initAuth(){
       sel.style.display = '';
       sel.innerHTML = '<option value="todos">Todos</option>' +
         usuarios.map(u=>`<option value="${u.id}">${u.role==='admin'?'Eu ('+u.nome+')':u.nome}</option>`).join('');
-      sel.value = 'todos';
+      // Vindo do quadro Gestores (?responsavel=ID), abre filtrado naquela pessoa
+      const doLink = new URLSearchParams(location.search).get('responsavel');
+      sel.value = doLink && usuarios.some(u=>String(u.id)===doLink) ? doLink : 'todos';
+      respFiltro = sel.value;
       montarResponsavel();
     }
   }catch(e){ console.error(e); }
