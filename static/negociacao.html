@@ -52,7 +52,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .kpi.ouro .val { color: var(--blue-bright); } .kpi.verde .val { color: var(--green); }
 
 .busca { height: 38px; width: 260px; max-width: 100%; background: var(--card); border: 0.5px solid var(--border); border-radius: 8px; padding: 0 12px; font-size: 13px; color: var(--text-primary); outline: none; font-family: inherit; }
-.board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 14px; overflow-x: auto; padding-bottom: 1rem; align-items: start; }
+.board { display: grid; grid-template-columns: repeat(6, minmax(220px, 1fr)); gap: 14px; overflow-x: auto; padding-bottom: 1rem; align-items: start; }
 .col { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; min-height: 200px; transition: border-color .15s, background .15s; }
 .col.dragover { border-color: var(--blue); background: var(--card2); }
 .col-header { padding: 13px 14px 10px; border-bottom: 0.5px solid var(--border); }
@@ -76,6 +76,8 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .prev.proximo { background: rgba(255,157,66,.10); color: var(--amber); border: .5px solid rgba(255,157,66,.3); }
 .prev.outro { background: var(--card); color: var(--text-muted); border: .5px solid var(--border); }
 .col[data-status="frio"] .ncard { opacity: .7; }
+.col[data-status="quente"] { border-color: rgba(255,122,69,.35); }
+.col[data-status="quente"] .ncard { border-color: rgba(255,122,69,.3); }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
 .modal { background: #0d0b08; border: 1px solid var(--border-strong); border-radius: 16px; padding: 1.4rem; width: 460px; max-width: 100%; max-height: calc(100vh - 2rem); overflow-y: auto; }
@@ -93,7 +95,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 @media (max-width: 860px) { .kpis { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 600px) {
   .main { padding: 1.25rem; }
-  .board { grid-template-columns: repeat(4, 82vw); }
+  .board { grid-template-columns: repeat(6, 82vw); }
   .campos { grid-template-columns: 1fr; }
 }
 </style>
@@ -145,6 +147,8 @@ const STATUS = [
   {v: 'especulacao', l: 'Especulação', cor: '#a89a78'},
   {v: 'em_contato', l: 'Em contato', cor: '#5aa9ff'},
   {v: 'reuniao_marcada', l: 'Reunião marcada', cor: '#2fd97f'},
+  {v: 'avaliando_proposta', l: 'Avaliando proposta', cor: '#c9a8ff'},
+  {v: 'quente', l: 'Quente 🔥', cor: '#ff7a45'},
   {v: 'frio', l: 'Frio', cor: '#6b6047'}
 ];
 const ORIGENS = ['Indicação', 'Instagram', 'Anúncio', 'WhatsApp', 'Prospecção ativa', 'Evento'];

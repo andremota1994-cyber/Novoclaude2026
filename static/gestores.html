@@ -86,6 +86,8 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .col-tarefas.zerado b { color: var(--green); }
 .col-fin { display: inline-block; margin-top: 6px; font-size: 11px; color: var(--blue-bright); text-decoration: none; }
 .col-fin:hover { text-decoration: underline; }
+.col-links { display: flex; gap: 14px; align-items: center; }
+.col-senha { background: none; border: none; padding: 0; cursor: pointer; font-family: inherit; color: var(--text-secondary); }
 .ccard .prio { margin-left: 6px; font-size: 11px; }
 .ccard .conta { font-size: 11px; color: var(--blue-bright); margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ccard .conta.sem { color: var(--text-muted); font-style: italic; }
@@ -150,8 +152,8 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 <!-- MODAL CREDENCIAIS -->
 <div class="modal-overlay" id="modal-cred" style="display:none">
   <div class="modal">
-    <h3>✅ Gestor criado</h3>
-    <p>Anote esses dados agora — a senha temporária não será mostrada de novo. Repasse ao gestor para o primeiro acesso.</p>
+    <h3 id="cred-titulo">✅ Gestor criado</h3>
+    <p id="cred-texto">Anote esses dados agora — a senha temporária não será mostrada de novo. Repasse ao gestor para o primeiro acesso.</p>
     <div class="cred-box" id="cred-box"></div>
     <div class="modal-actions">
       <button class="btn btn-primary" onclick="closeModalCred()">Entendi</button>
@@ -234,7 +236,7 @@ function render(){
           <div class="col-title ${u.role==='admin'?'admin':''}">${titulo}</div>
           <div class="col-sub">${subInfo}</div>
           ${blocoTarefas(u)}
-          ${u.role!=='admin' ? `<a class="col-fin" href="/meu-financeiro?gestor=${u.id}">💰 Financeiro</a>` : ''}
+          ${u.role!=='admin' ? `<div class="col-links"><a class="col-fin" href="/meu-financeiro?gestor=${u.id}">💰 Financeiro</a><button class="col-fin col-senha" onclick="novaSenha(${u.id})">🔑 Nova senha</button></div>` : ''}
         </div>
         <div class="col-body" id="colbody-${u.id}">${cardsHtml}</div>
       </div>`;
@@ -319,6 +321,8 @@ async function criarGestor(){
     const j = await r.json();
     if(!j.ok){ alert(j.error||'Erro ao criar gestor.'); return; }
     closeModalNovo();
+    document.getElementById('cred-titulo').textContent = '✅ Gestor criado';
+    document.getElementById('cred-texto').textContent = 'Anote esses dados agora — a senha temporária não será mostrada de novo. Repasse ao gestor para o primeiro acesso.';
     document.getElementById('cred-box').innerHTML =
       '<div>Nome: <strong>'+j.data.nome+'</strong></div>' +
       '<div>Usuário: <strong>'+j.data.username+'</strong></div>' +
@@ -328,6 +332,20 @@ async function criarGestor(){
   }catch(e){
     alert('Erro de conexão.');
   }
+}
+async function novaSenha(id){
+  const u = usuarios.find(x=>x.id===id);
+  if(!u || !confirm('Gerar uma senha nova para ' + u.nome + '?\n\nA senha atual deixa de funcionar na hora.')) return;
+  try{
+    const j = await (await fetch('/api/usuarios/' + id + '/nova-senha', {method: 'POST'})).json();
+    if(!j.ok){ alert('Não foi possível gerar a senha: ' + j.error); return; }
+    document.getElementById('cred-titulo').textContent = '🔑 Senha nova de ' + j.data.nome;
+    document.getElementById('cred-texto').textContent = 'Anote agora — esta senha não será mostrada de novo. Repasse ao gestor; a senha antiga já não funciona.';
+    document.getElementById('cred-box').innerHTML =
+      '<div>Usuário: <strong>' + escHtml(j.data.username) + '</strong></div>' +
+      '<div>Senha: <strong>' + escHtml(j.data.senha_temp) + '</strong></div>';
+    document.getElementById('modal-cred').style.display = 'flex';
+  }catch(e){ alert('Erro de conexão.'); }
 }
 function closeModalCred(){ document.getElementById('modal-cred').style.display = 'none'; }
 

@@ -1063,6 +1063,24 @@ def add_usuario():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+@app.route('/api/usuarios/<int:id>/nova-senha', methods=['POST'])
+def nova_senha_usuario(id):
+    # Admin gera uma senha nova para um gestor; ela e mostrada uma unica vez
+    try:
+        alvo = requests.get(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + str(id) + '&select=id,nome,username,role', headers=supa_headers(), timeout=10).json()
+        if not alvo:
+            return jsonify({'ok': False, 'error': 'Usuario nao encontrado'}), 404
+        if alvo[0]['role'] != 'gestor':
+            return jsonify({'ok': False, 'error': 'So e possivel gerar senha nova para gestores'}), 400
+        senha = gerar_senha_temp()
+        r = requests.patch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + str(id), headers=supa_headers(), json={'senha_hash': hash_senha(senha)}, timeout=10)
+        r.raise_for_status()
+        if not r.json():
+            return jsonify({'ok': False, 'error': 'O banco nao confirmou a troca'}), 500
+        return jsonify({'ok': True, 'data': {'nome': alvo[0]['nome'], 'username': alvo[0]['username'], 'senha_temp': senha}})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 @app.route('/api/gestores/board', methods=['GET'])
 def gestores_board():
     try:
@@ -1646,7 +1664,7 @@ def gestores_page():
 
 # ── Em negociacao: possiveis clientes (so admin) ──
 CAMPOS_NEGOCIACAO = ('nome', 'origem', 'telefone', 'cargo', 'valor_previsto', 'status', 'previsao_mes')
-STATUS_NEGOCIACAO = ('especulacao', 'em_contato', 'reuniao_marcada', 'frio')
+STATUS_NEGOCIACAO = ('especulacao', 'em_contato', 'reuniao_marcada', 'avaliando_proposta', 'quente', 'frio')
 
 def dados_negociacao(body):
     dados = {}
