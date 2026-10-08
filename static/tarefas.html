@@ -71,17 +71,22 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 
 /* QUADROS */
 .boards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 2rem; }
-.board { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1.25rem; display: flex; flex-direction: column; min-height: 300px; transition: border-color .2s ease, box-shadow .2s ease; }
+.board { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1rem; display: flex; flex-direction: column; min-height: 200px; max-height: 400px; transition: border-color .2s ease, box-shadow .2s ease; }
 .board:hover { border-color: var(--border-strong); box-shadow: 0 10px 30px rgba(212,175,55,.08); }
-.board-header { display: flex; align-items: center; gap: 8px; margin-bottom: 1rem; }
+.board-header { display: flex; align-items: center; gap: 8px; margin-bottom: 0.75rem; flex-shrink: 0; }
 .board-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .board.hoje .board-dot { background: var(--blue); }
 .board.amanha .board-dot { background: var(--amber); }
 .board.semana .board-dot { background: var(--purple); }
 .board-title { font-size: 13px; font-weight: 600; }
 .board-count { font-size: 11px; color: var(--text-muted); background: var(--card2); padding: 2px 7px; border-radius: 20px; margin-left: auto; }
-.board-tasks { flex: 1; display: flex; flex-direction: column; gap: 8px; }
-.task { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; background: var(--card2); border-radius: 10px; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
+.board-tasks { flex: 1; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 4px; margin-right: -4px; }
+/* Barra de rolagem fina, no tom dourado */
+.board-tasks, .hist-list { scrollbar-width: thin; scrollbar-color: rgba(228,190,110,.35) transparent; }
+.board-tasks::-webkit-scrollbar, .hist-list::-webkit-scrollbar { width: 6px; }
+.board-tasks::-webkit-scrollbar-thumb, .hist-list::-webkit-scrollbar-thumb { background: rgba(228,190,110,.3); border-radius: 6px; }
+.board-tasks::-webkit-scrollbar-track, .hist-list::-webkit-scrollbar-track { background: transparent; }
+.task { display: flex; align-items: flex-start; gap: 10px; padding: 8px 11px; flex-shrink: 0; background: var(--card2); border-radius: 10px; cursor: pointer; transition: all 0.2s; border: 1px solid transparent; }
 .task:hover { transform: translateX(2px); }
 .task:hover { border-color: var(--border); }
 .task-check { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; margin-top: 1px; transition: all 0.2s; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; }
@@ -105,7 +110,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .cli-vazio { padding: 10px; font-size: 12px; color: var(--text-muted); }
 .task-owner { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: var(--card); color: var(--text-muted); white-space: nowrap; margin-top: 1px; }
 .resp-filter { background: var(--card2); border: 0.5px solid var(--border); border-radius: 6px; padding: 0 10px; font-size: 13px; color: var(--text-secondary); outline: none; font-family: inherit; height: 32px; cursor: pointer; margin-left: 8px; }
-.empty-board { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 13px; text-align: center; padding: 2rem; }
+.empty-board { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 13px; text-align: center; padding: 1.25rem; }
 
 /* HISTÓRICO */
 .hist-section { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1.25rem; }
@@ -115,7 +120,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .hist-tab { padding: 5px 14px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; transition: all 0.15s; }
 .hist-tab.active { background: var(--border); color: var(--text-primary); }
 .hist-search { height: 32px; border: 0.5px solid var(--border); border-radius: var(--radius); padding: 0 12px; font-size: 13px; background: var(--card2); color: var(--text-primary); outline: none; font-family: inherit; width: 200px; }
-.hist-list { display: flex; flex-direction: column; gap: 6px; max-height: 400px; overflow-y: auto; }
+.hist-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow-y: auto; }
 .hist-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--card2); border-radius: 10px; }
 .hist-check { width: 18px; height: 18px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0; }
 .hist-text { flex: 1; font-size: 13px; color: var(--text-secondary); }
@@ -143,6 +148,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
   .boards { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 560px) {
+  .board { max-height: 320px; min-height: 160px; }
   .main { padding: 1.25rem; }
   .topbar { padding: 0.6rem 1rem; }
   .topbar-link { padding: 6px 10px; font-size: 12px; }
