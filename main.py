@@ -108,12 +108,12 @@ def gerar_senha_temp(n=8):
     alfabeto = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alfabeto) for _ in range(n))
 
-ADMIN_ONLY_PAGES = {'/', '/faturamento', '/financeiro', '/agenda', '/clientes', '/gestores'}
+ADMIN_ONLY_PAGES = {'/', '/faturamento', '/financeiro', '/agenda', '/clientes', '/gestores', '/negociacao'}
 ADMIN_ONLY_API_PREFIXES = (
     '/api/despesas', '/api/financeiro', '/api/agenda', '/api/google',
     '/api/clientes', '/api/contas-anuncio', '/api/config', '/api/pagamentos',
     '/api/historico', '/api/debug', '/api/briefing', '/api/chat',
-    '/api/usuarios', '/api/gestores', '/api/faturamento', '/api/vendas', '/api/repasses'
+    '/api/usuarios', '/api/gestores', '/api/faturamento', '/api/vendas', '/api/repasses', '/api/negociacoes'
 )
 ADMIN_ONLY_EXACT_API = {'/api/tarefas/resetar', '/api/data'}
 
@@ -1636,6 +1636,79 @@ def cliente_detalhe_page(id):
 @app.route('/gestores')
 def gestores_page():
     return send_from_directory('static', 'gestores.html')
+
+# ── Em negociacao: possiveis clientes (so admin) ──
+CAMPOS_NEGOCIACAO = ('nome', 'origem', 'telefone', 'cargo', 'valor_previsto', 'status', 'previsao_mes')
+STATUS_NEGOCIACAO = ('especulacao', 'em_contato', 'reuniao_marcada', 'frio')
+
+def dados_negociacao(body):
+    dados = {}
+    for campo in CAMPOS_NEGOCIACAO:
+        if campo not in body:
+            continue
+        v = body[campo]
+        if isinstance(v, str):
+            v = v.strip() or None
+        if campo == 'valor_previsto' and v is not None:
+            v = float(v)
+        if campo == 'status' and v not in STATUS_NEGOCIACAO:
+            raise ValueError('Status invalido')
+        if campo == 'previsao_mes' and v is not None and not re.match(r'^\d{4}-\d{2}$', v):
+            raise ValueError('Mes de previsao invalido')
+        dados[campo] = v
+    return dados
+
+@app.route('/api/negociacoes', methods=['GET'])
+def get_negociacoes():
+    try:
+        r = requests.get(SUPABASE_URL + '/rest/v1/negociacoes?order=atualizado_em.desc', headers=supa_headers(), timeout=10)
+        r.raise_for_status()
+        return jsonify({'ok': True, 'data': r.json()})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/negociacoes', methods=['POST'])
+def add_negociacao():
+    try:
+        dados = dados_negociacao(request.json or {})
+        if not dados.get('nome'):
+            return jsonify({'ok': False, 'error': 'Informe o nome'}), 400
+        r = requests.post(SUPABASE_URL + '/rest/v1/negociacoes', headers=supa_headers(), json=dados, timeout=10)
+        r.raise_for_status()
+        return jsonify({'ok': True, 'data': r.json()[0]})
+    except ValueError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/negociacoes/<int:id>', methods=['PATCH'])
+def update_negociacao(id):
+    try:
+        dados = dados_negociacao(request.json or {})
+        if 'nome' in dados and not dados['nome']:
+            return jsonify({'ok': False, 'error': 'Informe o nome'}), 400
+        dados['atualizado_em'] = datetime.utcnow().isoformat()
+        r = requests.patch(SUPABASE_URL + '/rest/v1/negociacoes?id=eq.' + str(id), headers=supa_headers(), json=dados, timeout=10)
+        r.raise_for_status()
+        if not r.json():
+            return jsonify({'ok': False, 'error': 'Negociacao nao encontrada'}), 404
+        return jsonify({'ok': True, 'data': r.json()[0]})
+    except ValueError as e:
+        return jsonify({'ok': False, 'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/negociacoes/<int:id>', methods=['DELETE'])
+def delete_negociacao(id):
+    try:
+        requests.delete(SUPABASE_URL + '/rest/v1/negociacoes?id=eq.' + str(id), headers=supa_headers(), timeout=10).raise_for_status()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/negociacao')
+def negociacao_page():
+    return send_from_directory('static', 'negociacao.html')
 
 # ── Notificacoes: inscricao do aparelho e alertas automaticos ──
 @app.route('/api/push/chave', methods=['GET'])

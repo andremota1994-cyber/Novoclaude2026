@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/static/icone-192.png">
+<link rel="apple-touch-icon" href="/static/icone-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mobilli">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#060504">
+<title>Em negociação - Mobilli Digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #060504; --card: rgba(228,190,110,0.055); --card2: rgba(228,190,110,0.10);
+  --border: rgba(228,190,110,0.16); --border-strong: rgba(228,190,110,0.30);
+  --blue: #d4af37; --blue-bright: #f3d888;
+  --grad: linear-gradient(135deg, #f3d888, #9c7a24);
+  --text-primary: #f7f3ea; --text-secondary: #a89a78; --text-muted: #6b6047;
+  --green: #2fd97f; --amber: #ff9d42; --purple: #c9a8ff;
+  --red: #ff5c72; --red-bg: rgba(255,92,114,0.08); --red-border: rgba(255,92,114,0.28);
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); display: flex; flex-direction: column; position: relative; }
+.bg-ambient { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.blob-a, .blob-b { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .32; }
+.blob-a { width: 520px; height: 520px; background: radial-gradient(circle, rgba(212,175,55,.35), transparent 70%); top: -160px; left: -120px; animation: driftA 24s ease-in-out infinite; }
+.blob-b { width: 480px; height: 480px; background: radial-gradient(circle, rgba(156,122,36,.28), transparent 70%); bottom: -180px; right: -140px; animation: driftB 28s ease-in-out infinite; }
+@keyframes driftA { 0%,100%{transform:translate(0,0)} 50%{transform:translate(60px,40px)} }
+@keyframes driftB { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-50px,-30px)} }
+.topbar, .main { position: relative; z-index: 1; }
+.main { flex: 1; overflow-y: auto; padding: 2rem; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 12px; }
+.page-header h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+.page-header p { font-size: 13px; color: var(--text-secondary); }
+.btn { height: 38px; padding: 0 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; border: none; }
+.btn-primary { background: var(--grad); color: #171206; }
+.btn-ghost { background: transparent; color: var(--text-secondary); border: 0.5px solid var(--border); }
+.btn-perigo { background: var(--red-bg); color: var(--red); border: 0.5px solid var(--red-border); margin-right: auto; }
+
+.kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.25rem; }
+.kpi { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1rem 1.1rem; }
+.kpi .lbl { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }
+.kpi .val { font-size: 21px; font-weight: 600; }
+.kpi .sub { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+.kpi.ouro .val { color: var(--blue-bright); } .kpi.verde .val { color: var(--green); }
+
+.busca { height: 38px; width: 260px; max-width: 100%; background: var(--card); border: 0.5px solid var(--border); border-radius: 8px; padding: 0 12px; font-size: 13px; color: var(--text-primary); outline: none; font-family: inherit; }
+.board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 14px; overflow-x: auto; padding-bottom: 1rem; align-items: start; }
+.col { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; min-height: 200px; transition: border-color .15s, background .15s; }
+.col.dragover { border-color: var(--blue); background: var(--card2); }
+.col-header { padding: 13px 14px 10px; border-bottom: 0.5px solid var(--border); }
+.col-title { font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+.col-title i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.col-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+.col-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 80px; }
+.col-vazia { text-align: center; padding: 1.25rem .5rem; color: var(--text-muted); font-size: 12px; }
+
+.ncard { background: var(--card2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 11px; cursor: grab; transition: transform .12s, border-color .12s, opacity .12s; }
+.ncard:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.ncard.arrastando { opacity: .4; }
+.ncard .nm { font-size: 13.5px; font-weight: 600; margin-bottom: 3px; }
+.ncard .info { font-size: 11px; color: var(--text-secondary); margin-bottom: 6px; }
+.ncard .linha { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ncard .valor { font-size: 13px; font-weight: 600; color: var(--blue-bright); }
+.ncard .tel { font-size: 11px; color: var(--green); text-decoration: none; margin-top: 6px; display: inline-block; }
+.ncard .tel:hover { text-decoration: underline; }
+.prev { font-size: 10px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+.prev.este { background: rgba(47,217,127,.10); color: var(--green); border: .5px solid rgba(47,217,127,.3); }
+.prev.proximo { background: rgba(255,157,66,.10); color: var(--amber); border: .5px solid rgba(255,157,66,.3); }
+.prev.outro { background: var(--card); color: var(--text-muted); border: .5px solid var(--border); }
+.col[data-status="frio"] .ncard { opacity: .7; }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.65); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+.modal { background: #0d0b08; border: 1px solid var(--border-strong); border-radius: 16px; padding: 1.4rem; width: 460px; max-width: 100%; max-height: calc(100vh - 2rem); overflow-y: auto; }
+.modal h3 { font-size: 16px; margin-bottom: 1rem; }
+.campos { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+.campo { margin-bottom: .85rem; }
+.campo.inteiro { grid-column: 1 / -1; }
+.campo label { display: block; font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 5px; }
+.campo input, .campo select { width: 100%; height: 40px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; font-size: 14px; color: var(--text-primary); outline: none; font-family: inherit; }
+.campo input:focus, .campo select:focus { border-color: var(--border-strong); }
+.campo select option { background: #171206; }
+.modal-acoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: .4rem; flex-wrap: wrap; }
+.loading { text-align: center; padding: 3rem; color: var(--text-muted); }
+
+@media (max-width: 860px) { .kpis { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) {
+  .main { padding: 1.25rem; }
+  .board { grid-template-columns: repeat(4, 82vw); }
+  .campos { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="bg-ambient"><div class="blob-a"></div><div class="blob-b"></div></div>
+<div class="topbar" id="menu-principal"></div>
+<script src="/static/menu.js"></script>
+<div class="main">
+  <div class="page-header">
+    <div>
+      <h2>🤝 Em negociação</h2>
+      <p>Possíveis novos clientes. Arraste o card para mudar o status.</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <input class="busca" id="busca" placeholder="Buscar por nome, origem ou telefone..." oninput="render()">
+      <button class="btn btn-primary" onclick="abrir()">+ Nova negociação</button>
+    </div>
+  </div>
+  <div class="kpis" id="kpis"></div>
+  <div class="board" id="board"><div class="loading">Carregando...</div></div>
+</div>
+
+<div class="modal-overlay" id="modal" style="display:none" onclick="if(event.target===this)fechar()">
+  <div class="modal">
+    <h3 id="modal-titulo">Nova negociação</h3>
+    <div class="campos">
+      <div class="campo inteiro"><label for="f-nome">Nome</label><input id="f-nome" maxlength="120" placeholder="Ex: João Corretor"></div>
+      <div class="campo"><label for="f-origem">Origem</label>
+        <select id="f-origem" onchange="document.getElementById('origem-outra').style.display=this.value==='Outra'?'block':'none'"></select>
+      </div>
+      <div class="campo" id="origem-outra" style="display:none"><label for="f-origem-outra">Qual origem?</label><input id="f-origem-outra" maxlength="60"></div>
+      <div class="campo"><label for="f-telefone">Telefone</label><input id="f-telefone" maxlength="30" inputmode="tel" placeholder="(11) 90000-0000"></div>
+      <div class="campo"><label for="f-cargo">Cargo</label><select id="f-cargo"></select></div>
+      <div class="campo"><label for="f-valor">Previsão de valor (mensalidade)</label><input id="f-valor" type="number" min="0" step="50" placeholder="1000"></div>
+      <div class="campo"><label for="f-status">Status</label><select id="f-status"></select></div>
+      <div class="campo"><label for="f-previsao">Previsão de entrada</label><select id="f-previsao"></select></div>
+    </div>
+    <div class="modal-acoes">
+      <button class="btn btn-perigo" id="btn-excluir" onclick="excluir()">Excluir</button>
+      <button class="btn btn-ghost" onclick="fechar()">Cancelar</button>
+      <button class="btn btn-primary" id="btn-salvar" onclick="salvar()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STATUS = [
+  {v: 'especulacao', l: 'Especulação', cor: '#a89a78'},
+  {v: 'em_contato', l: 'Em contato', cor: '#5aa9ff'},
+  {v: 'reuniao_marcada', l: 'Reunião marcada', cor: '#2fd97f'},
+  {v: 'frio', l: 'Frio', cor: '#6b6047'}
+];
+const ORIGENS = ['Indicação', 'Instagram', 'Anúncio', 'WhatsApp', 'Prospecção ativa', 'Evento'];
+const CARGOS = ['Corretor', 'Gerente', 'Imobiliária', 'Superintendente', 'Diretor', 'Outro'];
+const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+let lista = [];
+let editando = null;   // id da negociação aberta no modal (null = nova)
+let arrastando = null;
+
+const fmt = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', {minimumFractionDigits: 0, maximumFractionDigits: 0});
+const esc = v => String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+// "Esse mês" e "próximo mês" ficam gravados como o mês de verdade (YYYY-MM)
+function mesRelativo(d){
+  const h = new Date(); const x = new Date(h.getFullYear(), h.getMonth() + d, 1);
+  return x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0');
+}
+function rotuloPrevisao(mes){
+  if (!mes) return null;
+  if (mes === mesRelativo(0)) return {t: 'Este mês', c: 'este'};
+  if (mes === mesRelativo(1)) return {t: 'Próximo mês', c: 'proximo'};
+  const [a, m] = mes.split('-').map(Number);
+  return {t: MESES[m-1].charAt(0).toUpperCase() + MESES[m-1].slice(1) + '/' + String(a).slice(2), c: 'outro'};
+}
+function nomeMes(mes){ const [a, m] = mes.split('-').map(Number); return MESES[m-1]; }
+
+async function carregar(){
+  try {
+    const j = await (await fetch('/api/negociacoes')).json();
+    if (!j.ok) { document.getElementById('board').innerHTML = '<div class="loading">Erro: ' + esc(j.error) + '</div>'; return; }
+    lista = j.data;
+    render();
+  } catch (e) {
+    document.getElementById('board').innerHTML = '<div class="loading">Erro de conexão.</div>';
+  }
+}
+
+function render(){
+  const q = document.getElementById('busca').value.toLowerCase().trim();
+  const bate = n => !q || [n.nome, n.origem, n.telefone, n.cargo].some(v => (v || '').toLowerCase().includes(q));
+  // Resumo: o que está quente (tudo menos "frio")
+  const quentes = lista.filter(n => n.status !== 'frio');
+  const soma = l => l.reduce((s, n) => s + Number(n.valor_previsto || 0), 0);
+  const esteMes = quentes.filter(n => n.previsao_mes === mesRelativo(0));
+  const proxMes = quentes.filter(n => n.previsao_mes === mesRelativo(1));
+  const reunioes = lista.filter(n => n.status === 'reuniao_marcada');
+  document.getElementById('kpis').innerHTML =
+    '<div class="kpi ouro"><div class="lbl">Em negociação</div><div class="val">' + quentes.length + '</div><div class="sub">' + fmt(soma(quentes)) + '/mês previstos (sem os frios)</div></div>' +
+    '<div class="kpi verde"><div class="lbl">Entrada em ' + nomeMes(mesRelativo(0)) + '</div><div class="val">' + fmt(soma(esteMes)) + '</div><div class="sub">' + esteMes.length + ' negociação(ões)</div></div>' +
+    '<div class="kpi"><div class="lbl">Entrada em ' + nomeMes(mesRelativo(1)) + '</div><div class="val">' + fmt(soma(proxMes)) + '</div><div class="sub">' + proxMes.length + ' negociação(ões)</div></div>' +
+    '<div class="kpi"><div class="lbl">Reuniões marcadas</div><div class="val">' + reunioes.length + '</div><div class="sub">' + fmt(soma(reunioes)) + '/mês em jogo</div></div>';
+
+  document.getElementById('board').innerHTML = STATUS.map(s => {
+    const todos = lista.filter(n => n.status === s.v);
+    const itens = todos.filter(bate);
+    const cards = itens.length ? itens.map(n => {
+      const p = rotuloPrevisao(n.previsao_mes);
+      const info = [n.cargo, n.origem].filter(Boolean).map(esc).join(' · ');
+      const tel = (n.telefone || '').replace(/\D/g, '');
+      return '<div class="ncard" draggable="true" data-id="' + n.id + '" ondragstart="inicioArraste(event,' + n.id + ')" ondragend="fimArraste(event)" onclick="abrir(' + n.id + ')">'
+        + '<div class="nm">' + esc(n.nome) + '</div>'
+        + (info ? '<div class="info">' + info + '</div>' : '')
+        + '<div class="linha"><span class="valor">' + (n.valor_previsto != null ? fmt(n.valor_previsto) + '<span style="font-size:10px;font-weight:400;color:var(--text-muted)">/mês</span>' : '<span style="color:var(--text-muted);font-weight:400;font-size:11px">sem valor</span>') + '</span>'
+        + (p ? '<span class="prev ' + p.c + '">' + p.t + '</span>' : '') + '</div>'
+        + (tel ? '<a class="tel" href="https://wa.me/' + (tel.length <= 11 ? '55' + tel : tel) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">💬 ' + esc(n.telefone) + '</a>' : '')
+        + '</div>';
+    }).join('') : '<div class="col-vazia">' + (todos.length ? 'Nenhum resultado' : 'Nenhuma negociação') + '</div>';
+    return '<div class="col" data-status="' + s.v + '" ondragover="sobre(event,this)" ondragleave="this.classList.remove(\'dragover\')" ondrop="soltar(event,this,\'' + s.v + '\')">'
+      + '<div class="col-header"><div class="col-title"><i style="background:' + s.cor + '"></i>' + s.l + '</div>'
+      + '<div class="col-sub">' + todos.length + ' · ' + fmt(soma(todos)) + '/mês</div></div>'
+      + '<div class="col-body">' + cards + '</div></div>';
+  }).join('');
+}
+
+// ── Arrastar card entre colunas = mudar status ──
+function inicioArraste(e, id){ arrastando = id; e.dataTransfer.setData('text/plain', String(id)); e.target.classList.add('arrastando'); }
+function fimArraste(e){ e.target.classList.remove('arrastando'); }
+function sobre(e, col){ e.preventDefault(); col.classList.add('dragover'); }
+async function soltar(e, col, status){
+  e.preventDefault(); col.classList.remove('dragover');
+  const id = arrastando || parseInt(e.dataTransfer.getData('text/plain'));
+  const n = lista.find(x => x.id === id);
+  arrastando = null;
+  if (!n || n.status === status) return;
+  const anterior = n.status;
+  n.status = status; render();
+  const j = await (await fetch('/api/negociacoes/' + id, {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status})})).json().catch(() => ({ok: false}));
+  if (!j.ok) { n.status = anterior; render(); alert('Não foi possível mudar o status.'); }
+}
+
+// ── Modal: novo / editar ──
+function opcoes(sel, itens, atual){ document.getElementById(sel).innerHTML = itens.map(o => '<option value="' + esc(o.v) + '"' + (o.v === atual ? ' selected' : '') + '>' + esc(o.l) + '</option>').join(''); }
+
+function abrir(id){
+  const n = id ? lista.find(x => x.id === id) : null;
+  editando = n ? n.id : null;
+  document.getElementById('modal-titulo').textContent = n ? 'Editar negociação' : 'Nova negociação';
+  document.getElementById('btn-excluir').style.display = n ? '' : 'none';
+  document.getElementById('f-nome').value = n ? n.nome : '';
+  document.getElementById('f-telefone').value = n ? (n.telefone || '') : '';
+  document.getElementById('f-valor').value = n && n.valor_previsto != null ? Number(n.valor_previsto) : '';
+  const origem = n ? (n.origem || '') : '';
+  const outra = origem && !ORIGENS.includes(origem);
+  opcoes('f-origem', [{v: '', l: '—'}, ...ORIGENS.map(o => ({v: o, l: o})), {v: 'Outra', l: 'Outra...'}], outra ? 'Outra' : origem);
+  document.getElementById('origem-outra').style.display = outra ? 'block' : 'none';
+  document.getElementById('f-origem-outra').value = outra ? origem : '';
+  const cargo = n ? (n.cargo || '') : '';
+  opcoes('f-cargo', [{v: '', l: '—'}, ...CARGOS.map(c => ({v: c, l: c})), ...(cargo && !CARGOS.includes(cargo) ? [{v: cargo, l: cargo}] : [])], cargo);
+  opcoes('f-status', STATUS.map(s => ({v: s.v, l: s.l})), n ? n.status : 'especulacao');
+  const prevs = [{v: '', l: 'Sem previsão'}, {v: mesRelativo(0), l: 'Esse mês (' + nomeMes(mesRelativo(0)) + ')'}, {v: mesRelativo(1), l: 'Próximo mês (' + nomeMes(mesRelativo(1)) + ')'}];
+  const atual = n ? (n.previsao_mes || '') : mesRelativo(0);
+  if (atual && !prevs.some(p => p.v === atual)) prevs.push({v: atual, l: rotuloPrevisao(atual).t});
+  opcoes('f-previsao', prevs, atual);
+  document.getElementById('modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('f-nome').focus(), 50);
+}
+function fechar(){ document.getElementById('modal').style.display = 'none'; editando = null; }
+
+async function salvar(){
+  const nome = document.getElementById('f-nome').value.trim();
+  if (!nome) { alert('Informe o nome.'); return; }
+  const origemSel = document.getElementById('f-origem').value;
+  const valor = document.getElementById('f-valor').value;
+  const dados = {
+    nome,
+    origem: origemSel === 'Outra' ? document.getElementById('f-origem-outra').value.trim() : origemSel,
+    telefone: document.getElementById('f-telefone').value.trim(),
+    cargo: document.getElementById('f-cargo').value,
+    valor_previsto: valor === '' ? null : Number(valor),
+    status: document.getElementById('f-status').value,
+    previsao_mes: document.getElementById('f-previsao').value || null
+  };
+  const btn = document.getElementById('btn-salvar'); btn.disabled = true;
+  try {
+    const r = await fetch(editando ? '/api/negociacoes/' + editando : '/api/negociacoes', {
+      method: editando ? 'PATCH' : 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(dados)});
+    const j = await r.json();
+    if (!j.ok) { alert('Não foi possível salvar: ' + j.error); return; }
+    fechar(); carregar();
+  } finally { btn.disabled = false; }
+}
+
+async function excluir(){
+  const n = lista.find(x => x.id === editando);
+  if (!n || !confirm('Excluir a negociação com ' + n.nome + '?')) return;
+  await fetch('/api/negociacoes/' + n.id, {method: 'DELETE'});
+  fechar(); carregar();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fechar(); });
+carregar();
+</script>
+<script src="/static/push.js"></script>
+</body>
+</html>

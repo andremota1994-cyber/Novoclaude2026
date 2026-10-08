@@ -10,6 +10,7 @@
     {label: 'Financeiro',  href: '/financeiro'},
     {label: 'Agenda',      href: '/agenda'},
     {label: 'Clientes',    href: '/clientes'},
+    {label: 'Em negociação', href: '/negociacao'},
     {label: 'Gestores',    href: '/gestores'}
   ];
 
