@@ -588,24 +588,42 @@ async function loadFatAtual(){
     document.getElementById('fat-atual-tag').textContent = nomeAtual;
     document.getElementById('fat-prox-tag').textContent = nomeProximo;
 
-    // Busca mês atual
-    const r = await fetch('/api/pagamentos/'+mesAtual);
-    const j = await r.json();
+    // Mesmas regras do Faturamento: mês do faturamento (config), fechamento gravado dos meses fechados
+    // e vendas de produtos pagas a clientes somando no mês
+    const [rc, rf] = await Promise.all([fetch('/api/config/mes_atual'), fetch('/api/faturamento/fechamentos')]);
+    const jc = await rc.json(), jf = await rf.json();
+    const mesFat = jc.ok ? jc.valor : mesAtual;
+    const fechamentos = jf.ok ? jf.data : {};
+    const [aF, mF] = mesFat.split('-').map(Number);
+    const mesFatAnt = mF === 1 ? (aF-1)+'-12' : aF+'-'+String(mF-1).padStart(2,'0');
+    document.getElementById('fat-passado-tag').textContent = MESES_NOMES[(mF+10)%12] + ' ' + (mF === 1 ? aF-1 : aF);
+    document.getElementById('fat-atual-tag').textContent = MESES_NOMES[mF-1] + ' ' + aF;
+    document.getElementById('fat-prox-tag').textContent = 'Estimativa ' + MESES_NOMES[mF%12];
+
+    // Mês atual: mensalidades pagas + vendas pagas a clientes
+    const [r, rv] = await Promise.all([fetch('/api/pagamentos/'+mesFat), fetch('/api/vendas?mes='+mesFat)]);
+    const j = await r.json(), jv = await rv.json();
     if(j.ok){
-      const pagos = j.data.filter(c=>c.pago&&!c.atrasado);
-      const total = pagos.reduce((s,c)=>s+Number(c.valor),0);
+      const pagos = j.data.filter(c=>c.pago);
+      const vendasPagas = (jv.ok ? jv.data : []).filter(v=>v.cliente_id && v.mes===mesFat && v.pago).reduce((s,v)=>s+Number(v.valor),0);
+      const total = pagos.reduce((s,c)=>s+Number(c.valor),0) + vendasPagas;
       document.getElementById('fat-atual').textContent = total>0 ? 'R$ '+fmtI(total) : 'Em andamento';
-      document.getElementById('fat-atual-sub').textContent = pagos.length+' cliente(s) pagos';
+      document.getElementById('fat-atual-sub').textContent = pagos.length+' cliente(s) pagos' + (vendasPagas ? ' + R$ '+fmtI(vendasPagas)+' em produtos' : '');
     }
 
-    // Busca mês passado
-    const r2 = await fetch('/api/pagamentos/'+mesPassado);
-    const j2 = await r2.json();
-    if(j2.ok){
-      const pagos2 = j2.data.filter(c=>c.pago);
-      const total2 = pagos2.reduce((s,c)=>s+Number(c.valor),0);
-      document.getElementById('fat-passado').textContent = total2>0 ? 'R$ '+fmtI(total2) : '—';
-      document.getElementById('fat-passado-sub').textContent = pagos2.length+' cliente(s) pagos';
+    // Mês passado: valor gravado no fechamento (a virada antiga apagava os pagos)
+    const fech = fechamentos[mesFatAnt];
+    if(fech){
+      document.getElementById('fat-passado').textContent = 'R$ '+fmtI(Number(fech.recebido));
+      document.getElementById('fat-passado-sub').textContent = fech.total ? Math.round(Number(fech.recebido)/Number(fech.total)*100)+'% do esperado (R$ '+fmtI(Number(fech.total))+')' : 'fechamento do mês';
+    } else {
+      const j2 = await (await fetch('/api/pagamentos/'+mesFatAnt)).json();
+      if(j2.ok){
+        const pagos2 = j2.data.filter(c=>c.pago);
+        const total2 = pagos2.reduce((s,c)=>s+Number(c.valor),0);
+        document.getElementById('fat-passado').textContent = total2>0 ? 'R$ '+fmtI(total2) : '—';
+        document.getElementById('fat-passado-sub').textContent = pagos2.length+' cliente(s) pagos';
+      }
     }
 
     // Previsão = soma de todos os clientes ativos
