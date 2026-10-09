@@ -194,13 +194,16 @@ function blocoTarefas(u){
     📋 <b>${t.total}</b> ${txt}${t.hoje ? `<span class="hoje">${t.hoje} para hoje</span>` : ''}</a>`;
 }
 
+// Contas de anúncios do cliente (pode ter mais de uma)
+function contasDe(c){ return (c.contas_anuncio && c.contas_anuncio.length) ? c.contas_anuncio : (c.conta_anuncio ? [c.conta_anuncio] : []); }
+
 function fmtValor(v){
   return 'R$ ' + Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:0,maximumFractionDigits:0});
 }
 
 function bate(c){
   if(!busca) return true;
-  return [c.nome, c.empresa, c.conta_anuncio].some(v=>(v||'').toLowerCase().includes(busca));
+  return [c.nome, c.empresa, ...contasDe(c)].some(v=>(v||'').toLowerCase().includes(busca));
 }
 
 function render(){
@@ -222,11 +225,11 @@ function render(){
              ondragstart="onDragStart(event,${c.id})" ondragend="onDragEnd(event)">
           <div class="nm">${c.nome}${c.prioridade ? '<span class="prio">🔥</span>' : ''}</div>
           <div class="emp">${c.empresa || '—'}</div>
-          <div class="conta ${c.conta_anuncio?'':'sem'}" title="Conta de anúncios que aparece no painel do gestor">${c.conta_anuncio ? '📊 '+escHtml(c.conta_anuncio) : 'Sem conta de anúncios'}</div>
+          ${contasDe(c).length ? contasDe(c).map(ct=>`<div class="conta" title="Conta de anúncios que aparece no painel do gestor">📊 ${escHtml(ct)}</div>`).join('') : '<div class="conta sem">Sem conta de anúncios</div>'}
           <div class="val">${fmtValor(c.valor)}/mês</div>
         </div>`).join('');
     }
-    const nContas = new Set(meusClientes.map(c=>c.conta_anuncio).filter(Boolean)).size;
+    const nContas = new Set(meusClientes.flatMap(contasDe)).size;
     const subInfo = busca
       ? (visiveis.length + ' de ' + meusClientes.length + ' cliente' + (meusClientes.length===1?'':'s'))
       : (meusClientes.length + ' cliente' + (meusClientes.length===1?'':'s') + ' · ' + nContas + ' conta' + (nContas===1?'':'s') + ' no painel · ' + fmtValor(total) + '/mês');

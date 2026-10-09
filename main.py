@@ -349,12 +349,12 @@ def eh_prioridade(cliente):
 
 def mapa_contas():
     # {conta_anuncio: {cliente, cliente_id, gestor_id, gestor, prioridade}} dos clientes ativos
-    clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,conta_anuncio,gestor_id,data_inicio', headers=supa_headers(), timeout=10).json()
+    clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,conta_anuncio,contas_anuncio,gestor_id,data_inicio', headers=supa_headers(), timeout=10).json()
     usuarios = {u['id']: u['nome'] for u in requests.get(SUPABASE_URL + '/rest/v1/usuarios?select=id,nome', headers=supa_headers(), timeout=10).json()}
     mapa = {}
     for c in clientes:
-        if c.get('conta_anuncio'):
-            mapa[c['conta_anuncio']] = {'cliente': c['nome'], 'cliente_id': c['id'], 'gestor_id': c.get('gestor_id'),
+        for conta in contas_de(c):
+            mapa[conta] = {'cliente': c['nome'], 'cliente_id': c['id'], 'gestor_id': c.get('gestor_id'),
                                         'gestor': usuarios.get(c.get('gestor_id'), ''), 'prioridade': eh_prioridade(c)}
     return mapa
 
@@ -367,11 +367,18 @@ def com_gestor(contas):
     vazio = {'cliente': '', 'cliente_id': None, 'gestor_id': None, 'gestor': '', 'prioridade': False}
     return [{**d, **mapa.get(d['account_name'], vazio)} for d in contas]
 
+def contas_de(cliente):
+    # Contas de anuncios do cliente (lista); conta_anuncio guarda so a primeira, por compatibilidade
+    lista = [x for x in (cliente.get('contas_anuncio') or []) if x]
+    if not lista and cliente.get('conta_anuncio'):
+        lista = [cliente['conta_anuncio']]
+    return lista
+
 def contas_fora_do_painel():
     # Contas de anuncios de clientes pausados/inativos (e que nao estao em nenhum cliente ativo)
-    clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?select=conta_anuncio,ativo&conta_anuncio=not.is.null', headers=supa_headers(), timeout=10).json()
-    ativas = {c['conta_anuncio'] for c in clientes if c.get('ativo')}
-    return {c['conta_anuncio'] for c in clientes if not c.get('ativo')} - ativas
+    clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?select=conta_anuncio,contas_anuncio,ativo', headers=supa_headers(), timeout=10).json()
+    ativas = {conta for c in clientes if c.get('ativo') for conta in contas_de(c)}
+    return {conta for c in clientes if not c.get('ativo') for conta in contas_de(c)} - ativas
 
 @app.route('/api/data')
 def api_data():
@@ -919,15 +926,25 @@ def get_cliente_detalhe(id):
             except Exception:
                 pass
 
-        ads_info = None
-        if cliente.get('conta_anuncio'):
+        ads_info, ads_contas = None, []
+        contas = contas_de(cliente)
+        if contas:
             try:
                 ads_data = fetch_ads_data(date_preset='last_30dT')
-                renomes = corrigir_vinculos_renomeados({cliente['conta_anuncio']}, ads_data)
-                cliente['conta_anuncio'] = renomes.get(cliente['conta_anuncio'], cliente['conta_anuncio'])
-                ads_info = next((a for a in ads_data if a['account_name'] == cliente['conta_anuncio']), None)
+                renomes = corrigir_vinculos_renomeados(set(contas), ads_data)
+                contas = [renomes.get(c, c) for c in contas]
+                por_nome = {a['account_name']: a for a in ads_data}
+                ads_contas = [por_nome.get(c) or {'account_name': c, 'spend': 0, 'leads': 0, 'msg': 0, 'total': 0, 'cpl': None, 'sem_dados': True}
+                              for c in contas]
+                com_dados = [a for a in ads_contas if not a.get('sem_dados')]
+                if com_dados:
+                    spend = round(sum(a['spend'] for a in com_dados), 2)
+                    total = sum(a['total'] for a in com_dados)
+                    ads_info = {'spend': spend, 'leads': sum(a['leads'] for a in com_dados), 'msg': sum(a['msg'] for a in com_dados),
+                                'total': total, 'cpl': round(spend / total, 2) if total else None}
             except Exception:
                 ads_info = None
+        cliente['contas_anuncio'] = contas
 
         risco = calcular_risco_churn(ads_info, atrasado_atual, meses_atraso_recente)
 
@@ -938,8 +955,27 @@ def get_cliente_detalhe(id):
             'meses_pagos': len(meses_pagos),
             'atrasado_atual': atrasado_atual,
             'ads_info': ads_info,
+            'ads_contas': ads_contas,
             'risco_churn': risco
         }})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/clientes/<int:id>/contas', methods=['PATCH'])
+def update_contas_cliente(id):
+    # Lista de contas de anuncios do cliente (sem repetir, na ordem escolhida)
+    try:
+        contas = []
+        for c in (request.json or {}).get('contas') or []:
+            c = str(c).strip()
+            if c and c not in contas:
+                contas.append(c[:200])
+        r = requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), timeout=10,
+                           json={'contas_anuncio': contas, 'conta_anuncio': contas[0] if contas else None})
+        r.raise_for_status()
+        if not r.json():
+            return jsonify({'ok': False, 'error': 'Cliente nao encontrado'}), 404
+        return jsonify({'ok': True, 'contas': contas})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
@@ -948,7 +984,7 @@ def update_perfil_cliente(id):
     try:
         body = request.json or {}
         campos = {}
-        for campo in ['nome', 'telefone', 'ocupacao', 'empresa', 'data_inicio', 'conta_anuncio']:
+        for campo in ['nome', 'telefone', 'ocupacao', 'empresa', 'data_inicio']:
             if campo in body:
                 campos[campo] = body[campo]
         if campos.get('ocupacao') and campos['ocupacao'] not in OCUPACOES_VALIDAS:
@@ -1004,8 +1040,13 @@ def corrigir_vinculos_renomeados(nomes_vinculados, ads_data):
     # Cliente vinculado ao nome antigo de uma conta renomeada passa a usar o nome atual
     renomes = {antigo: novo for antigo, novo in contas_renomeadas(ads_data).items() if antigo in nomes_vinculados}
     for antigo, novo in renomes.items():
-        requests.patch(SUPABASE_URL + '/rest/v1/clientes', params={'conta_anuncio': 'eq.' + antigo},
-                       headers=supa_headers(), json={'conta_anuncio': novo}, timeout=10)
+        filtro = 'contas_anuncio.cs.{"' + antigo.replace('"', '\\"') + '"},conta_anuncio.eq."' + antigo.replace('"', '\\"') + '"'
+        afetados = requests.get(SUPABASE_URL + '/rest/v1/clientes', params={'or': '(' + filtro + ')', 'select': 'id,conta_anuncio,contas_anuncio'},
+                                headers=supa_headers(), timeout=10).json()
+        for c in afetados if isinstance(afetados, list) else []:
+            lista = [novo if x == antigo else x for x in contas_de(c)]
+            requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(c['id']), headers=supa_headers(), timeout=10,
+                           json={'contas_anuncio': lista, 'conta_anuncio': lista[0] if lista else None})
     return renomes
 
 @app.route('/api/contas-anuncio', methods=['GET'])
@@ -1086,8 +1127,8 @@ def gestores_board():
     try:
         ur = requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome,username,role&order=id.asc', headers=supa_headers())
         usuarios = ur.json()
-        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,empresa,valor,nivel,gestor_id,conta_anuncio,data_inicio&order=nome.asc', headers=supa_headers())
-        clientes = [{**c, 'prioridade': eh_prioridade(c)} for c in cr.json()]
+        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&select=id,nome,empresa,valor,nivel,gestor_id,conta_anuncio,contas_anuncio,data_inicio&order=nome.asc', headers=supa_headers())
+        clientes = [{**c, 'contas_anuncio': contas_de(c), 'prioridade': eh_prioridade(c)} for c in cr.json()]
         # Tarefas pendentes de cada pessoa (total e para hoje)
         tr = requests.get(SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.false&select=responsavel_id,prazo', headers=supa_headers(), timeout=10).json()
         tarefas = {}
@@ -1125,9 +1166,9 @@ def meta_ads_minhas_contas():
     # para refletir na hora as trocas feitas no quadro Gestores
     try:
         u = current_user()
-        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?gestor_id=eq.' + str(u['id']) + '&ativo=eq.true&select=conta_anuncio', headers=supa_headers(), timeout=10)
+        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?gestor_id=eq.' + str(u['id']) + '&ativo=eq.true&select=conta_anuncio,contas_anuncio', headers=supa_headers(), timeout=10)
         cr.raise_for_status()
-        contas = sorted({c['conta_anuncio'] for c in cr.json() if c.get('conta_anuncio')}, key=str.lower)
+        contas = sorted({conta for c in cr.json() for conta in contas_de(c)}, key=str.lower)
         return jsonify({'ok': True, 'contas': contas})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -1139,8 +1180,8 @@ def meta_ads_minhas():
         if not u:
             return jsonify({'ok': False, 'error': 'Nao autorizado'}), 401
         period = request.args.get('period', '30')
-        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?gestor_id=eq.' + str(u['id']) + '&ativo=eq.true&select=conta_anuncio', headers=supa_headers())
-        contas = {c['conta_anuncio'] for c in cr.json() if c.get('conta_anuncio')}
+        cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?gestor_id=eq.' + str(u['id']) + '&ativo=eq.true&select=conta_anuncio,contas_anuncio', headers=supa_headers())
+        contas = {conta for c in cr.json() for conta in contas_de(c)}
         if period == 'hoje':
             hoje = datetime.utcnow().strftime('%Y-%m-%d')
             data_all = fetch_ads_data(date_from=hoje, date_to=hoje)
