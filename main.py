@@ -149,7 +149,7 @@ def fetch_ads_data(date_preset=None, date_from=None, date_to=None):
         params['date_to'] = date_to
     else:
         params['date_preset'] = date_preset or 'last_30dT'
-    r = requests.get(WINDSOR_BASE, params=params, timeout=30)
+    r = requests.get(WINDSOR_BASE, params=params, timeout=60)
     r.raise_for_status()
     raw = r.json().get('data', r.json())
     agg = {}
@@ -411,36 +411,313 @@ def api_data():
         return jsonify({'ok': False, 'error': str(e)}), 500
 
 # ── Chat ──
+# ── Chat da equipe (IA com acesso ao sistema) ──
+# A IA consulta o painel na hora por ferramentas (clientes, gestores, tarefas, Meta Ads,
+# faturamento, financeiro, negociacoes) em vez de receber um resumo fixo.
+IA_MODELO = 'claude-opus-5-5'
+_ia_cliente = {'c': None}
+
+def ia_cliente():
+    if _ia_cliente['c'] is None:
+        import anthropic
+        _ia_cliente['c'] = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY, timeout=110, max_retries=1)
+    return _ia_cliente['c']
+
+def _norm(t):
+    return unicodedata.normalize('NFKD', str(t or '').lower()).encode('ascii', 'ignore').decode().strip()
+
+def _chamar(view, caminho='/', *args):
+    # Reaproveita a logica de uma rota do painel e devolve o JSON dela
+    with app.test_request_context(caminho):
+        r = view(*args)
+    if isinstance(r, tuple):
+        r = r[0]
+    return r.get_json()
+
+def _usuarios():
+    return requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome,username,role&order=id.asc', headers=supa_headers(), timeout=10).json()
+
+def _achar_usuario(nome):
+    alvo = _norm(nome)
+    us = _usuarios()
+    if alvo in ('eu', 'admin', 'andre', 'mim'):
+        return next((u for u in us if u['role'] == 'admin'), None)
+    return next((u for u in us if _norm(u['nome']) == alvo), None) or next((u for u in us if alvo and alvo in _norm(u['nome'])), None)
+
+def _mes_ou_atual(mes):
+    return mes if mes and re.match(r'^\d{4}-\d{2}$', mes) else ler_config('mes_atual')
+
+def ia_listar_clientes(status='ativo', gestor=None, busca=None):
+    clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?select=id,nome,valor,nivel,status,ativo,dia_pagamento,data_inicio,gestor_id,telefone,ocupacao,conta_anuncio,contas_anuncio&order=nome.asc',
+                            headers=supa_headers(), timeout=10).json()
+    nomes = {u['id']: u['nome'] for u in _usuarios()}
+    g = _achar_usuario(gestor) if gestor else None
+    saida = []
+    for c in clientes:
+        st = 'ativo' if c.get('ativo') else (c.get('status') if c.get('status') in ('pausado', 'inativo') else 'inativo')
+        if status != 'todos' and st != status:
+            continue
+        if g and c.get('gestor_id') != g['id']:
+            continue
+        if busca and _norm(busca) not in _norm(c['nome']):
+            continue
+        saida.append({'id': c['id'], 'nome': c['nome'], 'mensalidade': float(c.get('valor') or 0), 'situacao': st,
+                      'gestor': nomes.get(c.get('gestor_id'), ''), 'contas_anuncio': contas_de(c),
+                      'dia_vencimento': c.get('dia_pagamento'), 'inicio_contrato': c.get('data_inicio'),
+                      'prioridade_cliente_novo': st == 'ativo' and eh_prioridade(c)})
+    return {'total': len(saida), 'soma_mensalidades': round(sum(x['mensalidade'] for x in saida), 2), 'clientes': saida}
+
+def ia_ver_cliente(cliente):
+    alvo = _norm(cliente)
+    todos = requests.get(SUPABASE_URL + '/rest/v1/clientes?select=id,nome', headers=supa_headers(), timeout=10).json()
+    achado = next((c for c in todos if str(c['id']) == alvo), None) or next((c for c in todos if _norm(c['nome']) == alvo), None) \
+        or next((c for c in todos if alvo in _norm(c['nome'])), None)
+    if not achado:
+        return {'erro': 'Cliente nao encontrado: ' + str(cliente)}
+    ficha = _chamar(get_cliente_detalhe, '/', achado['id'])
+    d = ficha.get('data') or {}
+    nomes = {u['id']: u['nome'] for u in _usuarios()}
+    tarefas = requests.get(SUPABASE_URL + '/rest/v1/tarefas?cliente_id=eq.' + str(achado['id']) + '&concluida=eq.false&select=id,titulo,prazo,responsavel_id',
+                           headers=supa_headers(), timeout=10).json()
+    return {'id': d.get('id'), 'nome': d.get('nome'), 'mensalidade': d.get('valor'), 'situacao': d.get('status'),
+            'gestor': nomes.get(d.get('gestor_id'), ''), 'inicio_contrato': d.get('data_inicio'), 'tempo_de_casa_dias': d.get('tempo_casa_dias'),
+            'receita_total_gerada': d.get('receita_total'), 'meses_pagos': d.get('meses_pagos'), 'atrasado_agora': d.get('atrasado_atual'),
+            'telefone': d.get('telefone'), 'ocupacao': d.get('ocupacao'), 'empresa': d.get('empresa'), 'indicacoes': d.get('indicacoes'),
+            'contas_anuncio': d.get('contas_anuncio'), 'meta_ads_30_dias_total': d.get('ads_info'), 'meta_ads_30_dias_por_conta': d.get('ads_contas'),
+            'risco_churn': d.get('risco_churn'),
+            'tarefas_pendentes': [{'id': t['id'], 'titulo': t['titulo'], 'prazo': t['prazo'], 'responsavel': nomes.get(t['responsavel_id'], '')} for t in tarefas]}
+
+def ia_listar_gestores():
+    b = _chamar(gestores_board)
+    regras = json.loads(ler_config('remuneracao_gestores') or '{}')
+    saida = []
+    for u in b.get('usuarios', []):
+        meus = [c for c in b.get('clientes', []) if c.get('gestor_id') == u['id']]
+        t = (b.get('tarefas') or {}).get(str(u['id']), {'total': 0, 'hoje': 0})
+        saida.append({'id': u['id'], 'nome': u['nome'], 'papel': u['role'], 'usuario_login': u['username'],
+                      'clientes': [c['nome'] for c in meus], 'qtd_clientes': len(meus),
+                      'soma_mensalidades': round(sum(float(c.get('valor') or 0) for c in meus), 2),
+                      'contas_anuncio': sorted({x for c in meus for x in (c.get('contas_anuncio') or [])}),
+                      'clientes_prioridade': [c['nome'] for c in meus if c.get('prioridade')],
+                      'tarefas_pendentes': t['total'], 'tarefas_para_hoje': t['hoje'],
+                      'regra_remuneracao': regras.get(str(u['id']))})
+    return {'gestores': saida}
+
+def ia_listar_tarefas(responsavel='todos', situacao='pendentes'):
+    nomes = {u['id']: u['nome'] for u in _usuarios()}
+    url = SUPABASE_URL + '/rest/v1/tarefas?select=id,titulo,prazo,concluida,concluida_em,created_at,responsavel_id,clientes(nome)&order=created_at.asc'
+    if situacao == 'concluidas_7_dias':
+        desde = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        url += '&concluida=eq.true&concluida_em=gte.' + desde
+    else:
+        url += '&concluida=eq.false'
+    if responsavel and _norm(responsavel) != 'todos':
+        u = _achar_usuario(responsavel)
+        if not u:
+            return {'erro': 'Pessoa nao encontrada: ' + str(responsavel)}
+        url += '&responsavel_id=eq.' + str(u['id'])
+    tarefas = requests.get(url, headers=supa_headers(), timeout=10).json()
+    return {'total': len(tarefas), 'tarefas': [{'id': t['id'], 'titulo': t['titulo'], 'prazo': t['prazo'], 'responsavel': nomes.get(t['responsavel_id'], ''),
+                                                 'cliente': (t.get('clientes') or {}).get('nome'), 'criada_em': t.get('created_at'),
+                                                 'concluida_em': t.get('concluida_em')} for t in tarefas]}
+
+def ia_meta_ads(periodo='30', gestor=None, busca=None):
+    if periodo not in ('hoje', 'ontem', '7', '15', '30'):
+        periodo = '30'
+    j = _chamar(api_data, '/x?period=' + periodo)
+    if not j.get('ok'):
+        return {'erro': j.get('error')}
+    contas = j['accounts']
+    if gestor:
+        u = _achar_usuario(gestor)
+        contas = [a for a in contas if u and a.get('gestor_id') == u['id']]
+    if busca:
+        contas = [a for a in contas if _norm(busca) in _norm(a['account_name']) or _norm(busca) in _norm(a.get('cliente'))]
+    gasto = sum(a['spend'] for a in contas)
+    resultados = sum(a['total'] for a in contas)
+    return {'periodo': periodo, 'qtd_contas': len(contas), 'investimento': round(gasto, 2), 'resultados': resultados,
+            'cpl_medio': round(gasto / resultados, 2) if resultados else None,
+            'contas': [{'conta': a['account_name'], 'cliente': a.get('cliente'), 'gestor': a.get('gestor'), 'prioridade': a.get('prioridade'),
+                        'investimento': a['spend'], 'leads': a['leads'], 'conversas': a['msg'], 'resultados': a['total'], 'cpl': a['cpl']}
+                       for a in sorted(contas, key=lambda a: a['spend'], reverse=True)]}
+
+def ia_faturamento(mes=None):
+    mes = _mes_ou_atual(mes)
+    j = _chamar(get_pagamentos, '/', mes)
+    clientes = j.get('data') or []
+    vendas = buscar_vendas('mes=eq.' + mes)
+    pagos = [c for c in clientes if c.get('pago')]
+    pendentes = [c for c in clientes if not c.get('pago')]
+    atrasados = [c for c in clientes if c.get('atrasado')]
+    soma = lambda l: round(sum(float(c.get('valor') or 0) for c in l), 2)
+    return {'mes': mes, 'mes_do_faturamento_atual': ler_config('mes_atual'),
+            'total_esperado_mensalidades': soma(clientes), 'recebido_mensalidades': soma(pagos),
+            'a_receber_mensalidades': soma(pendentes), 'qtd_pagos': len(pagos), 'qtd_pendentes': len(pendentes),
+            'pendentes': [{'cliente': c['nome'], 'valor': float(c['valor']), 'dia_vencimento': c.get('dia_pagamento')} for c in pendentes],
+            'atrasados_do_mes_anterior': [{'cliente': c['nome'], 'valor': float(c['valor'])} for c in atrasados],
+            'vendas_de_produtos': [{'produto': v['produto'], 'comprador': v['nome'], 'cliente_da_agencia': bool(v.get('cliente_id')),
+                                    'valor': float(v['valor']), 'pago': v['pago']} for v in vendas],
+            'fechamentos_de_meses_anteriores': ler_fechamentos()}
+
+def ia_financeiro(mes=None):
+    mes = _mes_ou_atual(mes)
+    j = _chamar(financeiro_resumo, '/x?mes=' + mes)
+    if not j.get('ok'):
+        return {'erro': j.get('error')}
+    return {'mes': mes, 'entrada': j['entrada'], 'esperado': j['esperado'], 'saida': j['saida'], 'saldo': j['saldo'],
+            'saida_por_categoria': j['por_categoria'],
+            'despesas': [{'descricao': d['descricao'], 'categoria': d['categoria'], 'valor': float(d['valor']), 'pago': d.get('pago')} for d in j['despesas']],
+            'repasses_gestores': [{'gestor': r['gestor'], 'regra': r['regra'], 'total': r['total'], 'pago': r['pago']} for r in j.get('repasses', [])]}
+
+def ia_negociacoes():
+    lista = requests.get(SUPABASE_URL + '/rest/v1/negociacoes?order=atualizado_em.desc', headers=supa_headers(), timeout=10).json()
+    return {'negociacoes': [{'nome': n['nome'], 'status': n['status'], 'origem': n.get('origem'), 'cargo': n.get('cargo'),
+                             'telefone': n.get('telefone'), 'mensalidade_prevista': n.get('valor_previsto'),
+                             'previsao_entrada_mes': n.get('previsao_mes'), 'fechado_em': n.get('fechado_em')} for n in lista]}
+
+def ia_criar_tarefa(titulo, responsavel, prazo='hoje', cliente=None, _autor=None):
+    if prazo not in ('hoje', 'amanha', 'semana'):
+        return {'erro': 'Prazo deve ser hoje, amanha ou semana'}
+    u = _achar_usuario(responsavel)
+    if not u:
+        return {'erro': 'Responsavel nao encontrado: ' + str(responsavel)}
+    payload = {'titulo': titulo.strip(), 'prazo': prazo, 'responsavel_id': u['id']}
+    nome_cliente = None
+    if cliente:
+        c = ia_ver_cliente(cliente)
+        if c.get('erro'):
+            return c
+        payload['cliente_id'] = c['id']
+        nome_cliente = c['nome']
+    r = requests.post(SUPABASE_URL + '/rest/v1/tarefas', headers=supa_headers(), json=payload, timeout=10)
+    r.raise_for_status()
+    if _autor and u['id'] != _autor:
+        notificar([u['id']], '📋 Nova tarefa', payload['titulo'] + (' · ' + nome_cliente if nome_cliente else ''), '/tarefas')
+    return {'ok': True, 'tarefa_id': r.json()[0]['id'], 'responsavel': u['nome'], 'prazo': prazo, 'cliente': nome_cliente}
+
+def ia_concluir_tarefa(tarefa_id):
+    r = requests.patch(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(int(tarefa_id)), headers=supa_headers(), timeout=10,
+                       json={'concluida': True, 'concluida_em': datetime.utcnow().isoformat()})
+    r.raise_for_status()
+    if not r.json():
+        return {'erro': 'Tarefa nao encontrada'}
+    return {'ok': True, 'tarefa': r.json()[0]['titulo']}
+
+IA_FERRAMENTAS = [
+    {'name': 'listar_clientes', 'description': 'Lista os clientes da agencia com mensalidade, gestor responsavel, contas de anuncio, vencimento, inicio do contrato e se e prioridade (cliente novo). Filtra por situacao, gestor ou parte do nome.',
+     'input_schema': {'type': 'object', 'properties': {
+         'status': {'type': 'string', 'enum': ['ativo', 'pausado', 'inativo', 'todos'], 'description': 'Padrao: ativo'},
+         'gestor': {'type': 'string', 'description': 'Nome do gestor (ex.: Kelmer). Use "eu" para o Andre.'},
+         'busca': {'type': 'string', 'description': 'Parte do nome do cliente'}}}},
+    {'name': 'ver_cliente', 'description': 'Ficha completa de um cliente: gestor, contrato, receita gerada, atraso, contas de anuncio e numeros do Meta Ads dos ultimos 30 dias, risco de churn e tarefas pendentes.',
+     'input_schema': {'type': 'object', 'properties': {'cliente': {'type': 'string', 'description': 'Nome (ou parte) ou id do cliente'}}, 'required': ['cliente']}},
+    {'name': 'listar_gestores', 'description': 'Gestores e a carteira de cada um: clientes, contas de anuncio, clientes prioridade, tarefas pendentes e regra de remuneracao.',
+     'input_schema': {'type': 'object', 'properties': {}}},
+    {'name': 'listar_tarefas', 'description': 'Tarefas pendentes (ou concluidas nos ultimos 7 dias) de uma pessoa ou de todos, com prazo, cliente e responsavel.',
+     'input_schema': {'type': 'object', 'properties': {
+         'responsavel': {'type': 'string', 'description': 'Nome da pessoa, "eu" para o Andre, ou "todos" (padrao)'},
+         'situacao': {'type': 'string', 'enum': ['pendentes', 'concluidas_7_dias']}}}},
+    {'name': 'meta_ads', 'description': 'Numeros do Meta Ads por conta (investimento, leads, conversas, resultados, CPL) com cliente e gestor de cada conta. So contas de clientes ativos e contas sem cliente vinculado.',
+     'input_schema': {'type': 'object', 'properties': {
+         'periodo': {'type': 'string', 'enum': ['hoje', 'ontem', '7', '15', '30'], 'description': 'Padrao: 30 dias'},
+         'gestor': {'type': 'string', 'description': 'Filtra as contas de um gestor'},
+         'busca': {'type': 'string', 'description': 'Parte do nome da conta ou do cliente'}}}},
+    {'name': 'faturamento', 'description': 'Faturamento de um mes: total esperado, recebido, a receber, quem pagou e quem esta pendente (com vencimento), atrasados do mes anterior, vendas de produtos e fechamentos dos meses anteriores.',
+     'input_schema': {'type': 'object', 'properties': {'mes': {'type': 'string', 'description': 'AAAA-MM. Padrao: mes atual do faturamento'}}}},
+    {'name': 'financeiro', 'description': 'Financeiro de um mes: entrada, saida, saldo, despesas e repasses aos gestores.',
+     'input_schema': {'type': 'object', 'properties': {'mes': {'type': 'string', 'description': 'AAAA-MM. Padrao: mes atual'}}}},
+    {'name': 'negociacoes', 'description': 'Possiveis clientes em negociacao (status, origem, mensalidade prevista, previsao de entrada) e os ja fechados.',
+     'input_schema': {'type': 'object', 'properties': {}}},
+    {'name': 'criar_tarefa', 'description': 'Cria uma tarefa no painel para uma pessoa (o gestor e avisado no celular). Use so quando o Andre pedir para criar.',
+     'input_schema': {'type': 'object', 'properties': {
+         'titulo': {'type': 'string'}, 'responsavel': {'type': 'string', 'description': 'Nome do gestor ou "eu"'},
+         'prazo': {'type': 'string', 'enum': ['hoje', 'amanha', 'semana']},
+         'cliente': {'type': 'string', 'description': 'Cliente ligado a tarefa (opcional)'}}, 'required': ['titulo', 'responsavel', 'prazo']}},
+    {'name': 'concluir_tarefa', 'description': 'Marca uma tarefa como concluida, pelo id (obtido em listar_tarefas). Use so quando o Andre pedir.',
+     'input_schema': {'type': 'object', 'properties': {'tarefa_id': {'type': 'integer'}}, 'required': ['tarefa_id']}},
+]
+
+def ia_executar(nome, entrada, autor_id=None):
+    try:
+        if nome == 'listar_clientes':
+            r = ia_listar_clientes(entrada.get('status') or 'ativo', entrada.get('gestor'), entrada.get('busca'))
+        elif nome == 'ver_cliente':
+            r = ia_ver_cliente(entrada['cliente'])
+        elif nome == 'listar_gestores':
+            r = ia_listar_gestores()
+        elif nome == 'listar_tarefas':
+            r = ia_listar_tarefas(entrada.get('responsavel') or 'todos', entrada.get('situacao') or 'pendentes')
+        elif nome == 'meta_ads':
+            r = ia_meta_ads(entrada.get('periodo') or '30', entrada.get('gestor'), entrada.get('busca'))
+        elif nome == 'faturamento':
+            r = ia_faturamento(entrada.get('mes'))
+        elif nome == 'financeiro':
+            r = ia_financeiro(entrada.get('mes'))
+        elif nome == 'negociacoes':
+            r = ia_negociacoes()
+        elif nome == 'criar_tarefa':
+            r = ia_criar_tarefa(entrada['titulo'], entrada['responsavel'], entrada.get('prazo') or 'hoje', entrada.get('cliente'), _autor=autor_id)
+        elif nome == 'concluir_tarefa':
+            r = ia_concluir_tarefa(entrada['tarefa_id'])
+        else:
+            return json.dumps({'erro': 'Ferramenta desconhecida'}), True
+        return json.dumps(r, ensure_ascii=False, default=str), bool(isinstance(r, dict) and r.get('erro'))
+    except Exception as e:
+        print('IA FERRAMENTA ERROR:', nome, traceback.format_exc())
+        return json.dumps({'erro': str(e)}), True
+
+IA_INSTRUCOES = TEAM_INTRO + (
+    'ACESSO AO SISTEMA: voce TEM acesso completo ao painel da agencia pelas ferramentas (clientes, gestores e a carteira '
+    'de cada um, tarefas, Meta Ads por conta, faturamento, financeiro, repasses e negociacoes). Antes de responder qualquer '
+    'pergunta sobre dados, consulte a ferramenta certa; nunca diga que nao tem acesso nem peca ao Andre dados que estao no '
+    'sistema. Nao invente numeros: use so o que as ferramentas devolverem. Valores em reais no formato R$ 1.234,56. '
+    'Criar ou concluir tarefas so quando o Andre pedir explicitamente; depois confirme o que foi feito.'
+)
+
+def ia_responder(historico, autor_id=None):
+    # Laço de ferramentas: a IA consulta o sistema quantas vezes precisar e devolve a resposta final
+    hoje = (datetime.utcnow() - timedelta(hours=3))
+    contexto = 'Hoje e %s (horario de Brasilia). Mes atual do faturamento: %s.' % (hoje.strftime('%d/%m/%Y %H:%M'), ler_config('mes_atual'))
+    mensagens = list(historico)
+    for _ in range(8):
+        resp = ia_cliente().beta.messages.create(
+            model=IA_MODELO, max_tokens=16000,
+            system=[{'type': 'text', 'text': IA_INSTRUCOES, 'cache_control': {'type': 'ephemeral'}},
+                    {'type': 'text', 'text': contexto}],
+            tools=IA_FERRAMENTAS, messages=mensagens,
+            output_config={'effort': 'medium'},
+            betas=['server-side-fallback-2026-07-01'], fallbacks='default')
+        if resp.stop_reason == 'refusal':
+            return 'Não consegui responder a esse pedido.'
+        usos = [b for b in resp.content if b.type == 'tool_use']
+        if resp.stop_reason != 'tool_use' or not usos:
+            return '\n\n'.join(b.text for b in resp.content if b.type == 'text').strip() or 'Sem resposta.'
+        mensagens.append({'role': 'assistant', 'content': resp.content})
+        resultados = []
+        for u in usos:
+            conteudo, erro = ia_executar(u.name, u.input or {}, autor_id)
+            resultados.append({'type': 'tool_result', 'tool_use_id': u.id, 'content': conteudo, 'is_error': erro})
+        mensagens.append({'role': 'user', 'content': resultados})
+    return 'Precisei consultar dados demais para essa pergunta. Pode detalhar um pouco mais?'
+
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
     try:
         body = request.json or {}
-        messages = body.get('messages', [])
-        system = TEAM_INTRO + 'DADOS DISPONIVEIS:\n\n' + build_dados_equipe()
         clean = []
-        for m in messages:
-            role = m.get('role', '')
-            content = m.get('content', '')
+        for m in body.get('messages', []):
+            role, content = m.get('role', ''), m.get('content', '')
             if role in ('user', 'assistant') and content:
                 clean.append({'role': role, 'content': str(content)})
-        if not clean:
-            clean = [{'role': 'user', 'content': 'Ola'}]
-        elif clean[0]['role'] != 'user':
+        if not clean or clean[-1]['role'] != 'user':
+            return jsonify({'ok': False, 'error': 'Mensagem vazia'}), 400
+        if clean[0]['role'] != 'user':
             clean = [{'role': 'user', 'content': 'Ola'}] + clean
-        resp = requests.post(
-            'https://api.anthropic.com/v1/messages',
-            headers={'x-api-key': ANTHROPIC_API_KEY, 'anthropic-version': '2023-06-01', 'content-type': 'application/json'},
-            json={'model': 'claude-haiku-4-5-20251001', 'max_tokens': 1024, 'system': system, 'messages': clean},
-            timeout=30
-        )
-        if resp.status_code >= 400:
-            try:
-                detalhe = resp.json()
-            except Exception:
-                detalhe = resp.text
-            print('CHAT ERROR DETALHE:', resp.status_code, detalhe)
-            return jsonify({'ok': False, 'error': str(resp.status_code) + ': ' + str(detalhe)}), 500
-        return jsonify({'ok': True, 'reply': resp.json()['content'][0]['text']})
+        # Ultimas mensagens da conversa, sempre comecando por uma do usuario
+        recentes = clean[-20:]
+        while recentes and recentes[0]['role'] != 'user':
+            recentes = recentes[1:]
+        return jsonify({'ok': True, 'reply': ia_responder(recentes, current_user()['id'])})
     except Exception as e:
         print('CHAT ERROR:', traceback.format_exc())
         return jsonify({'ok': False, 'error': str(e)}), 500
