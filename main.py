@@ -11,7 +11,7 @@ import unicodedata
 import threading
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
-from flask import Flask, jsonify, send_from_directory, request, session, redirect
+from flask import Flask, jsonify, send_from_directory, request, session, redirect, g
 from flask_cors import CORS
 
 app = Flask(__name__, static_folder='static')
@@ -134,6 +134,206 @@ def require_login():
             return redirect('/painel')
         if request.path.startswith(ADMIN_ONLY_API_PREFIXES) or request.path in ADMIN_ONLY_EXACT_API:
             return jsonify({'ok': False, 'error': 'Acesso restrito'}), 403
+
+# ── Historico de movimentacoes ──
+# Toda acao que altera dados no painel vira uma linha legivel em movimentacoes
+# (quem fez, quando, o que mudou de -> para). A IA consulta esse historico.
+SEM_HISTORICO = {'api_login', 'api_chat', 'push_inscrever', 'push_cancelar', 'push_teste', 'cron_alertas'}
+STATUS_TXT = {'ativo': 'ativo', 'pausado': 'pausado', 'inativo': 'inativo'}
+PRAZO_TXT = {'hoje': 'hoje', 'amanha': 'amanhã', 'semana': 'essa semana'}
+NEG_STATUS_TXT = {'especulacao': 'Especulação', 'em_contato': 'Em contato', 'reuniao_marcada': 'Reunião marcada',
+                  'avaliando_proposta': 'Avaliando proposta', 'quente': 'Quente', 'frio': 'Frio', 'fechado': 'Fechado'}
+
+def _brl(v):
+    try:
+        return 'R$ ' + '{:,.2f}'.format(float(v)).replace(',', 'X').replace('.', ',').replace('X', '.')
+    except (TypeError, ValueError):
+        return '—'
+
+def _mes_txt(mes):
+    try:
+        return ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][int(mes[5:]) - 1] + '/' + mes[:4]
+    except (TypeError, ValueError, IndexError):
+        return str(mes)
+
+def _linha(tabela, id, campos='*'):
+    r = requests.get(SUPABASE_URL + '/rest/v1/' + tabela + '?id=eq.' + str(id) + '&select=' + campos, headers=supa_headers(), timeout=10).json()
+    return r[0] if isinstance(r, list) and r else None
+
+def _nome_usuario(uid):
+    if not uid:
+        return ''
+    if not hasattr(g, '_nomes'):
+        try:
+            g._nomes = {u['id']: u['nome'] for u in requests.get(SUPABASE_URL + '/rest/v1/usuarios?select=id,nome', headers=supa_headers(), timeout=10).json()}
+        except Exception:
+            g._nomes = {}
+    return g._nomes.get(int(uid), 'usuário ' + str(uid))
+
+def registrar(acao, descricao, cliente_id=None, cliente_nome=None, detalhes=None, usuario=None):
+    # Grava uma movimentacao em segundo plano (nao atrasa a resposta da tela)
+    u = usuario if usuario is not None else (current_user() or {})
+    linha = {'acao': acao, 'descricao': descricao[:1000], 'cliente_id': cliente_id, 'cliente_nome': cliente_nome,
+             'usuario_id': u.get('id'), 'usuario_nome': u.get('nome') or ('Sistema' if not u.get('id') else None),
+             'detalhes': detalhes}
+    def gravar():
+        try:
+            requests.post(SUPABASE_URL + '/rest/v1/movimentacoes', headers=supa_headers(), json=linha, timeout=10).raise_for_status()
+        except Exception:
+            print('HISTORICO ERROR:', traceback.format_exc())
+    threading.Thread(target=gravar, daemon=True).start()
+
+CAMPOS_CLIENTE = 'id,nome,valor,dia_pagamento,gestor_id,status,ativo,contas_anuncio,conta_anuncio,telefone,ocupacao,empresa,data_inicio,indicacoes'
+
+@app.before_request
+def capturar_antes():
+    # Guarda como o dado estava antes da acao, para o historico registrar "de -> para"
+    if request.method not in ('POST', 'PATCH', 'DELETE') or not request.path.startswith('/api/'):
+        return
+    ep, va = request.endpoint, request.view_args or {}
+    if ep in SEM_HISTORICO or not check_auth():
+        return
+    try:
+        if ep in ('update_status_cliente', 'delete_cliente', 'update_dia_pagamento', 'update_valor_cliente', 'update_contas_cliente',
+                  'update_perfil_cliente', 'update_indicacoes', 'update_gestor_cliente'):
+            g.antes = _linha('clientes', va['id'], CAMPOS_CLIENTE)
+        elif ep == 'set_pagamento':
+            g.antes = _linha('clientes', va['cliente_id'], 'id,nome,valor')
+        elif ep == 'delete_tarefa':
+            g.antes = _linha('tarefas', va['id'], 'id,titulo,responsavel_id,cliente_id,clientes(nome)')
+        elif ep in ('update_venda', 'delete_venda'):
+            g.antes = _linha('vendas', va['id'], 'id,produto,valor,pago,cliente_id,cliente_nome,clientes(nome)')
+        elif ep in ('update_negociacao', 'delete_negociacao', 'fechar_negociacao'):
+            g.antes = _linha('negociacoes', va['id'])
+        elif ep in ('update_despesa', 'delete_despesa'):
+            g.antes = _linha('despesas', va['id'])
+        elif ep == 'nova_senha_usuario':
+            g.antes = _linha('usuarios', va['id'], 'id,nome')
+    except Exception:
+        g.antes = None
+
+def descrever_movimentacao(ep, body, va, antes, res):
+    # (acao, descricao, cliente_id, cliente_nome) de cada tipo de acao do painel
+    a = antes or {}
+    cid, cnome = a.get('id'), a.get('nome')
+    if ep == 'update_gestor_cliente':
+        return 'cliente_transferido', 'Cliente %s transferido de %s para %s' % (cnome, _nome_usuario(a.get('gestor_id')) or 'ninguém', _nome_usuario(body.get('gestor_id'))), cid, cnome
+    if ep == 'update_status_cliente':
+        return 'cliente_situacao', 'Cliente %s: situação %s → %s' % (cnome, STATUS_TXT.get(a.get('status'), a.get('status')), STATUS_TXT.get(body.get('status'), body.get('status'))), cid, cnome
+    if ep == 'delete_cliente':
+        return 'cliente_situacao', 'Cliente %s inativado (removido)' % cnome, cid, cnome
+    if ep == 'update_valor_cliente':
+        return 'cliente_mensalidade', 'Cliente %s: mensalidade %s → %s' % (cnome, _brl(a.get('valor')), _brl(body.get('valor'))), cid, cnome
+    if ep == 'update_dia_pagamento':
+        return 'cliente_vencimento', 'Cliente %s: vencimento dia %s → dia %s' % (cnome, a.get('dia_pagamento') or '—', body.get('dia_pagamento') or '—'), cid, cnome
+    if ep == 'update_indicacoes':
+        return 'cliente_indicacoes', 'Cliente %s: indicações %s → %s' % (cnome, a.get('indicacoes') or 0, (res or {}).get('indicacoes')), cid, cnome
+    if ep == 'update_contas_cliente':
+        antes_l, depois_l = contas_de(a), (res or {}).get('contas') or []
+        partes = ['vinculou ' + c for c in depois_l if c not in antes_l] + ['desvinculou ' + c for c in antes_l if c not in depois_l]
+        return 'cliente_contas', 'Cliente %s: %s' % (cnome, '; '.join(partes) or 'contas reordenadas'), cid, cnome
+    if ep == 'update_perfil_cliente':
+        mud = ['%s: %s → %s' % (k, a.get(k) or '—', v or '—') for k, v in body.items() if str(a.get(k) or '') != str(v or '')]
+        return 'cliente_dados', 'Cliente %s: %s' % (cnome, '; '.join(mud) or 'dados salvos sem mudança'), cid, cnome
+    if ep == 'add_cliente':
+        novo = (res or {}).get('data')
+        novo = novo[0] if isinstance(novo, list) and novo else (novo or {})
+        return 'cliente_novo', 'Cliente cadastrado: %s (%s/mês)' % (body.get('nome'), _brl(body.get('valor'))), novo.get('id'), body.get('nome')
+    if ep == 'set_pagamento':
+        mes = va.get('mes')
+        if body.get('pago') and body.get('atrasado') is False:
+            txt = 'pagamento em atraso quitado'
+        elif body.get('pago'):
+            txt = 'marcado como pago'
+        elif body.get('atrasado'):
+            txt = 'marcado como atrasado'
+        else:
+            txt = 'marcado como pendente'
+        return 'pagamento', 'Mensalidade de %s (%s, %s): %s' % (cnome, _mes_txt(mes), _brl(a.get('valor')), txt), cid, cnome
+    if ep == 'virar_mes':
+        f = (res or {}).get('fechamento') or {}
+        return 'virada_mes', 'Virada do faturamento para %s (fechamento: recebido %s de %s, atrasado %s)' % (
+            _mes_txt((res or {}).get('mes')), _brl(f.get('recebido')), _brl(f.get('total')), _brl(f.get('atrasado'))), None, None
+    if ep == 'add_tarefa':
+        t = ((res or {}).get('data') or [{}])
+        t = t[0] if isinstance(t, list) and t else {}
+        cl = _linha('clientes', t['cliente_id'], 'nome') if t.get('cliente_id') else None
+        return 'tarefa_criada', 'Tarefa criada para %s (%s): %s%s' % (_nome_usuario(t.get('responsavel_id')), PRAZO_TXT.get(t.get('prazo'), t.get('prazo')),
+                                                                     t.get('titulo') or body.get('titulo'), ' · cliente ' + cl['nome'] if cl else ''), t.get('cliente_id'), cl and cl['nome']
+    if ep == 'delete_tarefa':
+        nome_cli = (a.get('clientes') or {}).get('nome')
+        return 'tarefa_concluida', 'Tarefa concluída (de %s): %s%s' % (_nome_usuario(a.get('responsavel_id')), a.get('titulo'), ' · cliente ' + nome_cli if nome_cli else ''), a.get('cliente_id'), nome_cli
+    if ep == 'resetar_tarefas':
+        return 'tarefas_resetadas', 'Tarefas da semana resetadas', None, None
+    if ep == 'add_venda':
+        v = (res or {}).get('data') or {}
+        return 'venda', 'Venda: %s para %s, %s (%s)' % (body.get('produto'), body.get('cliente_nome') or (_linha('clientes', body['cliente_id'], 'nome') or {}).get('nome') if body.get('cliente_id') else body.get('cliente_nome'),
+                                                        _brl(body.get('valor')), 'paga' if body.get('pago') else 'a receber'), v.get('cliente_id'), None
+    if ep == 'update_venda':
+        quem = (a.get('clientes') or {}).get('nome') or a.get('cliente_nome')
+        txt = ('marcada como paga' if body.get('pago') else 'marcada como pendente') if 'pago' in body else 'valor alterado para ' + _brl(body.get('valor'))
+        return 'venda', 'Venda %s (%s, %s): %s' % (a.get('produto'), quem, _brl(a.get('valor')), txt), a.get('cliente_id'), quem
+    if ep == 'delete_venda':
+        quem = (a.get('clientes') or {}).get('nome') or a.get('cliente_nome')
+        return 'venda', 'Venda excluída: %s para %s (%s)' % (a.get('produto'), quem, _brl(a.get('valor'))), a.get('cliente_id'), quem
+    if ep == 'add_despesa':
+        return 'despesa', 'Despesa lançada: %s (%s) %s em %s' % (body.get('descricao'), body.get('categoria'), _brl(body.get('valor')), _mes_txt(body.get('mes'))), None, None
+    if ep == 'update_despesa':
+        mud = ['%s: %s → %s' % (k, a.get(k), v) for k, v in body.items() if str(a.get(k)) != str(v)]
+        return 'despesa', 'Despesa %s: %s' % (a.get('descricao'), '; '.join(mud) or 'sem mudança'), None, None
+    if ep == 'delete_despesa':
+        return 'despesa', 'Despesa excluída: %s (%s)' % (a.get('descricao'), _brl(a.get('valor'))), None, None
+    if ep == 'marcar_repasses':
+        total = sum(float(i.get('valor') or 0) for i in body.get('itens') or [])
+        return 'repasse', 'Repasse de %s (%s): %s %s' % (_nome_usuario(body.get('gestor_id')), _mes_txt(body.get('mes')), _brl(total),
+                                                         'marcado como pago' if body.get('pago', True) else 'desmarcado'), None, None
+    if ep == 'add_negociacao':
+        return 'negociacao', 'Negociação criada: %s (%s, %s/mês previsto)' % (body.get('nome'), NEG_STATUS_TXT.get(body.get('status'), body.get('status')), _brl(body.get('valor_previsto'))), None, None
+    if ep == 'update_negociacao':
+        mud = []
+        for k, v in body.items():
+            if str(a.get(k) or '') != str(v or ''):
+                if k == 'status':
+                    mud.append('status %s → %s' % (NEG_STATUS_TXT.get(a.get(k), a.get(k)), NEG_STATUS_TXT.get(v, v)))
+                else:
+                    mud.append('%s: %s → %s' % (k, a.get(k) or '—', v or '—'))
+        return 'negociacao', 'Negociação %s: %s' % (a.get('nome'), '; '.join(mud) or 'sem mudança'), None, None
+    if ep == 'fechar_negociacao':
+        c = (res or {}).get('cliente') or {}
+        return 'negociacao_fechada', 'Negociação fechada: %s virou cliente (%s/mês)' % (a.get('nome'), _brl(body.get('valor') or a.get('valor_previsto'))), c.get('id'), c.get('nome')
+    if ep == 'delete_negociacao':
+        return 'negociacao', 'Negociação excluída: %s' % a.get('nome'), None, None
+    if ep == 'add_usuario':
+        return 'gestor', 'Gestor criado: %s' % body.get('nome'), None, None
+    if ep == 'nova_senha_usuario':
+        return 'gestor', 'Senha nova gerada para %s' % a.get('nome'), None, None
+    if ep == 'set_config':
+        chave = va.get('chave')
+        valor = '' if 'token' in str(chave) or 'secret' in str(chave) else ' = ' + str(body.get('valor'))[:200]
+        return 'configuracao', 'Configuração %s alterada%s' % (chave, valor), None, None
+    if ep == 'agenda_criar_evento':
+        return 'agenda', 'Evento criado na agenda: %s (%s)' % (body.get('titulo'), body.get('inicio')), None, None
+    if ep == 'agenda_desconectar':
+        return 'agenda', 'Agenda do Google desconectada', None, None
+    return 'outro', '%s %s' % (request.method, request.path), None, None
+
+@app.after_request
+def registrar_historico(resp):
+    try:
+        if request.method not in ('POST', 'PATCH', 'DELETE') or not request.path.startswith('/api/') or resp.status_code >= 400:
+            return resp
+        ep = request.endpoint
+        if ep in SEM_HISTORICO or not check_auth():
+            return resp
+        res = resp.get_json(silent=True) if resp.is_json else None
+        if isinstance(res, dict) and res.get('ok') is False:
+            return resp
+        body = request.get_json(silent=True) or {}
+        acao, desc, cid, cnome = descrever_movimentacao(ep, body, request.view_args or {}, getattr(g, 'antes', None), res)
+        registrar(acao, desc, cid, cnome, detalhes={'rota': request.path, 'metodo': request.method})
+    except Exception:
+        print('HISTORICO DESCRICAO ERROR:', traceback.format_exc())
+    return resp
 
 @app.after_request
 def sem_cache_api(resp):
@@ -575,6 +775,45 @@ def ia_negociacoes():
                              'telefone': n.get('telefone'), 'mensalidade_prevista': n.get('valor_previsto'),
                              'previsao_entrada_mes': n.get('previsao_mes'), 'fechado_em': n.get('fechado_em')} for n in lista]}
 
+def ia_historico(desde=None, ate=None, cliente=None, pessoa=None, tipo=None, limite=200):
+    # Movimentacoes do painel (o que mudou, quem fez e quando), mais recentes primeiro
+    hoje = (datetime.utcnow() - timedelta(hours=3)).date()
+    def dia(t, padrao):
+        t = (t or '').strip().lower()
+        if t in ('', None):
+            return padrao
+        if t == 'hoje':
+            return hoje
+        if t == 'ontem':
+            return hoje - timedelta(days=1)
+        try:
+            return datetime.strptime(t[:10], '%Y-%m-%d').date()
+        except ValueError:
+            return padrao
+    d0, d1 = dia(desde, hoje - timedelta(days=7)), dia(ate, hoje)
+    # Dias em horario de Brasilia -> intervalo em UTC
+    ini = datetime(d0.year, d0.month, d0.day) + timedelta(hours=3)
+    fim = datetime(d1.year, d1.month, d1.day) + timedelta(days=1, hours=3)
+    params = {'select': 'quando,usuario_nome,acao,cliente_id,cliente_nome,descricao', 'order': 'quando.desc',
+              'and': '(quando.gte.%s,quando.lt.%s)' % (ini.isoformat(), fim.isoformat()), 'limit': str(min(int(limite or 200), 500))}
+    if tipo:
+        params['acao'] = 'eq.' + tipo
+    linhas = requests.get(SUPABASE_URL + '/rest/v1/movimentacoes', params=params, headers=supa_headers(), timeout=10).json()
+    if not isinstance(linhas, list):
+        return {'erro': str(linhas)}
+    if cliente:
+        linhas = [l for l in linhas if _norm(cliente) in _norm(l.get('cliente_nome')) or _norm(cliente) in _norm(l['descricao'])]
+    if pessoa:
+        linhas = [l for l in linhas if _norm(pessoa) in _norm(l.get('usuario_nome')) or _norm(pessoa) in _norm(l['descricao'])]
+    for l in linhas:
+        try:
+            l['quando'] = (datetime.fromisoformat(l['quando'].replace('Z', '+00:00')) - timedelta(hours=3)).strftime('%d/%m/%Y %H:%M')
+        except ValueError:
+            pass
+        l['feito_por'] = l.pop('usuario_nome')
+    return {'periodo': '%s a %s' % (d0.strftime('%d/%m/%Y'), d1.strftime('%d/%m/%Y')), 'total': len(linhas), 'movimentacoes': linhas,
+            'observacao': 'O historico comecou a ser gravado em 13/10/2026; acoes anteriores a isso nao foram registradas.'}
+
 def ia_criar_tarefa(titulo, responsavel, prazo='hoje', cliente=None, _autor=None):
     if prazo not in ('hoje', 'amanha', 'semana'):
         return {'erro': 'Prazo deve ser hoje, amanha ou semana'}
@@ -593,6 +832,8 @@ def ia_criar_tarefa(titulo, responsavel, prazo='hoje', cliente=None, _autor=None
     r.raise_for_status()
     if _autor and u['id'] != _autor:
         notificar([u['id']], '📋 Nova tarefa', payload['titulo'] + (' · ' + nome_cliente if nome_cliente else ''), '/tarefas')
+    registrar('tarefa_criada', 'Tarefa criada pelo chat para %s (%s): %s%s' % (u['nome'], PRAZO_TXT.get(prazo, prazo), payload['titulo'],
+              ' · cliente ' + nome_cliente if nome_cliente else ''), payload.get('cliente_id'), nome_cliente)
     return {'ok': True, 'tarefa_id': r.json()[0]['id'], 'responsavel': u['nome'], 'prazo': prazo, 'cliente': nome_cliente}
 
 def ia_concluir_tarefa(tarefa_id):
@@ -601,7 +842,9 @@ def ia_concluir_tarefa(tarefa_id):
     r.raise_for_status()
     if not r.json():
         return {'erro': 'Tarefa nao encontrada'}
-    return {'ok': True, 'tarefa': r.json()[0]['titulo']}
+    t = r.json()[0]
+    registrar('tarefa_concluida', 'Tarefa concluída pelo chat (de %s): %s' % (_nome_usuario(t.get('responsavel_id')), t['titulo']), t.get('cliente_id'))
+    return {'ok': True, 'tarefa': t['titulo']}
 
 IA_FERRAMENTAS = [
     {'name': 'listar_clientes', 'description': 'Lista os clientes da agencia com mensalidade, gestor responsavel, contas de anuncio, vencimento, inicio do contrato e se e prioridade (cliente novo). Filtra por situacao, gestor ou parte do nome.',
@@ -628,6 +871,16 @@ IA_FERRAMENTAS = [
      'input_schema': {'type': 'object', 'properties': {'mes': {'type': 'string', 'description': 'AAAA-MM. Padrao: mes atual'}}}},
     {'name': 'negociacoes', 'description': 'Possiveis clientes em negociacao (status, origem, mensalidade prevista, previsao de entrada) e os ja fechados.',
      'input_schema': {'type': 'object', 'properties': {}}},
+    {'name': 'historico', 'description': 'Historico de tudo que foi feito no painel: clientes transferidos entre gestores, cadastrados, pausados/inativados, mudancas de mensalidade, vencimento e contas, pagamentos marcados, virada de mes, tarefas criadas e concluidas, vendas, despesas, repasses, negociacoes e gestores. Cada linha diz o que mudou (de -> para), quem fez e quando.',
+     'input_schema': {'type': 'object', 'properties': {
+         'desde': {'type': 'string', 'description': 'AAAA-MM-DD, "hoje" ou "ontem". Padrao: 7 dias atras'},
+         'ate': {'type': 'string', 'description': 'AAAA-MM-DD, "hoje" ou "ontem". Padrao: hoje'},
+         'cliente': {'type': 'string', 'description': 'Filtra por cliente (parte do nome)'},
+         'pessoa': {'type': 'string', 'description': 'Filtra por gestor/pessoa citada ou que fez a acao'},
+         'tipo': {'type': 'string', 'enum': ['cliente_transferido', 'cliente_novo', 'cliente_situacao', 'cliente_mensalidade', 'cliente_vencimento',
+                                             'cliente_contas', 'cliente_dados', 'cliente_indicacoes', 'pagamento', 'virada_mes', 'tarefa_criada',
+                                             'tarefa_concluida', 'tarefas_resetadas', 'venda', 'despesa', 'repasse', 'negociacao', 'negociacao_fechada',
+                                             'gestor', 'configuracao', 'agenda']}}}},
     {'name': 'criar_tarefa', 'description': 'Cria uma tarefa no painel para uma pessoa (o gestor e avisado no celular). Use so quando o Andre pedir para criar.',
      'input_schema': {'type': 'object', 'properties': {
          'titulo': {'type': 'string'}, 'responsavel': {'type': 'string', 'description': 'Nome do gestor ou "eu"'},
@@ -655,6 +908,8 @@ def ia_executar(nome, entrada, autor_id=None):
             r = ia_financeiro(entrada.get('mes'))
         elif nome == 'negociacoes':
             r = ia_negociacoes()
+        elif nome == 'historico':
+            r = ia_historico(entrada.get('desde'), entrada.get('ate'), entrada.get('cliente'), entrada.get('pessoa'), entrada.get('tipo'))
         elif nome == 'criar_tarefa':
             r = ia_criar_tarefa(entrada['titulo'], entrada['responsavel'], entrada.get('prazo') or 'hoje', entrada.get('cliente'), _autor=autor_id)
         elif nome == 'concluir_tarefa':
@@ -671,7 +926,9 @@ IA_INSTRUCOES = TEAM_INTRO + (
     'de cada um, tarefas, Meta Ads por conta, faturamento, financeiro, repasses e negociacoes). Antes de responder qualquer '
     'pergunta sobre dados, consulte a ferramenta certa; nunca diga que nao tem acesso nem peca ao Andre dados que estao no '
     'sistema. Nao invente numeros: use so o que as ferramentas devolverem. Valores em reais no formato R$ 1.234,56. '
-    'Criar ou concluir tarefas so quando o Andre pedir explicitamente; depois confirme o que foi feito.'
+    'Criar ou concluir tarefas so quando o Andre pedir explicitamente; depois confirme o que foi feito. '
+    'Para perguntas sobre o que aconteceu (transferencias, quem fez o que, mudancas, o que foi feito hoje/ontem), use a '
+    'ferramenta historico.'
 )
 
 def ia_responder(historico, autor_id=None):
@@ -1324,6 +1581,8 @@ def corrigir_vinculos_renomeados(nomes_vinculados, ads_data):
             lista = [novo if x == antigo else x for x in contas_de(c)]
             requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(c['id']), headers=supa_headers(), timeout=10,
                            json={'contas_anuncio': lista, 'conta_anuncio': lista[0] if lista else None})
+            registrar('cliente_contas', 'Conta "%s" foi renomeada no Meta para "%s"; vínculo do cliente atualizado automaticamente' % (antigo, novo),
+                      c['id'], None, usuario={})
     return renomes
 
 @app.route('/api/contas-anuncio', methods=['GET'])
