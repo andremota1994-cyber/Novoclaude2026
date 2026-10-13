@@ -90,6 +90,9 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .campo input:focus, .campo select:focus { border-color: var(--border-strong); }
 .campo select option { background: #171206; }
 .modal-acoes { display: flex; gap: 8px; justify-content: flex-end; margin-top: .4rem; flex-wrap: wrap; }
+.fechamento { border-top: .5px solid var(--border); margin-top: .4rem; padding-top: .9rem; }
+.fech-tit { font-size: 14px; font-weight: 600; color: var(--green); margin-bottom: .75rem; }
+.fech-nota { font-size: 12px; color: var(--text-secondary); line-height: 1.5; margin: -.2rem 0 .8rem; }
 .btn-fechar { background: rgba(47,217,127,.12); color: var(--green); border: .5px solid rgba(47,217,127,.4); }
 .fech-titulo { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin: 1.5rem 0 10px; text-transform: uppercase; letter-spacing: .03em; }
 .fech-titulo span { font-size: 11px; color: var(--text-muted); margin-left: 4px; }
@@ -148,7 +151,19 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
       <div class="campo"><label for="f-status">Status</label><select id="f-status"></select></div>
       <div class="campo"><label for="f-previsao">Previsão de entrada</label><select id="f-previsao"></select></div>
     </div>
-    <div class="modal-acoes">
+    <div class="fechamento" id="fechamento" style="display:none">
+      <div class="fech-tit">✅ Fechar negócio</div>
+      <div class="campos">
+        <div class="campo"><label for="fc-gestor">Gestor responsável</label><select id="fc-gestor"></select></div>
+        <div class="campo"><label for="fc-valor">Mensalidade (R$)</label><input id="fc-valor" type="number" min="1" step="50"></div>
+      </div>
+      <p class="fech-nota">O cliente vira ativo (Clientes, Faturamento e carteira do gestor) e o <b>onboarding</b> começa: a primeira tarefa, "Acessar BM do cliente", entra para você agora.</p>
+      <div class="modal-acoes">
+        <button class="btn btn-ghost" onclick="cancelarFechamento()">Voltar</button>
+        <button class="btn btn-primary" id="btn-confirmar-fechamento" onclick="confirmarFechamento()">Confirmar fechamento</button>
+      </div>
+    </div>
+    <div class="modal-acoes" id="acoes-normais">
       <button class="btn btn-perigo" id="btn-excluir" onclick="excluir()">Excluir</button>
       <button class="btn btn-fechar" id="btn-fechar" onclick="fecharNegocio()">✅ Cliente fechado</button>
       <button class="btn btn-ghost" onclick="fechar()">Cancelar</button>
@@ -252,24 +267,39 @@ function renderFechados(){
     + '</div>';
 }
 
+// Fechar negócio: escolhe o gestor (e confere a mensalidade) antes de virar cliente
+let usuariosLista = null;
 async function fecharNegocio(){
   const n = lista.find(x => x.id === editando);
   if (!n) return;
-  let valor = Number(document.getElementById('f-valor').value || n.valor_previsto || 0);
-  if (!(valor > 0)) {
-    const v = prompt('Qual a mensalidade de ' + n.nome + '? (R$)');
-    if (v === null) return;
-    valor = Number(String(v).replace(/\./g, '').replace(',', '.'));
-    if (!(valor > 0)) { alert('Informe um valor válido.'); return; }
+  if (!usuariosLista) {
+    try { const j = await (await fetch('/api/usuarios')).json(); usuariosLista = j.ok ? j.data : []; } catch (e) { usuariosLista = []; }
   }
-  if (!confirm('Fechar com ' + n.nome + ' por ' + fmt(valor) + '/mês?\n\nEle vira cliente ativo: aparece em Clientes, no Faturamento do mês e na sua coluna do quadro Gestores.')) return;
-  const btn = document.getElementById('btn-fechar'); btn.disabled = true;
+  const sel = document.getElementById('fc-gestor');
+  sel.innerHTML = '<option value="">Selecione o gestor...</option>' + usuariosLista.map(u => '<option value="' + u.id + '">' + esc(u.role === 'admin' ? 'Eu (' + u.nome + ')' : u.nome) + '</option>').join('');
+  document.getElementById('fc-valor').value = Number(document.getElementById('f-valor').value || n.valor_previsto || 0) || '';
+  document.getElementById('fechamento').style.display = 'block';
+  document.getElementById('acoes-normais').style.display = 'none';
+  sel.focus();
+}
+function cancelarFechamento(){
+  document.getElementById('fechamento').style.display = 'none';
+  document.getElementById('acoes-normais').style.display = '';
+}
+async function confirmarFechamento(){
+  const n = lista.find(x => x.id === editando);
+  if (!n) return;
+  const gestorId = document.getElementById('fc-gestor').value;
+  const valor = Number(document.getElementById('fc-valor').value);
+  if (!gestorId) { alert('Escolha o gestor responsável.'); return; }
+  if (!(valor > 0)) { alert('Informe a mensalidade.'); return; }
+  const btn = document.getElementById('btn-confirmar-fechamento'); btn.disabled = true;
   try {
-    const j = await (await fetch('/api/negociacoes/' + n.id + '/fechar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({valor})})).json();
+    const j = await (await fetch('/api/negociacoes/' + n.id + '/fechar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({valor, gestor_id: Number(gestorId)})})).json();
     if (!j.ok) { alert('Não foi possível fechar: ' + j.error); return; }
     fechar();
     await carregar();
-    aviso('✅ ' + j.cliente.nome + ' agora é cliente! <a href="/cliente/' + j.cliente.id + '">Abrir ficha →</a>');
+    aviso('✅ ' + esc(j.cliente.nome) + ' agora é cliente, com ' + esc(j.gestor) + '. Onboarding iniciado! <a href="/cliente/' + j.cliente.id + '">Abrir ficha →</a>');
   } finally { btn.disabled = false; }
 }
 
@@ -322,7 +352,7 @@ function abrir(id){
   document.getElementById('modal').style.display = 'flex';
   setTimeout(() => document.getElementById('f-nome').focus(), 50);
 }
-function fechar(){ document.getElementById('modal').style.display = 'none'; editando = null; }
+function fechar(){ document.getElementById('modal').style.display = 'none'; editando = null; cancelarFechamento(); }
 
 async function salvar(){
   const nome = document.getElementById('f-nome').value.trim();

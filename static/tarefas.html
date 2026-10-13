@@ -96,6 +96,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .task-text { font-size: 13px; line-height: 1.4; color: var(--text-secondary); flex: 1; }
 .task-meta { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 5px; }
 .task-cliente { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: var(--card); color: var(--text-secondary); border: 0.5px solid var(--border); }
+.task-onb { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: rgba(90,169,255,.10); color: #7fb8ff; border: 0.5px solid rgba(90,169,255,.35); }
 .task-prio { font-size: 10px; padding: 2px 7px; border-radius: 6px; background: rgba(255,92,114,.10); color: #ff7a8a; border: 0.5px solid rgba(255,92,114,.35); }
 .task-body { flex: 1; min-width: 0; }
 .cli-combo { position: relative; }
@@ -349,7 +350,7 @@ function renderBoards(){
         <div class="task-check"></div>
         <div class="task-body">
           <div class="task-text">${escHtml(t.titulo)}</div>
-          ${t.cliente_nome ? `<div class="task-meta"><span class="task-cliente">👤 ${escHtml(t.cliente_nome)}</span>${t.prioridade ? '<span class="task-prio">🔥 Prioridade</span>' : ''}</div>` : ''}
+          ${t.cliente_nome ? `<div class="task-meta"><span class="task-cliente">👤 ${escHtml(t.cliente_nome)}</span>${t.onboarding_etapa ? `<span class="task-onb">🚀 Onboarding · etapa ${t.onboarding_etapa}</span>` : ''}${t.prioridade ? '<span class="task-prio">🔥 Prioridade</span>' : ''}</div>` : ''}
         </div>
         ${mostrarDono ? '<div class="task-owner">'+nomeUsuario(t.responsavel_id)+'</div>' : ''}
       </div>`).join('');

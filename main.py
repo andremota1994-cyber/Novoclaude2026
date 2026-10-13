@@ -300,7 +300,7 @@ def descrever_movimentacao(ep, body, va, antes, res):
         return 'negociacao', 'Negociação %s: %s' % (a.get('nome'), '; '.join(mud) or 'sem mudança'), None, None
     if ep == 'fechar_negociacao':
         c = (res or {}).get('cliente') or {}
-        return 'negociacao_fechada', 'Negociação fechada: %s virou cliente (%s/mês)' % (a.get('nome'), _brl(body.get('valor') or a.get('valor_previsto'))), c.get('id'), c.get('nome')
+        return 'negociacao_fechada', 'Negociação fechada: %s virou cliente (%s/mês), com o gestor %s' % (a.get('nome'), _brl(body.get('valor') or a.get('valor_previsto')), (res or {}).get('gestor')), c.get('id'), c.get('nome')
     if ep == 'delete_negociacao':
         return 'negociacao', 'Negociação excluída: %s' % a.get('nome'), None, None
     if ep == 'add_usuario':
@@ -837,13 +837,14 @@ def ia_criar_tarefa(titulo, responsavel, prazo='hoje', cliente=None, _autor=None
     return {'ok': True, 'tarefa_id': r.json()[0]['id'], 'responsavel': u['nome'], 'prazo': prazo, 'cliente': nome_cliente}
 
 def ia_concluir_tarefa(tarefa_id):
-    r = requests.patch(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(int(tarefa_id)), headers=supa_headers(), timeout=10,
+    r = requests.patch(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(int(tarefa_id)) + '&concluida=eq.false', headers=supa_headers(), timeout=10,
                        json={'concluida': True, 'concluida_em': datetime.utcnow().isoformat()})
     r.raise_for_status()
     if not r.json():
-        return {'erro': 'Tarefa nao encontrada'}
+        return {'erro': 'Tarefa nao encontrada ou ja concluida'}
     t = r.json()[0]
     registrar('tarefa_concluida', 'Tarefa concluída pelo chat (de %s): %s' % (_nome_usuario(t.get('responsavel_id')), t['titulo']), t.get('cliente_id'))
+    avancar_onboarding(t, current_user())
     return {'ok': True, 'tarefa': t['titulo']}
 
 IA_FERRAMENTAS = [
@@ -1330,9 +1331,78 @@ def add_cliente():
     try:
         body = request.json
         r = requests.post(SUPABASE_URL + '/rest/v1/clientes', headers=supa_headers(), json=body)
-        return jsonify({'ok': True, 'data': r.json()})
+        novo = r.json()
+        if r.ok and isinstance(novo, list) and novo:
+            criar_etapa_onboarding(novo[0]['id'], 1, current_user())
+        return jsonify({'ok': True, 'data': novo})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
+
+# ── Onboarding de cliente novo ──
+# Etapas em config.onboarding_etapas: [{titulo (com {cliente} e {gestor}), quem: admin|gestor, prazo}].
+# Uma etapa por vez: ao concluir a tarefa da etapa N, a etapa N+1 e criada para a pessoa certa.
+def etapas_onboarding():
+    try:
+        return json.loads(ler_config('onboarding_etapas') or '[]')
+    except Exception:
+        return []
+
+def criar_etapa_onboarding(cliente_id, n, autor=None):
+    etapas = etapas_onboarding()
+    if n < 1 or n > len(etapas):
+        return None
+    e = etapas[n - 1]
+    c = _linha('clientes', cliente_id, 'id,nome,gestor_id')
+    if not c:
+        return None
+    usuarios = requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome,role&order=id.asc', headers=supa_headers(), timeout=10).json()
+    admin = next((u for u in usuarios if u['role'] == 'admin'), None)
+    gestor = next((u for u in usuarios if u['id'] == c.get('gestor_id')), None) or admin
+    resp = gestor if e.get('quem') == 'gestor' else admin
+    titulo = e['titulo'].replace('{cliente}', c['nome']).replace('{gestor}', gestor['nome'] if gestor else 'o gestor')
+    tarefa = {'titulo': '🚀 ' + titulo, 'prazo': e.get('prazo') if e.get('prazo') in ('hoje', 'amanha', 'semana') else 'hoje',
+              'responsavel_id': resp['id'], 'cliente_id': c['id'], 'onboarding_etapa': n}
+    r = requests.post(SUPABASE_URL + '/rest/v1/tarefas', headers=supa_headers(), json=tarefa, timeout=10)
+    r.raise_for_status()
+    if not autor or resp['id'] != autor.get('id'):
+        notificar([resp['id']], '🚀 Onboarding %s · etapa %d/%d' % (c['nome'], n, len(etapas)), titulo, '/tarefas')
+    registrar('onboarding', 'Onboarding de %s: etapa %d/%d criada para %s: %s' % (c['nome'], n, len(etapas), resp['nome'], titulo),
+              c['id'], c['nome'], usuario=autor if autor is not None else {})
+    return r.json()[0]
+
+def avancar_onboarding(tarefa, autor=None):
+    # Chamado quando uma tarefa e concluida: se for etapa de onboarding, cria a proxima
+    n = tarefa.get('onboarding_etapa')
+    if not n or not tarefa.get('cliente_id'):
+        return
+    try:
+        total = len(etapas_onboarding())
+        if n < total:
+            criar_etapa_onboarding(tarefa['cliente_id'], n + 1, autor)
+        else:
+            c = _linha('clientes', tarefa['cliente_id'], 'id,nome')
+            registrar('onboarding', 'Onboarding de %s concluído (%d etapas)' % (c and c['nome'], total), tarefa['cliente_id'], c and c['nome'],
+                      usuario=autor if autor is not None else {})
+    except Exception:
+        print('ONBOARDING ERROR:', traceback.format_exc())
+
+def progresso_onboarding(cliente_id):
+    etapas = etapas_onboarding()
+    tarefas = requests.get(SUPABASE_URL + '/rest/v1/tarefas?cliente_id=eq.%d&onboarding_etapa=not.is.null&select=id,titulo,concluida,concluida_em,responsavel_id,onboarding_etapa&order=onboarding_etapa.asc' % int(cliente_id),
+                           headers=supa_headers(), timeout=10).json()
+    if not isinstance(tarefas, list) or not tarefas:
+        return None
+    por_etapa = {t['onboarding_etapa']: t for t in tarefas}
+    c = _linha('clientes', cliente_id, 'nome,gestor_id') or {}
+    saida = []
+    for i, e in enumerate(etapas, 1):
+        t = por_etapa.get(i)
+        previsto = e['titulo'].replace('{cliente}', c.get('nome') or '').replace('{gestor}', _nome_usuario(c.get('gestor_id')) or 'o gestor')
+        saida.append({'etapa': i, 'titulo': t['titulo'].replace('🚀 ', '', 1) if t else previsto,
+                      'quem': e.get('quem'), 'situacao': 'concluida' if t and t['concluida'] else ('em_andamento' if t else 'aguardando'),
+                      'responsavel': _nome_usuario(t['responsavel_id']) if t else None, 'concluida_em': t and t.get('concluida_em')})
+    concluidas = sum(1 for s in saida if s['situacao'] == 'concluida')
+    return {'total': len(etapas), 'concluidas': concluidas, 'etapas': saida}
 
 def dados_status(status):
     # 'ativo' continua sendo o campo que o resto do painel usa; status diz se esta pausado ou inativo
@@ -1490,6 +1560,7 @@ def get_cliente_detalhe(id):
             'atrasado_atual': atrasado_atual,
             'ads_info': ads_info,
             'ads_contas': ads_contas,
+            'onboarding': progresso_onboarding(id),
             'risco_churn': risco
         }})
     except Exception as e:
@@ -2159,7 +2230,10 @@ def delete_tarefa(id):
             if not rows or rows[0].get('responsavel_id') != u['id']:
                 return jsonify({'ok': False, 'error': 'Nao autorizado'}), 403
         now = datetime.utcnow().isoformat()
-        requests.patch(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(id), headers=supa_headers(), json={'concluida': True, 'concluida_em': now})
+        r = requests.patch(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(id) + '&concluida=eq.false', headers=supa_headers(), json={'concluida': True, 'concluida_em': now})
+        feitas = r.json() if r.ok else []
+        if isinstance(feitas, list) and feitas:
+            avancar_onboarding(feitas[0], current_user())
         return jsonify({'ok': True})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
@@ -2318,10 +2392,11 @@ def fechar_negociacao(id):
             return jsonify({'ok': False, 'error': 'Informe a mensalidade do cliente'}), 400
         cargo = unicodedata.normalize('NFKD', (n.get('cargo') or '').lower()).encode('ascii', 'ignore').decode().strip()
         hoje = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m-%d')
+        gestor_id = int((request.json or {}).get('gestor_id') or 0) or current_user()['id']
         cliente = {'nome': n['nome'].strip().upper(), 'valor': valor,
                    'nivel': 'ouro' if valor >= 1500 else 'prata' if valor >= 1000 else 'bronze',
                    'telefone': n.get('telefone'), 'ocupacao': OCUPACAO_POR_CARGO.get(cargo, 'outro' if cargo else None),
-                   'data_inicio': hoje, 'gestor_id': current_user()['id'], 'status': 'ativo', 'ativo': True}
+                   'data_inicio': hoje, 'gestor_id': gestor_id, 'status': 'ativo', 'ativo': True}
         r = requests.post(SUPABASE_URL + '/rest/v1/clientes', headers=supa_headers(), json=cliente, timeout=10)
         r.raise_for_status()
         novo = r.json()[0]
@@ -2329,7 +2404,10 @@ def fechar_negociacao(id):
         requests.patch(SUPABASE_URL + '/rest/v1/negociacoes?id=eq.' + str(id), headers=supa_headers(), timeout=10,
                        json={'status': 'fechado', 'cliente_id': novo['id'], 'fechado_em': agora, 'atualizado_em': agora,
                              'valor_previsto': valor}).raise_for_status()
-        return jsonify({'ok': True, 'cliente': {'id': novo['id'], 'nome': novo['nome']}})
+        criar_etapa_onboarding(novo['id'], 1, current_user())
+        if gestor_id != current_user()['id']:
+            notificar([gestor_id], '🆕 Novo cliente para você', novo['nome'] + ' · 🔥 prioridade: cliente novo', '/painel')
+        return jsonify({'ok': True, 'cliente': {'id': novo['id'], 'nome': novo['nome']}, 'gestor': _nome_usuario(gestor_id)})
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 

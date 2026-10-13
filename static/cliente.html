@@ -62,6 +62,17 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .nivel-ouro { background: #1a1500; color: var(--amber); border: 0.5px solid #3d3000; }
 .nivel-prata { background: #111827; color: #94a3b8; border: 0.5px solid #1f2937; }
 .nivel-bronze { background: #1a0f00; color: #d97706; border: 0.5px solid #3d2000; }
+.onb-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1rem 1.1rem; }
+.onb-barra { height: 6px; border-radius: 6px; background: var(--card2); overflow: hidden; margin-bottom: .8rem; }
+.onb-barra div { height: 100%; background: var(--grad); }
+.onb-etapa { display: flex; align-items: baseline; gap: 8px; padding: 6px 0; font-size: 13px; flex-wrap: wrap; border-top: .5px solid var(--border); }
+.onb-etapa:first-of-type { border-top: none; }
+.onb-ic { width: 18px; text-align: center; }
+.onb-tit { flex: 1; min-width: 200px; color: var(--text-primary); }
+.onb-etapa.concluida .onb-tit { color: var(--text-secondary); text-decoration: line-through; }
+.onb-etapa.aguardando .onb-tit { color: var(--text-muted); }
+.onb-etapa.em_andamento .onb-tit { font-weight: 600; }
+.onb-quem { font-size: 11px; color: var(--text-muted); }
 .status-acoes { display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0; }
 .btn-sit { height: 34px; padding: 0 14px; border-radius: var(--radius); font-size: 12px; cursor: pointer; font-family: inherit; flex-shrink: 0; }
 .btn-sit.pausar { border: 0.5px solid rgba(255,157,66,0.35); background: rgba(255,157,66,0.08); color: var(--amber); }
@@ -312,6 +323,8 @@ function render(){
       <div class="status-acoes">${situacaoBotoes(c)}</div>
     </div>
 
+    ${blocoOnboarding(c.onboarding)}
+
     <div class="section-title">Contrato e financeiro</div>
     <div class="grid">
       <div class="field-card">
@@ -423,6 +436,23 @@ async function alterarIndicacoes(delta){
   const r = await fetch('/api/clientes/' + clienteId + '/indicacoes', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({delta})});
   const j = await r.json();
   if (j.ok) { document.getElementById('indic-valor').textContent = j.indicacoes; cliente.indicacoes = j.indicacoes; }
+}
+
+// Onboarding: etapas em sequência; a próxima é criada quando a anterior é concluída
+function blocoOnboarding(o){
+  if (!o) return '';
+  const pct = Math.round(o.concluidas / o.total * 100);
+  const icone = {concluida: '✅', em_andamento: '⏳', aguardando: '○'};
+  const rotulo = {concluida: 'concluída', em_andamento: 'em andamento', aguardando: 'aguardando'};
+  return `<div class="section-title">🚀 Onboarding · ${o.concluidas}/${o.total} ${o.concluidas === o.total ? '· concluído' : ''}</div>
+    <div class="onb-card">
+      <div class="onb-barra"><div style="width:${pct}%"></div></div>
+      ${o.etapas.map(e => `<div class="onb-etapa ${e.situacao}">
+        <span class="onb-ic">${icone[e.situacao]}</span>
+        <span class="onb-tit">${e.etapa}. ${escHtml(e.titulo)}</span>
+        <span class="onb-quem">${e.responsavel ? escHtml(e.responsavel) : (e.quem === 'gestor' ? 'gestor' : 'você')} · ${rotulo[e.situacao]}${e.concluida_em ? ' em ' + dataBR(e.concluida_em) : ''}</span>
+      </div>`).join('')}
+    </div>`;
 }
 
 // Situação: ativo (entra no faturamento, gestores e painéis), pausado (parou por um tempo) ou inativo (saiu)
