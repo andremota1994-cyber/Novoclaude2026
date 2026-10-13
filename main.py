@@ -814,6 +814,132 @@ def ia_historico(desde=None, ate=None, cliente=None, pessoa=None, tipo=None, lim
     return {'periodo': '%s a %s' % (d0.strftime('%d/%m/%Y'), d1.strftime('%d/%m/%Y')), 'total': len(linhas), 'movimentacoes': linhas,
             'observacao': 'O historico comecou a ser gravado em 13/10/2026; acoes anteriores a isso nao foram registradas.'}
 
+# ── Edicoes do cadastro de clientes pelo chat (so quando o Andre pedir) ──
+def _cliente_unico(cliente):
+    c = ia_ver_cliente(cliente)
+    if c.get('erro'):
+        return None, c
+    return _linha('clientes', c['id'], CAMPOS_CLIENTE), None
+
+def ia_contas_cliente(cliente, adicionar=None, remover=None):
+    c, erro = _cliente_unico(cliente)
+    if erro:
+        return erro
+    disponiveis = [a['account_name'] for a in (_chamar(get_contas_anuncio).get('data') or [])]
+    atuais = contas_de(c)
+    novas, avisos = list(atuais), []
+    for pedido in adicionar or []:
+        exata = next((n for n in disponiveis if _norm(n) == _norm(pedido)), None)
+        if not exata:
+            parecidas = [n for n in disponiveis if _norm(pedido) in _norm(n)]
+            if len(parecidas) == 1:
+                exata = parecidas[0]
+            else:
+                return {'erro': 'Conta "%s" %s. Pergunte ao Andre qual e a certa antes de vincular.' % (
+                    pedido, 'e ambigua' if parecidas else 'nao encontrada no Meta'), 'opcoes': parecidas[:15]}
+        if exata in novas:
+            avisos.append('%s ja estava vinculada' % exata)
+        else:
+            novas.append(exata)
+    for pedido in remover or []:
+        alvo = next((n for n in novas if _norm(n) == _norm(pedido)), None) or next((n for n in novas if _norm(pedido) in _norm(n)), None)
+        if alvo:
+            novas.remove(alvo)
+        else:
+            avisos.append('%s nao estava vinculada' % pedido)
+    if novas != atuais:
+        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.%d' % c['id'], headers=supa_headers(), timeout=10,
+                       json={'contas_anuncio': novas, 'conta_anuncio': novas[0] if novas else None}).raise_for_status()
+        partes = ['vinculou ' + n for n in novas if n not in atuais] + ['desvinculou ' + n for n in atuais if n not in novas]
+        registrar('cliente_contas', 'Cliente %s (pelo chat): %s' % (c['nome'], '; '.join(partes)), c['id'], c['nome'])
+    return {'ok': True, 'cliente': c['nome'], 'contas_antes': atuais, 'contas_agora': novas, 'avisos': avisos}
+
+def ia_editar_cliente(cliente, mensalidade=None, dia_vencimento=None, telefone=None, ocupacao=None, empresa=None, inicio_contrato=None):
+    c, erro = _cliente_unico(cliente)
+    if erro:
+        return erro
+    dados, mud = {}, []
+    if mensalidade is not None:
+        v = float(mensalidade)
+        if v <= 0:
+            return {'erro': 'Mensalidade invalida'}
+        dados.update(valor=v, nivel='ouro' if v >= 1500 else 'prata' if v >= 1000 else 'bronze')
+        mud.append('mensalidade %s → %s' % (_brl(c.get('valor')), _brl(v)))
+    if dia_vencimento is not None:
+        d = int(dia_vencimento)
+        if not 1 <= d <= 31:
+            return {'erro': 'Dia de vencimento deve ser de 1 a 31'}
+        dados['dia_pagamento'] = d
+        mud.append('vencimento dia %s → dia %s' % (c.get('dia_pagamento') or '—', d))
+    if ocupacao is not None:
+        o = _norm(ocupacao).replace('imobiliária', 'imobiliaria')
+        if o not in OCUPACOES_VALIDAS:
+            return {'erro': 'Cargo deve ser um de: ' + ', '.join(OCUPACOES_VALIDAS)}
+        dados['ocupacao'] = o
+        mud.append('cargo %s → %s' % (c.get('ocupacao') or '—', o))
+    for campo, valor, rotulo in (('telefone', telefone, 'telefone'), ('empresa', empresa, 'empresa')):
+        if valor is not None:
+            dados[campo] = str(valor).strip() or None
+            mud.append('%s %s → %s' % (rotulo, c.get(campo) or '—', dados[campo] or '—'))
+    if inicio_contrato is not None:
+        try:
+            dados['data_inicio'] = datetime.strptime(str(inicio_contrato)[:10], '%Y-%m-%d').strftime('%Y-%m-%d')
+        except ValueError:
+            return {'erro': 'Inicio do contrato no formato AAAA-MM-DD'}
+        mud.append('início do contrato %s → %s' % (c.get('data_inicio') or '—', dados['data_inicio']))
+    # Ignora o que ja estava com o mesmo valor
+    iguais = {k for k, v in dados.items() if k != 'nivel' and str(c.get(k) if k != 'valor' else float(c.get('valor') or 0)) == str(v)}
+    if 'valor' in iguais:
+        dados.pop('nivel', None)
+    mud = [m for m, k in zip(mud, [k for k in dados if k != 'nivel']) if k not in iguais]
+    dados = {k: v for k, v in dados.items() if k not in iguais}
+    if not dados:
+        return {'ok': True, 'cliente': c['nome'], 'aviso': 'Nada mudou: os dados ja estavam assim'}
+    requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.%d' % c['id'], headers=supa_headers(), json=dados, timeout=10).raise_for_status()
+    registrar('cliente_dados', 'Cliente %s (pelo chat): %s' % (c['nome'], '; '.join(mud)), c['id'], c['nome'])
+    return {'ok': True, 'cliente': c['nome'], 'alteracoes': mud}
+
+def ia_transferir_cliente(cliente, gestor):
+    c, erro = _cliente_unico(cliente)
+    if erro:
+        return erro
+    u = _achar_usuario(gestor)
+    if not u:
+        return {'erro': 'Gestor nao encontrado: ' + str(gestor)}
+    if c.get('gestor_id') == u['id']:
+        return {'ok': True, 'aviso': '%s ja e cliente de %s' % (c['nome'], u['nome'])}
+    requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.%d' % c['id'], headers=supa_headers(), json={'gestor_id': u['id']}, timeout=10).raise_for_status()
+    de = _nome_usuario(c.get('gestor_id'))
+    registrar('cliente_transferido', 'Cliente %s transferido de %s para %s (pelo chat)' % (c['nome'], de or 'ninguém', u['nome']), c['id'], c['nome'])
+    if u['role'] == 'gestor':
+        notificar([u['id']], '🆕 Novo cliente para você', c['nome'] + (' · 🔥 prioridade: cliente novo' if eh_prioridade(c) else ''), '/painel')
+    return {'ok': True, 'cliente': c['nome'], 'de': de, 'para': u['nome']}
+
+def ia_situacao_cliente(cliente, situacao):
+    if situacao not in ('ativo', 'pausado', 'inativo'):
+        return {'erro': 'Situacao deve ser ativo, pausado ou inativo'}
+    c, erro = _cliente_unico(cliente)
+    if erro:
+        return erro
+    antes = 'ativo' if c.get('ativo') else (c.get('status') or 'inativo')
+    requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.%d' % c['id'], headers=supa_headers(), json=dados_status(situacao), timeout=10).raise_for_status()
+    registrar('cliente_situacao', 'Cliente %s (pelo chat): situação %s → %s' % (c['nome'], antes, situacao), c['id'], c['nome'])
+    return {'ok': True, 'cliente': c['nome'], 'de': antes, 'para': situacao}
+
+def ia_marcar_pagamento(cliente, pago, mes=None):
+    c, erro = _cliente_unico(cliente)
+    if erro:
+        return erro
+    mes = _mes_ou_atual(mes)
+    existe = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=eq.%s&cliente_id=eq.%d' % (mes, c['id']), headers=supa_headers(), timeout=10).json()
+    dados = {'pago': bool(pago), 'updated_at': datetime.utcnow().isoformat()}
+    if existe:
+        requests.patch(SUPABASE_URL + '/rest/v1/pagamentos?id=eq.%d' % existe[0]['id'], headers=supa_headers(), json=dados, timeout=10).raise_for_status()
+    else:
+        requests.post(SUPABASE_URL + '/rest/v1/pagamentos', headers=supa_headers(), json={'mes': mes, 'cliente_id': c['id'], **dados}, timeout=10).raise_for_status()
+    registrar('pagamento', 'Mensalidade de %s (%s, %s): marcado como %s (pelo chat)' % (c['nome'], _mes_txt(mes), _brl(c.get('valor')), 'pago' if pago else 'pendente'), c['id'], c['nome'])
+    return {'ok': True, 'cliente': c['nome'], 'mes': mes, 'pago': bool(pago)}
+
 def ia_criar_tarefa(titulo, responsavel, prazo='hoje', cliente=None, _autor=None):
     if prazo not in ('hoje', 'amanha', 'semana'):
         return {'erro': 'Prazo deve ser hoje, amanha ou semana'}
@@ -887,6 +1013,26 @@ IA_FERRAMENTAS = [
          'titulo': {'type': 'string'}, 'responsavel': {'type': 'string', 'description': 'Nome do gestor ou "eu"'},
          'prazo': {'type': 'string', 'enum': ['hoje', 'amanha', 'semana']},
          'cliente': {'type': 'string', 'description': 'Cliente ligado a tarefa (opcional)'}}, 'required': ['titulo', 'responsavel', 'prazo']}},
+    {'name': 'contas_do_cliente', 'description': 'Vincula e/ou desvincula contas de anuncio do Meta de um cliente. Confere se a conta existe; se o nome for ambiguo devolve as opcoes para perguntar ao Andre. Use so quando o Andre pedir.',
+     'input_schema': {'type': 'object', 'properties': {
+         'cliente': {'type': 'string'},
+         'adicionar': {'type': 'array', 'items': {'type': 'string'}, 'description': 'Nomes das contas a vincular'},
+         'remover': {'type': 'array', 'items': {'type': 'string'}, 'description': 'Nomes das contas a desvincular'}}, 'required': ['cliente']}},
+    {'name': 'editar_cliente', 'description': 'Altera dados do cadastro do cliente: mensalidade, dia de vencimento, telefone, cargo (ocupacao), empresa e inicio do contrato. Informe so o que muda. Use so quando o Andre pedir.',
+     'input_schema': {'type': 'object', 'properties': {
+         'cliente': {'type': 'string'}, 'mensalidade': {'type': 'number'},
+         'dia_vencimento': {'type': 'integer', 'description': '1 a 31'}, 'telefone': {'type': 'string'},
+         'ocupacao': {'type': 'string', 'enum': ['corretor', 'gerente', 'imobiliaria', 'superintendente', 'diretor', 'outro']},
+         'empresa': {'type': 'string'}, 'inicio_contrato': {'type': 'string', 'description': 'AAAA-MM-DD'}}, 'required': ['cliente']}},
+    {'name': 'transferir_cliente', 'description': 'Passa o cliente para outro gestor (o gestor e avisado). Use so quando o Andre pedir.',
+     'input_schema': {'type': 'object', 'properties': {'cliente': {'type': 'string'}, 'gestor': {'type': 'string', 'description': 'Nome do gestor ou "eu"'}},
+                      'required': ['cliente', 'gestor']}},
+    {'name': 'situacao_cliente', 'description': 'Muda a situacao do cliente: ativo, pausado (parou por um tempo) ou inativo (saiu). Use so quando o Andre pedir.',
+     'input_schema': {'type': 'object', 'properties': {'cliente': {'type': 'string'}, 'situacao': {'type': 'string', 'enum': ['ativo', 'pausado', 'inativo']}},
+                      'required': ['cliente', 'situacao']}},
+    {'name': 'marcar_pagamento', 'description': 'Marca a mensalidade de um cliente como paga ou pendente num mes (padrao: mes atual do faturamento). Use so quando o Andre pedir.',
+     'input_schema': {'type': 'object', 'properties': {'cliente': {'type': 'string'}, 'pago': {'type': 'boolean'},
+                                                      'mes': {'type': 'string', 'description': 'AAAA-MM'}}, 'required': ['cliente', 'pago']}},
     {'name': 'concluir_tarefa', 'description': 'Marca uma tarefa como concluida, pelo id (obtido em listar_tarefas). Use so quando o Andre pedir.',
      'input_schema': {'type': 'object', 'properties': {'tarefa_id': {'type': 'integer'}}, 'required': ['tarefa_id']}},
 ]
@@ -913,6 +1059,17 @@ def ia_executar(nome, entrada, autor_id=None):
             r = ia_historico(entrada.get('desde'), entrada.get('ate'), entrada.get('cliente'), entrada.get('pessoa'), entrada.get('tipo'))
         elif nome == 'criar_tarefa':
             r = ia_criar_tarefa(entrada['titulo'], entrada['responsavel'], entrada.get('prazo') or 'hoje', entrada.get('cliente'), _autor=autor_id)
+        elif nome == 'contas_do_cliente':
+            r = ia_contas_cliente(entrada['cliente'], entrada.get('adicionar'), entrada.get('remover'))
+        elif nome == 'editar_cliente':
+            r = ia_editar_cliente(entrada['cliente'], entrada.get('mensalidade'), entrada.get('dia_vencimento'), entrada.get('telefone'),
+                                  entrada.get('ocupacao'), entrada.get('empresa'), entrada.get('inicio_contrato'))
+        elif nome == 'transferir_cliente':
+            r = ia_transferir_cliente(entrada['cliente'], entrada['gestor'])
+        elif nome == 'situacao_cliente':
+            r = ia_situacao_cliente(entrada['cliente'], entrada['situacao'])
+        elif nome == 'marcar_pagamento':
+            r = ia_marcar_pagamento(entrada['cliente'], entrada['pago'], entrada.get('mes'))
         elif nome == 'concluir_tarefa':
             r = ia_concluir_tarefa(entrada['tarefa_id'])
         else:
@@ -927,7 +1084,11 @@ IA_INSTRUCOES = TEAM_INTRO + (
     'de cada um, tarefas, Meta Ads por conta, faturamento, financeiro, repasses e negociacoes). Antes de responder qualquer '
     'pergunta sobre dados, consulte a ferramenta certa; nunca diga que nao tem acesso nem peca ao Andre dados que estao no '
     'sistema. Nao invente numeros: use so o que as ferramentas devolverem. Valores em reais no formato R$ 1.234,56. '
-    'Criar ou concluir tarefas so quando o Andre pedir explicitamente; depois confirme o que foi feito. '
+    'Voce tambem consegue ALTERAR o sistema: criar e concluir tarefas, vincular/desvincular contas de anuncio, editar dados do '
+    'cliente (mensalidade, vencimento, telefone, cargo, empresa, inicio do contrato), transferir cliente de gestor, mudar a '
+    'situacao (ativo/pausado/inativo) e marcar pagamentos. Faca alteracoes so quando o Andre pedir explicitamente; nunca diga '
+    'que nao consegue alterar algo que uma ferramenta faz. Se faltar informacao ou o nome for ambiguo (ex.: mais de uma conta '
+    'parecida), pergunte antes de alterar. Depois de alterar, confirme exatamente o que mudou (de -> para). '
     'Para perguntas sobre o que aconteceu (transferencias, quem fez o que, mudancas, o que foi feito hoje/ontem), use a '
     'ferramenta historico.'
 )
