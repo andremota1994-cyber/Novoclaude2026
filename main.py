@@ -199,6 +199,8 @@ def capturar_antes():
             g.antes = _linha('clientes', va['id'], CAMPOS_CLIENTE)
         elif ep == 'set_pagamento':
             g.antes = _linha('clientes', va['cliente_id'], 'id,nome,valor')
+        elif ep == 'update_checklist_cliente':
+            g.antes = _linha('clientes', va['id'], 'id,nome,checklist')
         elif ep == 'delete_tarefa':
             g.antes = _linha('tarefas', va['id'], 'id,titulo,responsavel_id,cliente_id,clientes(nome)')
         elif ep in ('update_venda', 'delete_venda'):
@@ -228,6 +230,9 @@ def descrever_movimentacao(ep, body, va, antes, res):
         return 'cliente_vencimento', 'Cliente %s: vencimento dia %s → dia %s' % (cnome, a.get('dia_pagamento') or '—', body.get('dia_pagamento') or '—'), cid, cnome
     if ep == 'update_indicacoes':
         return 'cliente_indicacoes', 'Cliente %s: indicações %s → %s' % (cnome, a.get('indicacoes') or 0, (res or {}).get('indicacoes')), cid, cnome
+    if ep == 'update_checklist_cliente':
+        return 'checklist', 'Cliente %s: "%s" %s' % (cnome, CHECKLIST_ITENS.get(body.get('item'), body.get('item')),
+                                                      'marcado como feito' if body.get('feito') else 'desmarcado'), cid, cnome
     if ep == 'update_contas_cliente':
         antes_l, depois_l = contas_de(a), (res or {}).get('contas') or []
         partes = ['vinculou ' + c for c in depois_l if c not in antes_l] + ['desvinculou ' + c for c in antes_l if c not in depois_l]
@@ -648,7 +653,7 @@ def _mes_ou_atual(mes):
     return mes if mes and re.match(r'^\d{4}-\d{2}$', mes) else ler_config('mes_atual')
 
 def ia_listar_clientes(status='ativo', gestor=None, busca=None):
-    clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?select=id,nome,valor,nivel,status,ativo,dia_pagamento,data_inicio,gestor_id,telefone,ocupacao,conta_anuncio,contas_anuncio&order=nome.asc',
+    clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?select=id,nome,valor,nivel,status,ativo,dia_pagamento,data_inicio,gestor_id,telefone,ocupacao,conta_anuncio,contas_anuncio,checklist&order=nome.asc',
                             headers=supa_headers(), timeout=10).json()
     nomes = {u['id']: u['nome'] for u in _usuarios()}
     g = _achar_usuario(gestor) if gestor else None
@@ -664,7 +669,8 @@ def ia_listar_clientes(status='ativo', gestor=None, busca=None):
         saida.append({'id': c['id'], 'nome': c['nome'], 'mensalidade': float(c.get('valor') or 0), 'situacao': st,
                       'gestor': nomes.get(c.get('gestor_id'), ''), 'contas_anuncio': contas_de(c),
                       'dia_vencimento': c.get('dia_pagamento'), 'inicio_contrato': c.get('data_inicio'),
-                      'prioridade_cliente_novo': st == 'ativo' and eh_prioridade(c)})
+                      'prioridade_cliente_novo': st == 'ativo' and eh_prioridade(c),
+                      'checklist_pendente': [CHECKLIST_ITENS[k] for k in CHECKLIST_ITENS if not (c.get('checklist') or {}).get(k)]})
     return {'total': len(saida), 'soma_mensalidades': round(sum(x['mensalidade'] for x in saida), 2), 'clientes': saida}
 
 def ia_ver_cliente(cliente):
@@ -685,6 +691,8 @@ def ia_ver_cliente(cliente):
             'telefone': d.get('telefone'), 'ocupacao': d.get('ocupacao'), 'empresa': d.get('empresa'), 'indicacoes': d.get('indicacoes'),
             'contas_anuncio': d.get('contas_anuncio'), 'meta_ads_30_dias_total': d.get('ads_info'), 'meta_ads_30_dias_por_conta': d.get('ads_contas'),
             'risco_churn': d.get('risco_churn'),
+            'checklist': {CHECKLIST_ITENS[k]: bool((d.get('checklist') or {}).get(k)) for k in CHECKLIST_ITENS},
+            'onboarding': d.get('onboarding'),
             'tarefas_pendentes': [{'id': t['id'], 'titulo': t['titulo'], 'prazo': t['prazo'], 'responsavel': nomes.get(t['responsavel_id'], '')} for t in tarefas]}
 
 def ia_listar_gestores():
@@ -940,6 +948,17 @@ def ia_marcar_pagamento(cliente, pago, mes=None):
     registrar('pagamento', 'Mensalidade de %s (%s, %s): marcado como %s (pelo chat)' % (c['nome'], _mes_txt(mes), _brl(c.get('valor')), 'pago' if pago else 'pendente'), c['id'], c['nome'])
     return {'ok': True, 'cliente': c['nome'], 'mes': mes, 'pago': bool(pago)}
 
+def ia_marcar_checklist(cliente, item, feito=True):
+    c, erro = _cliente_unico(cliente)
+    if erro:
+        return erro
+    r = marcar_checklist(c['id'], item, feito)
+    if not r:
+        return {'erro': 'Item invalido: ' + str(item)}
+    if r['mudou']:
+        registrar('checklist', 'Cliente %s: "%s" %s (pelo chat)' % (c['nome'], CHECKLIST_ITENS[item], 'marcado como feito' if feito else 'desmarcado'), c['id'], c['nome'])
+    return {'ok': True, 'cliente': c['nome'], 'checklist': {CHECKLIST_ITENS[k]: v for k, v in r['checklist'].items()}}
+
 def ia_criar_tarefa(titulo, responsavel, prazo='hoje', cliente=None, _autor=None):
     if prazo not in ('hoje', 'amanha', 'semana'):
         return {'erro': 'Prazo deve ser hoje, amanha ou semana'}
@@ -1007,7 +1026,7 @@ IA_FERRAMENTAS = [
          'tipo': {'type': 'string', 'enum': ['cliente_transferido', 'cliente_novo', 'cliente_situacao', 'cliente_mensalidade', 'cliente_vencimento',
                                              'cliente_contas', 'cliente_dados', 'cliente_indicacoes', 'pagamento', 'virada_mes', 'tarefa_criada',
                                              'tarefa_concluida', 'tarefas_resetadas', 'venda', 'despesa', 'repasse', 'negociacao', 'negociacao_fechada',
-                                             'gestor', 'configuracao', 'agenda']}}}},
+                                             'gestor', 'configuracao', 'agenda', 'onboarding', 'checklist']}}}},
     {'name': 'criar_tarefa', 'description': 'Cria uma tarefa no painel para uma pessoa (o gestor e avisado no celular). Use so quando o Andre pedir para criar.',
      'input_schema': {'type': 'object', 'properties': {
          'titulo': {'type': 'string'}, 'responsavel': {'type': 'string', 'description': 'Nome do gestor ou "eu"'},
@@ -1033,6 +1052,10 @@ IA_FERRAMENTAS = [
     {'name': 'marcar_pagamento', 'description': 'Marca a mensalidade de um cliente como paga ou pendente num mes (padrao: mes atual do faturamento). Use so quando o Andre pedir.',
      'input_schema': {'type': 'object', 'properties': {'cliente': {'type': 'string'}, 'pago': {'type': 'boolean'},
                                                       'mes': {'type': 'string', 'description': 'AAAA-MM'}}, 'required': ['cliente', 'pago']}},
+    {'name': 'marcar_checklist', 'description': 'Marca ou desmarca um item do checklist do cliente: conta_integrada, relatorio_criativivo, grupo_whatsapp, asaas (cadastro no ASAAS). Use so quando o Andre pedir.',
+     'input_schema': {'type': 'object', 'properties': {'cliente': {'type': 'string'},
+                      'item': {'type': 'string', 'enum': ['conta_integrada', 'relatorio_criativivo', 'grupo_whatsapp', 'asaas']},
+                      'feito': {'type': 'boolean', 'description': 'true = feito (padrao), false = desmarcar'}}, 'required': ['cliente', 'item']}},
     {'name': 'concluir_tarefa', 'description': 'Marca uma tarefa como concluida, pelo id (obtido em listar_tarefas). Use so quando o Andre pedir.',
      'input_schema': {'type': 'object', 'properties': {'tarefa_id': {'type': 'integer'}}, 'required': ['tarefa_id']}},
 ]
@@ -1070,6 +1093,8 @@ def ia_executar(nome, entrada, autor_id=None):
             r = ia_situacao_cliente(entrada['cliente'], entrada['situacao'])
         elif nome == 'marcar_pagamento':
             r = ia_marcar_pagamento(entrada['cliente'], entrada['pago'], entrada.get('mes'))
+        elif nome == 'marcar_checklist':
+            r = ia_marcar_checklist(entrada['cliente'], entrada['item'], entrada.get('feito', True))
         elif nome == 'concluir_tarefa':
             r = ia_concluir_tarefa(entrada['tarefa_id'])
         else:
@@ -1086,7 +1111,7 @@ IA_INSTRUCOES = TEAM_INTRO + (
     'sistema. Nao invente numeros: use so o que as ferramentas devolverem. Valores em reais no formato R$ 1.234,56. '
     'Voce tambem consegue ALTERAR o sistema: criar e concluir tarefas, vincular/desvincular contas de anuncio, editar dados do '
     'cliente (mensalidade, vencimento, telefone, cargo, empresa, inicio do contrato), transferir cliente de gestor, mudar a '
-    'situacao (ativo/pausado/inativo) e marcar pagamentos. Faca alteracoes so quando o Andre pedir explicitamente; nunca diga '
+    'situacao (ativo/pausado/inativo), marcar pagamentos e marcar o checklist do cliente. Faca alteracoes so quando o Andre pedir explicitamente; nunca diga '
     'que nao consegue alterar algo que uma ferramenta faz. Se faltar informacao ou o nome for ambiguo (ex.: mais de uma conta '
     'parecida), pergunte antes de alterar. Depois de alterar, confirme exatamente o que mudou (de -> para). '
     'Para perguntas sobre o que aconteceu (transferencias, quem fez o que, mudancas, o que foi feito hoje/ontem), use a '
@@ -1499,9 +1524,37 @@ def add_cliente():
     except Exception as e:
         return jsonify({'ok': False, 'error': str(e)}), 500
 
+# ── Checklist do cliente (itens marcados a mao ou pelo onboarding) ──
+CHECKLIST_ITENS = {'conta_integrada': 'Conta integrada', 'relatorio_criativivo': 'Relatório Criativivo',
+                   'grupo_whatsapp': 'Grupo WhatsApp', 'asaas': 'Cadastrar cliente no ASAAS'}
+
+def marcar_checklist(cliente_id, item, feito):
+    c = _linha('clientes', cliente_id, 'id,nome,checklist')
+    if not c or item not in CHECKLIST_ITENS:
+        return None
+    lista = {k: bool((c.get('checklist') or {}).get(k)) for k in CHECKLIST_ITENS}
+    lista[item] = bool(feito)
+    requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.%d' % int(cliente_id), headers=supa_headers(), json={'checklist': lista}, timeout=10).raise_for_status()
+    return {'cliente': c['nome'], 'checklist': lista, 'mudou': bool((c.get('checklist') or {}).get(item)) != bool(feito)}
+
+@app.route('/api/clientes/<int:id>/checklist', methods=['PATCH'])
+def update_checklist_cliente(id):
+    try:
+        body = request.json or {}
+        if body.get('item') not in CHECKLIST_ITENS:
+            return jsonify({'ok': False, 'error': 'Item invalido'}), 400
+        r = marcar_checklist(id, body['item'], body.get('feito'))
+        if not r:
+            return jsonify({'ok': False, 'error': 'Cliente nao encontrado'}), 404
+        return jsonify({'ok': True, 'checklist': r['checklist']})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
 # ── Onboarding de cliente novo ──
 # Etapas em config.onboarding_etapas: [{titulo (com {cliente} e {gestor}), quem: admin|gestor, prazo}].
 # Uma etapa por vez: ao concluir a tarefa da etapa N, a etapa N+1 e criada para a pessoa certa.
+ONBOARDING_DIAS = 5  # o onboarding inteiro deve terminar em ate 5 dias
+
 def etapas_onboarding():
     try:
         return json.loads(ler_config('onboarding_etapas') or '[]')
@@ -1537,7 +1590,14 @@ def avancar_onboarding(tarefa, autor=None):
     if not n or not tarefa.get('cliente_id'):
         return
     try:
-        total = len(etapas_onboarding())
+        etapas = etapas_onboarding()
+        item = etapas[n - 1].get('marca') if n <= len(etapas) else None
+        if item:
+            r = marcar_checklist(tarefa['cliente_id'], item, True)
+            if r and r['mudou']:
+                registrar('checklist', 'Cliente %s: "%s" marcado automaticamente ao concluir a etapa %d do onboarding' % (r['cliente'], CHECKLIST_ITENS[item], n),
+                          tarefa['cliente_id'], r['cliente'], usuario=autor if autor is not None else {})
+        total = len(etapas)
         if n < total:
             criar_etapa_onboarding(tarefa['cliente_id'], n + 1, autor)
         else:
@@ -1549,7 +1609,7 @@ def avancar_onboarding(tarefa, autor=None):
 
 def progresso_onboarding(cliente_id):
     etapas = etapas_onboarding()
-    tarefas = requests.get(SUPABASE_URL + '/rest/v1/tarefas?cliente_id=eq.%d&onboarding_etapa=not.is.null&select=id,titulo,concluida,concluida_em,responsavel_id,onboarding_etapa&order=onboarding_etapa.asc' % int(cliente_id),
+    tarefas = requests.get(SUPABASE_URL + '/rest/v1/tarefas?cliente_id=eq.%d&onboarding_etapa=not.is.null&select=id,titulo,concluida,concluida_em,created_at,responsavel_id,onboarding_etapa&order=onboarding_etapa.asc' % int(cliente_id),
                            headers=supa_headers(), timeout=10).json()
     if not isinstance(tarefas, list) or not tarefas:
         return None
@@ -1563,7 +1623,13 @@ def progresso_onboarding(cliente_id):
                       'quem': e.get('quem'), 'situacao': 'concluida' if t and t['concluida'] else ('em_andamento' if t else 'aguardando'),
                       'responsavel': _nome_usuario(t['responsavel_id']) if t else None, 'concluida_em': t and t.get('concluida_em')})
     concluidas = sum(1 for s in saida if s['situacao'] == 'concluida')
-    return {'total': len(etapas), 'concluidas': concluidas, 'etapas': saida}
+    # Prazo do processo: ate 5 dias a partir da primeira etapa
+    inicio = datetime.fromisoformat(str(por_etapa.get(1, tarefas[0])['created_at'])[:19]) - timedelta(hours=3)
+    prazo = (inicio + timedelta(days=ONBOARDING_DIAS)).date()
+    hoje = (datetime.utcnow() - timedelta(hours=3)).date()
+    return {'total': len(etapas), 'concluidas': concluidas, 'etapas': saida, 'inicio': inicio.strftime('%Y-%m-%d'),
+            'prazo_final': prazo.strftime('%Y-%m-%d'), 'atrasado': concluidas < len(etapas) and hoje > prazo,
+            'dias_restantes': (prazo - hoje).days}
 
 def dados_status(status):
     # 'ativo' continua sendo o campo que o resto do painel usa; status diz se esta pausado ou inativo
@@ -2554,10 +2620,12 @@ def fechar_negociacao(id):
         cargo = unicodedata.normalize('NFKD', (n.get('cargo') or '').lower()).encode('ascii', 'ignore').decode().strip()
         hoje = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m-%d')
         gestor_id = int((request.json or {}).get('gestor_id') or 0) or current_user()['id']
+        dia = (request.json or {}).get('dia_pagamento')
+        dia = int(dia) if dia and 1 <= int(dia) <= 31 else None
         cliente = {'nome': n['nome'].strip().upper(), 'valor': valor,
                    'nivel': 'ouro' if valor >= 1500 else 'prata' if valor >= 1000 else 'bronze',
                    'telefone': n.get('telefone'), 'ocupacao': OCUPACAO_POR_CARGO.get(cargo, 'outro' if cargo else None),
-                   'data_inicio': hoje, 'gestor_id': gestor_id, 'status': 'ativo', 'ativo': True}
+                   'data_inicio': hoje, 'gestor_id': gestor_id, 'status': 'ativo', 'ativo': True, 'dia_pagamento': dia}
         r = requests.post(SUPABASE_URL + '/rest/v1/clientes', headers=supa_headers(), json=cliente, timeout=10)
         r.raise_for_status()
         novo = r.json()[0]

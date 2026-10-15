@@ -62,6 +62,16 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 .nivel-ouro { background: #1a1500; color: var(--amber); border: 0.5px solid #3d3000; }
 .nivel-prata { background: #111827; color: #94a3b8; border: 0.5px solid #1f2937; }
 .nivel-bronze { background: #1a0f00; color: #d97706; border: 0.5px solid #3d2000; }
+.ck-card { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.ck-item { display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 12px; background: var(--card); border: 1px solid var(--border); cursor: pointer; font-size: 13px; transition: border-color .15s, background .15s; }
+.ck-item:hover { border-color: var(--border-strong); }
+.ck-item input { width: 17px; height: 17px; accent-color: var(--green); cursor: pointer; }
+.ck-item.feito { background: rgba(47,217,127,.07); border-color: rgba(47,217,127,.35); }
+.ck-item.feito span { color: var(--green); }
+.onb-topo { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--text-secondary); margin-bottom: .6rem; }
+.onb-prazo { font-weight: 600; color: var(--amber); }
+.onb-prazo.atrasado { color: var(--red); }
+.onb-prazo.ok { color: var(--green); }
 .onb-card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1rem 1.1rem; }
 .onb-barra { height: 6px; border-radius: 6px; background: var(--card2); overflow: hidden; margin-bottom: .8rem; }
 .onb-barra div { height: 100%; background: var(--grad); }
@@ -323,6 +333,7 @@ function render(){
       <div class="status-acoes">${situacaoBotoes(c)}</div>
     </div>
 
+    ${blocoChecklist(c.checklist)}
     ${blocoOnboarding(c.onboarding)}
 
     <div class="section-title">Contrato e financeiro</div>
@@ -438,14 +449,39 @@ async function alterarIndicacoes(delta){
   if (j.ok) { document.getElementById('indic-valor').textContent = j.indicacoes; cliente.indicacoes = j.indicacoes; }
 }
 
+// Checklist do cliente (marcado à mão ou ao concluir a etapa do onboarding)
+const CHECKLIST = [['conta_integrada', 'Conta integrada'], ['relatorio_criativivo', 'Relatório Criativivo'],
+                   ['grupo_whatsapp', 'Grupo WhatsApp'], ['asaas', 'Cadastrar cliente no ASAAS']];
+function blocoChecklist(ck){
+  ck = ck || {};
+  const feitos = CHECKLIST.filter(([k]) => ck[k]).length;
+  return `<div class="section-title">✅ Checklist · ${feitos}/${CHECKLIST.length}</div>
+    <div class="ck-card">${CHECKLIST.map(([k, rot]) => `<label class="ck-item ${ck[k] ? 'feito' : ''}">
+      <input type="checkbox" ${ck[k] ? 'checked' : ''} onchange="marcarChecklist('${k}', this.checked, this)"><span>${rot}</span></label>`).join('')}</div>`;
+}
+async function marcarChecklist(item, feito, el){
+  el.closest('.ck-item').classList.toggle('feito', feito);
+  const r = await fetch('/api/clientes/' + clienteId + '/checklist', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({item, feito})});
+  const j = await r.json().catch(() => ({ok: false}));
+  if (!j.ok) { alert('Não foi possível salvar o checklist.'); el.checked = !feito; el.closest('.ck-item').classList.toggle('feito', !feito); return; }
+  cliente.checklist = j.checklist;
+  const t = [...document.querySelectorAll('.section-title')].find(s => s.textContent.startsWith('✅ Checklist'));
+  if (t) t.textContent = '✅ Checklist · ' + CHECKLIST.filter(([k]) => j.checklist[k]).length + '/' + CHECKLIST.length;
+}
+
 // Onboarding: etapas em sequência; a próxima é criada quando a anterior é concluída
 function blocoOnboarding(o){
   if (!o) return '';
   const pct = Math.round(o.concluidas / o.total * 100);
   const icone = {concluida: '✅', em_andamento: '⏳', aguardando: '○'};
   const rotulo = {concluida: 'concluída', em_andamento: 'em andamento', aguardando: 'aguardando'};
-  return `<div class="section-title">🚀 Onboarding · ${o.concluidas}/${o.total} ${o.concluidas === o.total ? '· concluído' : ''}</div>
+  const dia = s => s ? s.split('-').reverse().join('/') : '';  // datas AAAA-MM-DD sem fuso
+  const prazo = o.concluidas === o.total ? '<span class="onb-prazo ok">concluído</span>'
+    : o.atrasado ? `<span class="onb-prazo atrasado">⚠️ atrasado · prazo era ${dia(o.prazo_final)}</span>`
+    : `<span class="onb-prazo">prazo ${dia(o.prazo_final)} · ${o.dias_restantes === 0 ? 'vence hoje' : 'faltam ' + o.dias_restantes + ' dia(s)'}</span>`;
+  return `<div class="section-title">🚀 Onboarding · ${o.concluidas}/${o.total}</div>
     <div class="onb-card">
+      <div class="onb-topo"><span>Início ${dia(o.inicio)} · prazo de 5 dias</span>${prazo}</div>
       <div class="onb-barra"><div style="width:${pct}%"></div></div>
       ${o.etapas.map(e => `<div class="onb-etapa ${e.situacao}">
         <span class="onb-ic">${icone[e.situacao]}</span>

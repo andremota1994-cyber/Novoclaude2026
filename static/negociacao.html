@@ -156,8 +156,9 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
       <div class="campos">
         <div class="campo"><label for="fc-gestor">Gestor responsável</label><select id="fc-gestor"></select></div>
         <div class="campo"><label for="fc-valor">Mensalidade (R$)</label><input id="fc-valor" type="number" min="1" step="50"></div>
+        <div class="campo"><label for="fc-dia">Dia de pagamento</label><input id="fc-dia" type="number" min="1" max="31" placeholder="10"></div>
       </div>
-      <p class="fech-nota">O cliente vira ativo (Clientes, Faturamento e carteira do gestor) e o <b>onboarding</b> começa: a primeira tarefa, "Acessar BM do cliente", entra para você agora.</p>
+      <p class="fech-nota">O cliente vira ativo (Clientes, Faturamento e carteira do gestor) e o <b>onboarding de 5 dias</b> começa: a primeira tarefa, "Pegar BM do cliente", entra para você agora.</p>
       <div class="modal-acoes">
         <button class="btn btn-ghost" onclick="cancelarFechamento()">Voltar</button>
         <button class="btn btn-primary" id="btn-confirmar-fechamento" onclick="confirmarFechamento()">Confirmar fechamento</button>
@@ -278,6 +279,7 @@ async function fecharNegocio(){
   const sel = document.getElementById('fc-gestor');
   sel.innerHTML = '<option value="">Selecione o gestor...</option>' + usuariosLista.map(u => '<option value="' + u.id + '">' + esc(u.role === 'admin' ? 'Eu (' + u.nome + ')' : u.nome) + '</option>').join('');
   document.getElementById('fc-valor').value = Number(document.getElementById('f-valor').value || n.valor_previsto || 0) || '';
+  document.getElementById('fc-dia').value = '';
   document.getElementById('fechamento').style.display = 'block';
   document.getElementById('acoes-normais').style.display = 'none';
   sel.focus();
@@ -293,9 +295,11 @@ async function confirmarFechamento(){
   const valor = Number(document.getElementById('fc-valor').value);
   if (!gestorId) { alert('Escolha o gestor responsável.'); return; }
   if (!(valor > 0)) { alert('Informe a mensalidade.'); return; }
+  const dia = Number(document.getElementById('fc-dia').value);
+  if (!(dia >= 1 && dia <= 31)) { alert('Informe o dia de pagamento (1 a 31).'); return; }
   const btn = document.getElementById('btn-confirmar-fechamento'); btn.disabled = true;
   try {
-    const j = await (await fetch('/api/negociacoes/' + n.id + '/fechar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({valor, gestor_id: Number(gestorId)})})).json();
+    const j = await (await fetch('/api/negociacoes/' + n.id + '/fechar', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({valor, gestor_id: Number(gestorId), dia_pagamento: dia})})).json();
     if (!j.ok) { alert('Não foi possível fechar: ' + j.error); return; }
     fechar();
     await carregar();
