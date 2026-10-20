@@ -190,6 +190,7 @@ const OCUPACOES = [
 ];
 let cliente = null;
 let contasDisponiveis = [];
+let contasCarregadas = false;
 
 function fmt(v){ return 'R$ ' + Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 function escAttr(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
@@ -228,7 +229,7 @@ function comboRender(){
   const lista = document.getElementById('combo-contas');
   lista.innerHTML = comboOpcoes.length
     ? comboOpcoes.map((o, i) => `<div class="combo-opt ${o.classe} ${i === comboAtivo ? 'active' : ''}" role="option" onmousedown="event.preventDefault(); comboEscolher(${i})">${o.html}</div>`).join('')
-    : `<div class="combo-empty">${contasDisponiveis.length ? 'Nenhuma conta encontrada.' : 'Nenhuma conta de anúncios disponível.'}</div>`;
+    : `<div class="combo-empty">${!contasCarregadas ? 'Carregando contas…' : contasDisponiveis.length ? 'Nenhuma conta encontrada.' : 'Nenhuma conta de anúncios disponível.'}</div>`;
   lista.classList.add('open');
   const ativo = lista.querySelector('.combo-opt.active');
   if (ativo) ativo.scrollIntoView({block: 'nearest'});
@@ -294,16 +295,16 @@ function fmtTempoCasa(dias){
 
 async function carregar(){
   try {
-    const [rc, ra] = await Promise.all([
-      fetch('/api/clientes/' + clienteId),
-      fetch('/api/contas-anuncio')
-    ]);
-    const jc = await rc.json();
-    const ja = await ra.json();
+    // A lista de contas do Windsor é lenta: a ficha abre sem esperar por ela
+    const contasPromise = fetch('/api/contas-anuncio').then(r => r.json()).catch(() => ({ok: false}));
+    const jc = await (await fetch('/api/clientes/' + clienteId)).json();
     if (!jc.ok) { document.getElementById('conteudo').innerHTML = '<a class="back-link" href="/clientes">← Voltar para Clientes</a><div class="loading-box">Erro: ' + jc.error + '</div>'; return; }
     cliente = jc.data;
-    contasDisponiveis = ja.ok ? ja.data : [];
     render();
+    contasPromise.then(ja => {
+      contasDisponiveis = ja.ok ? ja.data : []; contasCarregadas = true;
+      if (document.activeElement && document.activeElement.id === 'input-conta-anuncio') comboAbrir();
+    });
   } catch (e) {
     document.getElementById('conteudo').innerHTML = '<a class="back-link" href="/clientes">← Voltar para Clientes</a><div class="loading-box">Erro de conexão.</div>';
   }

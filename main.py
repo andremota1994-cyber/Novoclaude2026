@@ -1892,10 +1892,16 @@ def corrigir_vinculos_renomeados(nomes_vinculados, ads_data):
                       c['id'], None, usuario={})
     return renomes
 
+_contas_anuncio_cache = {'em': None, 'dados': None}
+
 @app.route('/api/contas-anuncio', methods=['GET'])
 def get_contas_anuncio():
     # Junta as contas conectadas com as que tiveram gasto em 30 dias,
-    # para que contas novas ou pausadas tambem aparecam na busca
+    # para que contas novas ou pausadas tambem aparecam na busca.
+    # O Windsor demora ate 1 min nessa consulta: guarda o resultado por 10 min.
+    agora = datetime.utcnow()
+    if _contas_anuncio_cache['em'] and agora - _contas_anuncio_cache['em'] < timedelta(minutes=10):
+        return jsonify({'ok': True, 'data': _contas_anuncio_cache['dados']})
     erros = []
     try:
         ads_data = fetch_ads_data(date_preset='last_30dT')
@@ -1912,7 +1918,10 @@ def get_contas_anuncio():
     todas = sorted((conectadas | com_dados) - {''}, key=str.lower)
     if not todas and erros:
         return jsonify({'ok': False, 'error': '; '.join(erros)}), 500
-    return jsonify({'ok': True, 'data': [{'account_name': n, 'com_gasto': n in com_gasto} for n in todas]})
+    dados = [{'account_name': n, 'com_gasto': n in com_gasto} for n in todas]
+    if not erros:
+        _contas_anuncio_cache.update(em=agora, dados=dados)
+    return jsonify({'ok': True, 'data': dados})
 
 # ── Usuarios / Gestores ──
 @app.route('/api/usuarios', methods=['GET'])
