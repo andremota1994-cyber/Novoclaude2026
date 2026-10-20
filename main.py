@@ -108,12 +108,12 @@ def gerar_senha_temp(n=8):
     alfabeto = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alfabeto) for _ in range(n))
 
-ADMIN_ONLY_PAGES = {'/', '/faturamento', '/financeiro', '/agenda', '/clientes', '/gestores', '/negociacao'}
+ADMIN_ONLY_PAGES = {'/', '/faturamento', '/financeiro', '/agenda', '/clientes', '/gestores', '/negociacao', '/dashboards'}
 ADMIN_ONLY_API_PREFIXES = (
     '/api/despesas', '/api/financeiro', '/api/agenda', '/api/google',
     '/api/clientes', '/api/contas-anuncio', '/api/config', '/api/pagamentos',
     '/api/historico', '/api/debug', '/api/briefing', '/api/chat',
-    '/api/usuarios', '/api/gestores', '/api/faturamento', '/api/vendas', '/api/repasses', '/api/negociacoes'
+    '/api/usuarios', '/api/gestores', '/api/faturamento', '/api/vendas', '/api/repasses', '/api/negociacoes', '/api/dashboards'
 )
 ADMIN_ONLY_EXACT_API = {'/api/tarefas/resetar', '/api/data'}
 
@@ -197,6 +197,8 @@ def capturar_antes():
         if ep in ('update_status_cliente', 'delete_cliente', 'update_dia_pagamento', 'update_valor_cliente', 'update_contas_cliente',
                   'update_perfil_cliente', 'update_indicacoes', 'update_gestor_cliente'):
             g.antes = _linha('clientes', va['id'], CAMPOS_CLIENTE)
+        elif ep == 'update_dashboard_cliente':
+            g.antes = _linha('clientes', va['id'], 'id,nome,dashboard_url,dashboard_senha')
         elif ep == 'set_pagamento':
             g.antes = _linha('clientes', va['cliente_id'], 'id,nome,valor')
         elif ep == 'update_checklist_cliente':
@@ -240,6 +242,13 @@ def descrever_movimentacao(ep, body, va, antes, res):
     if ep == 'update_perfil_cliente':
         mud = ['%s: %s → %s' % (k, a.get(k) or '—', v or '—') for k, v in body.items() if str(a.get(k) or '') != str(v or '')]
         return 'cliente_dados', 'Cliente %s: %s' % (cnome, '; '.join(mud) or 'dados salvos sem mudança'), cid, cnome
+    if ep == 'update_dashboard_cliente':
+        mud = []
+        if 'url' in body and (a.get('dashboard_url') or '') != (body.get('url') or '').strip():
+            mud.append('link do dashboard %s → %s' % (a.get('dashboard_url') or '—', (body.get('url') or '').strip() or '—'))
+        if 'senha' in body and (a.get('dashboard_senha') or '') != (body.get('senha') or '').strip():
+            mud.append('senha do dashboard alterada')  # a senha em si nao vai pro historico
+        return 'cliente_dashboard', 'Cliente %s: %s' % (cnome, '; '.join(mud) or 'dashboard salvo sem mudança'), cid, cnome
     if ep == 'add_cliente':
         novo = (res or {}).get('data')
         novo = novo[0] if isinstance(novo, list) and novo else (novo or {})
@@ -2539,6 +2548,50 @@ def cliente_detalhe_page(id):
 @app.route('/gestores')
 def gestores_page():
     return send_from_directory('static', 'gestores.html')
+
+# ── Dashboards dos clientes (so admin) ──
+# Clientes Prata e Ouro ganham um dashboard proprio (sites na Vercel). Link e senha
+# ficam no cadastro do cliente (clientes.dashboard_url / dashboard_senha).
+@app.route('/dashboards')
+def dashboards_page():
+    return send_from_directory('static', 'dashboards.html')
+
+@app.route('/api/dashboards', methods=['GET'])
+def listar_dashboards():
+    try:
+        clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes', headers=supa_headers(), timeout=10, params={
+            'select': 'id,nome,nivel,valor,status,ativo,gestor_id,dashboard_url,dashboard_senha',
+            'or': '(nivel.in.(prata,ouro),dashboard_url.not.is.null)', 'order': 'nome.asc'}).json()
+        nomes = {u['id']: u['nome'] for u in requests.get(SUPABASE_URL + '/rest/v1/usuarios?select=id,nome', headers=supa_headers(), timeout=10).json()}
+        lista = []
+        for c in clientes:
+            # Inativo sem dashboard nao interessa; inativo com dashboard aparece (o site continua no ar)
+            if (c.get('status') or ('ativo' if c.get('ativo') else 'inativo')) == 'inativo' and not c.get('dashboard_url'):
+                continue
+            c['gestor'] = nomes.get(c.get('gestor_id'))
+            lista.append(c)
+        return jsonify({'ok': True, 'clientes': lista})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/clientes/<int:id>/dashboard', methods=['PATCH'])
+def update_dashboard_cliente(id):
+    body = request.json or {}
+    campos = {}
+    if 'url' in body:
+        url = (body.get('url') or '').strip()
+        if url and not url.startswith('http'):
+            url = 'https://' + url
+        campos['dashboard_url'] = url or None
+    if 'senha' in body:
+        campos['dashboard_senha'] = (body.get('senha') or '').strip() or None
+    if not campos:
+        return jsonify({'ok': False, 'error': 'Nada para atualizar'}), 400
+    try:
+        requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.%d' % id, headers=supa_headers(), json=campos, timeout=10).raise_for_status()
+        return jsonify({'ok': True})
+    except Exception as e:
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 # ── Em negociacao: possiveis clientes (so admin) ──
 CAMPOS_NEGOCIACAO = ('nome', 'origem', 'telefone', 'cargo', 'valor_previsto', 'status', 'previsao_mes')

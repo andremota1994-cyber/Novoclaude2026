@@ -194,7 +194,7 @@ let contasDisponiveis = [];
 function fmt(v){ return 'R$ ' + Number(v||0).toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
 function escAttr(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/"/g,'&quot;'); }
 
-function escHtml(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function escHtml(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function semAcento(v){ return String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
 
 // Busca da conta de anúncios: filtra enquanto digita, sem depender do datalist do navegador
@@ -383,6 +383,14 @@ function render(){
       </div>
     </div>
 
+    <div class="section-title">Dashboard do cliente</div>
+    <div class="form-card">
+      <div class="form-grid">
+        <div class="form-field"><label>Link do dashboard${c.dashboard_url ? ` · <a href="${escHtml(c.dashboard_url)}" target="_blank" rel="noopener" style="color:var(--blue-bright)">abrir ↗</a>` : ''}</label><input value="${escHtml(c.dashboard_url || '')}" placeholder="https://dashboard-cliente.vercel.app" onchange="salvarDashboard('url', this.value)"></div>
+        <div class="form-field"><label>Senha do dashboard</label><input value="${escHtml(c.dashboard_senha || '')}" placeholder="Senha que o cliente usa" onchange="salvarDashboard('senha', this.value)"></div>
+      </div>
+    </div>
+
     <div class="section-title">Contas de anúncios (Meta Ads)</div>
     <div class="ads-card">
       <div class="contas-vinculadas">
@@ -423,6 +431,13 @@ function render(){
       ${risco.motivos && risco.motivos.length ? '<ul class="risco-motivos">' + risco.motivos.map(m => '<li>' + m + '</li>').join('') + '</ul>' : '<div class="risco-ok">Nenhum sinal de risco identificado no momento.</div>'}
     </div>
   `;
+}
+
+async function salvarDashboard(campo, valor){
+  const r = await fetch('/api/clientes/' + clienteId + '/dashboard', {method: 'PATCH', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({[campo]: valor})});
+  const j = await r.json();
+  if (!j.ok) { alert('Não foi possível salvar o dashboard.'); return; }
+  await carregar();
 }
 
 async function salvarPerfil(campo, valor){

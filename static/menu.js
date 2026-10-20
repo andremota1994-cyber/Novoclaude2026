@@ -11,7 +11,8 @@
     {label: 'Agenda',      href: '/agenda'},
     {label: 'Clientes',    href: '/clientes'},
     {label: 'Em negociação', href: '/negociacao'},
-    {label: 'Gestores',    href: '/gestores'}
+    {label: 'Gestores',    href: '/gestores'},
+    {label: 'Dashboards',  href: '/dashboards'}
   ];
 
   const css = `

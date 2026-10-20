@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/static/icone-192.png">
+<link rel="apple-touch-icon" href="/static/icone-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mobilli">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#060504">
+<title>Dashboards - Mobilli Digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #060504; --card: rgba(228,190,110,0.055); --card2: rgba(228,190,110,0.10);
+  --border: rgba(228,190,110,0.16); --border-strong: rgba(228,190,110,0.30);
+  --blue: #d4af37; --blue-bright: #f3d888;
+  --grad: linear-gradient(135deg, #f3d888, #9c7a24);
+  --text-primary: #f7f3ea; --text-secondary: #a89a78; --text-muted: #6b6047;
+  --green: #2fd97f; --amber: #ff9d42; --purple: #c9a8ff;
+  --red: #ff5c72; --red-bg: rgba(255,92,114,0.08); --red-border: rgba(255,92,114,0.28);
+  --radius: 10px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); display: flex; flex-direction: column; position: relative; }
+.bg-ambient { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.blob-a, .blob-b { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .32; }
+.blob-a { width: 520px; height: 520px; background: radial-gradient(circle, rgba(212,175,55,.35), transparent 70%); top: -160px; left: -120px; animation: driftA 24s ease-in-out infinite; }
+.blob-b { width: 480px; height: 480px; background: radial-gradient(circle, rgba(156,122,36,.28), transparent 70%); bottom: -180px; right: -140px; animation: driftB 28s ease-in-out infinite; }
+@keyframes driftA { 0%,100%{transform:translate(0,0)} 50%{transform:translate(60px,40px)} }
+@keyframes driftB { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-50px,-30px)} }
+.topbar, .main { position: relative; z-index: 1; }
+@media (prefers-reduced-motion: reduce) { .blob-a, .blob-b { animation: none !important; } * { transition: none !important; } }
+
+.main { flex: 1; overflow-y: auto; padding: 2rem; }
+.inner { max-width: 1200px; margin: 0 auto; }
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 12px; }
+.page-header-left h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+.page-header-left p { font-size: 13px; color: var(--text-secondary); }
+
+.search-box { position: relative; width: 260px; max-width: 100%; }
+.search-box input { width: 100%; height: 38px; background: var(--card); border: 0.5px solid var(--border); border-radius: 8px; padding: 0 34px 0 12px; font-size: 13px; color: var(--text-primary); outline: none; font-family: inherit; transition: border-color .15s, background .15s; }
+.search-box input:focus { border-color: var(--border-strong); background: var(--card2); }
+.search-box input::placeholder { color: var(--text-muted); }
+.search-box .clear-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 15px; line-height: 1; padding: 4px; display: none; }
+.search-box.has-value .clear-btn { display: block; }
+
+.filtros { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.chip { padding: 6px 12px; border-radius: 20px; font-size: 12px; border: 0.5px solid var(--border); background: transparent; color: var(--text-secondary); cursor: pointer; font-family: inherit; transition: all .15s; }
+.chip:hover { color: var(--text-primary); background: var(--card); }
+.chip.ativo { color: #171206; background: var(--grad); border-color: transparent; font-weight: 600; }
+.chip b { font-weight: 600; margin-left: 4px; }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.dcard { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 10px; transition: border-color .15s, transform .12s; }
+.dcard:hover { border-color: var(--border-strong); }
+.dcard.falta { border-style: dashed; }
+.dcard-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.dcard .nm { font-size: 14px; font-weight: 600; line-height: 1.3; }
+.dcard .nm a { color: inherit; text-decoration: none; }
+.dcard .nm a:hover { text-decoration: underline; }
+.dcard .sub { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; }
+.nivel { font-size: 10.5px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; flex-shrink: 0; }
+.nivel-ouro { background: #1a1500; color: var(--amber); border: 0.5px solid #3d3000; }
+.nivel-prata { background: #111827; color: #94a3b8; border: 0.5px solid #1f2937; }
+.nivel-bronze { background: #1a0f00; color: #d97706; border: 0.5px solid #3d2000; }
+.tag-pausado { font-size: 10.5px; color: var(--amber); margin-left: 6px; }
+.dominio { font-size: 11.5px; color: var(--blue-bright); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.senha-linha { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-secondary); }
+.senha-linha code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--text-primary); background: var(--card2); padding: 2px 7px; border-radius: 6px; }
+.senha-linha .sem { color: var(--text-muted); font-style: italic; }
+.acoes { display: flex; gap: 8px; margin-top: auto; }
+.btn { padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; border: none; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.btn-primary { background: var(--grad); color: #171206; flex: 1; }
+.btn-ghost { background: transparent; color: var(--text-secondary); border: 0.5px solid var(--border); }
+.btn-ghost:hover { color: var(--text-primary); background: var(--card2); }
+.btn-mini { padding: 3px 9px; font-size: 11px; font-weight: 500; border-radius: 6px; }
+.vazio { text-align: center; padding: 3rem 1rem; color: var(--text-muted); font-size: 13px; grid-column: 1 / -1; }
+
+.toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(20px); background: #1a160e; border: 1px solid var(--border-strong); color: var(--text-primary); padding: 10px 16px; border-radius: 10px; font-size: 13px; opacity: 0; pointer-events: none; transition: all .2s; z-index: 60; }
+.toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 50; padding: 1rem; }
+.modal-overlay.on { display: flex; }
+.modal { background: #0d0b08; border: 1px solid var(--border-strong); border-radius: 14px; padding: 1.5rem; max-width: 420px; width: 100%; }
+.modal h3 { font-size: 16px; margin-bottom: 1rem; }
+.modal label { display: block; font-size: 12px; color: var(--text-secondary); margin-bottom: 6px; }
+.modal input { width: 100%; height: 40px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0 12px; font-size: 14px; color: var(--text-primary); outline: none; font-family: inherit; margin-bottom: 1rem; }
+.modal input:focus { border-color: var(--border-strong); }
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+
+@media (max-width: 700px) {
+  .main { padding: 1.25rem 1rem; }
+  .search-box { width: 100%; }
+}
+</style>
+</head>
+<body>
+<div class="bg-ambient"><div class="blob-a"></div><div class="blob-b"></div></div>
+
+<div class="topbar" id="menu-principal"></div>
+<script src="/static/menu.js"></script>
+<div class="main">
+  <div class="inner">
+    <div class="page-header">
+      <div class="page-header-left">
+        <h2>📊 Dashboards</h2>
+        <p>Painéis dos clientes Prata e Ouro. "Abrir" já copia a senha, é só colar.</p>
+      </div>
+      <div class="search-box" id="search-box">
+        <input type="text" id="busca" placeholder="Buscar cliente..." oninput="onBusca()">
+        <button class="clear-btn" onclick="limparBusca()" title="Limpar">✕</button>
+      </div>
+    </div>
+    <div class="filtros" id="filtros"></div>
+    <div class="grid" id="grid"><div class="vazio">Carregando...</div></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal" onclick="if(event.target===this) fecharModal()">
+  <div class="modal">
+    <h3 id="modal-titulo">Dashboard</h3>
+    <label for="m-url">Link do dashboard</label>
+    <input type="text" id="m-url" placeholder="https://dashboard-cliente.vercel.app">
+    <label for="m-senha">Senha de acesso</label>
+    <input type="text" id="m-senha" placeholder="Senha que o cliente usa">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="fecharModal()">Cancelar</button>
+      <button class="btn btn-primary" style="flex:0" id="m-salvar" onclick="salvarModal()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let clientes = [];
+let filtro = 'todos';
+let busca = '';
+let editando = null;
+
+const FILTROS = [
+  {id: 'todos', label: 'Todos', ok: c => true},
+  {id: 'com', label: 'Com dashboard', ok: c => !!c.dashboard_url},
+  {id: 'falta', label: 'Falta dashboard', ok: c => !c.dashboard_url},
+  {id: 'ouro', label: '🥇 Ouro', ok: c => c.nivel === 'ouro'},
+  {id: 'prata', label: '🥈 Prata', ok: c => c.nivel === 'prata'}
+];
+
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch])); }
+function dominio(url){ try { return new URL(url).host; } catch(_) { return url; } }
+function normaliza(s){ return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+function nivelBadge(n){
+  if (n === 'ouro') return '<span class="nivel nivel-ouro">🥇 Ouro</span>';
+  if (n === 'prata') return '<span class="nivel nivel-prata">🥈 Prata</span>';
+  return '<span class="nivel nivel-bronze">🥉 Bronze</span>';
+}
+
+async function carregar(){
+  try {
+    const j = await (await fetch('/api/dashboards')).json();
+    if (!j.ok) throw new Error(j.error);
+    clientes = j.clientes;
+    render();
+  } catch(e) {
+    document.getElementById('grid').innerHTML = '<div class="vazio">Erro ao carregar os dashboards.</div>';
+  }
+}
+
+function render(){
+  document.getElementById('filtros').innerHTML = FILTROS.map(f =>
+    `<button class="chip${filtro === f.id ? ' ativo' : ''}" onclick="setFiltro('${f.id}')">${f.label}<b>${clientes.filter(f.ok).length}</b></button>`
+  ).join('');
+
+  const f = FILTROS.find(x => x.id === filtro);
+  const termo = normaliza(busca);
+  const lista = clientes.filter(f.ok).filter(c => !termo || normaliza(c.nome).includes(termo))
+    // quem tem dashboard primeiro, depois Ouro antes de Prata, depois nome
+    .sort((a, b) => (!!b.dashboard_url - !!a.dashboard_url) || ((b.nivel === 'ouro') - (a.nivel === 'ouro')) || a.nome.localeCompare(b.nome));
+
+  const grid = document.getElementById('grid');
+  if (!lista.length) { grid.innerHTML = '<div class="vazio">Nenhum cliente aqui.</div>'; return; }
+  grid.innerHTML = lista.map(c => {
+    const pausado = c.status === 'pausado' ? '<span class="tag-pausado">⏸ pausado</span>' : (c.status === 'inativo' ? '<span class="tag-pausado">inativo</span>' : '');
+    const topo = `<div class="dcard-top"><div><div class="nm"><a href="/cliente/${c.id}">${esc(c.nome)}</a>${pausado}</div>
+      <div class="sub">${c.gestor ? 'Gestor: ' + esc(c.gestor) : 'Sem gestor'}</div></div>${nivelBadge(c.nivel)}</div>`;
+    if (!c.dashboard_url) {
+      return `<div class="dcard falta">${topo}
+        <div class="senha-linha"><span class="sem">Ainda sem dashboard</span></div>
+        <div class="acoes"><button class="btn btn-ghost" style="flex:1" onclick="abrirModal(${c.id})">+ Adicionar link</button></div></div>`;
+    }
+    const senha = c.dashboard_senha
+      ? `<code>${esc(c.dashboard_senha)}</code><button class="btn btn-ghost btn-mini" onclick="copiar(${c.id})">Copiar</button>`
+      : '<span class="sem">login próprio, sem senha única</span>';
+    return `<div class="dcard">${topo}
+      <div class="dominio" title="${esc(c.dashboard_url)}">${esc(dominio(c.dashboard_url))}</div>
+      <div class="senha-linha">Senha: ${senha}</div>
+      <div class="acoes">
+        <a class="btn btn-primary" href="${esc(c.dashboard_url)}" target="_blank" rel="noopener" onclick="abrir(${c.id})">Abrir dashboard ↗</a>
+        <button class="btn btn-ghost" onclick="abrirModal(${c.id})" title="Editar link e senha">✎</button>
+      </div></div>`;
+  }).join('');
+}
+
+function setFiltro(id){ filtro = id; render(); }
+function onBusca(){
+  busca = document.getElementById('busca').value;
+  document.getElementById('search-box').classList.toggle('has-value', !!busca);
+  render();
+}
+function limparBusca(){ document.getElementById('busca').value = ''; onBusca(); }
+
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove('on'), 2200);
+}
+async function copiarTexto(txt){
+  try { await navigator.clipboard.writeText(txt); return true; }
+  catch(_) {
+    const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch(_) {}
+    ta.remove(); return ok;
+  }
+}
+async function copiar(id){
+  const c = clientes.find(x => x.id === id);
+  if (c && c.dashboard_senha && await copiarTexto(c.dashboard_senha)) toast('Senha copiada');
+}
+// "Abrir" copia a senha junto, pra só colar na tela de login do dashboard
+function abrir(id){
+  const c = clientes.find(x => x.id === id);
+  if (c && c.dashboard_senha) copiarTexto(c.dashboard_senha).then(ok => ok && toast('Senha copiada, é só colar'));
+}
+
+function abrirModal(id){
+  editando = clientes.find(x => x.id === id);
+  document.getElementById('modal-titulo').textContent = 'Dashboard · ' + editando.nome;
+  document.getElementById('m-url').value = editando.dashboard_url || '';
+  document.getElementById('m-senha').value = editando.dashboard_senha || '';
+  document.getElementById('modal').classList.add('on');
+  setTimeout(() => document.getElementById('m-url').focus(), 30);
+}
+function fecharModal(){ document.getElementById('modal').classList.remove('on'); editando = null; }
+async function salvarModal(){
+  if (!editando) return;
+  const btn = document.getElementById('m-salvar');
+  btn.disabled = true; btn.textContent = 'Salvando...';
+  try {
+    const j = await (await fetch('/api/clientes/' + editando.id + '/dashboard', {
+      method: 'PATCH', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({url: document.getElementById('m-url').value, senha: document.getElementById('m-senha').value})
+    })).json();
+    if (!j.ok) throw new Error(j.error);
+    fecharModal(); toast('Dashboard salvo'); carregar();
+  } catch(e) {
+    toast('Erro ao salvar');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Salvar';
+  }
+}
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('modal').classList.contains('on')) return;
+  if (e.key === 'Escape') fecharModal();
+  if (e.key === 'Enter') salvarModal();
+});
+
+carregar();
+</script>
+<script src="/static/push.js"></script>
+</body>
+</html>
