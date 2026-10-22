@@ -2761,16 +2761,63 @@ def cron_alertas():
     if not chaves or not secrets.compare_digest(request.headers.get('X-Segredo', ''), chaves['segredo_cron']):
         return jsonify({'ok': False, 'error': 'Nao autorizado'}), 401
     # Responde na hora e checa em segundo plano (a consulta ao Windsor pode passar de 30s)
-    threading.Thread(target=checar_cpl, daemon=True).start()
+    threading.Thread(target=checar_alertas, daemon=True).start()
     return jsonify({'ok': True, 'status': 'checando'})
+
+def checar_alertas():
+    checar_cpl()
+    checar_sem_lead()
+
+def _primeira_vez(chave):
+    # Grava a chave em push_alertas_enviados; True so na primeira vez (evita aviso repetido)
+    r = requests.post(SUPABASE_URL + '/rest/v1/push_alertas_enviados', json={'chave': chave}, timeout=10,
+                      headers={**supa_headers(), 'Prefer': 'resolution=ignore-duplicates,return=representation'})
+    return bool(r.ok and r.json())
+
+def _inscritos_push():
+    inscritos = requests.get(SUPABASE_URL + '/rest/v1/push_inscricoes?select=usuario_id', headers=supa_headers(), timeout=10).json()
+    return {i['usuario_id'] for i in inscritos} if isinstance(inscritos, list) else set()
+
+def _reais(v):
+    return 'R$ ' + '{:,.2f}'.format(v).replace(',', 'X').replace('.', ',').replace('X', '.')
+
+HORA_AVISO_SEM_LEAD = 8  # a partir das 8h avisa as contas que passaram o dia anterior inteiro sem lead
+
+def checar_sem_lead():
+    # Uma vez por dia, de manha: conta que gastou ontem e nao teve nenhum lead/conversa no dia inteiro
+    try:
+        agora = datetime.utcnow() - timedelta(hours=3)
+        if agora.hour < HORA_AVISO_SEM_LEAD:
+            return
+        ontem = (agora - timedelta(days=1)).strftime('%Y-%m-%d')
+        marca = 'semlead-rodou:' + ontem
+        # Ja rodou hoje? Evita consultar o Windsor de novo a cada 30 min
+        ja = requests.get(SUPABASE_URL + '/rest/v1/push_alertas_enviados', params={'chave': 'eq.' + marca, 'select': 'chave'},
+                          headers=supa_headers(), timeout=10).json()
+        if ja:
+            return
+        inscritos = _inscritos_push()
+        contas = [d for d in com_gestor(fetch_ads_data(date_from=ontem, date_to=ontem))
+                  if d['spend'] > 0 and not d['total'] and d.get('gestor_id') in inscritos]
+        if not _primeira_vez(marca):
+            return
+        enviados = 0
+        for d in contas:
+            if not _primeira_vez('semlead:%s:%s' % (d.get('account_id') or d['account_name'], ontem)):
+                continue
+            notificar([d['gestor_id']], '🚫 Dia inteiro sem lead',
+                      d['account_name'] + ': ontem gastou ' + _reais(d['spend']) + ' e não entrou nenhum lead nem conversa.', '/painel')
+            enviados += 1
+        print('CRON ALERTAS: %d aviso(s) de dia sem lead' % enviados)
+    except Exception:
+        print('CRON ALERTAS ERROR (sem lead):', traceback.format_exc())
 
 def checar_cpl():
     try:
         hoje = (datetime.utcnow() - timedelta(hours=3)).strftime('%Y-%m-%d')
         contas = com_gestor(fetch_ads_data(date_from=hoje, date_to=hoje))
         # So avisa (e so marca como avisado) quem ja ativou as notificacoes em algum aparelho
-        inscritos = requests.get(SUPABASE_URL + '/rest/v1/push_inscricoes?select=usuario_id', headers=supa_headers(), timeout=10).json()
-        inscritos = {i['usuario_id'] for i in inscritos} if isinstance(inscritos, list) else set()
+        inscritos = _inscritos_push()
         enviados = 0
         for d in contas:
             if not d.get('gestor_id') or d['gestor_id'] not in inscritos or d['spend'] < GASTO_MINIMO_ALERTA:
@@ -2779,12 +2826,9 @@ def checar_cpl():
             if cpl is not None and cpl <= CPL_ALERTA:
                 continue
             # Um aviso por conta por dia
-            chave = 'cpl:%s:%s' % (d.get('account_id') or d['account_name'], hoje)
-            r = requests.post(SUPABASE_URL + '/rest/v1/push_alertas_enviados', json={'chave': chave}, timeout=10,
-                              headers={**supa_headers(), 'Prefer': 'resolution=ignore-duplicates,return=representation'})
-            if not (r.ok and r.json()):
+            if not _primeira_vez('cpl:%s:%s' % (d.get('account_id') or d['account_name'], hoje)):
                 continue
-            gasto = 'R$ ' + '{:,.2f}'.format(d['spend']).replace(',', 'X').replace('.', ',').replace('X', '.')
+            gasto = _reais(d['spend'])
             if cpl is None:
                 corpo = d['account_name'] + ': ' + gasto + ' investidos hoje e nenhum resultado ainda.'
             else:
