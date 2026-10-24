@@ -2767,6 +2767,7 @@ def cron_alertas():
 def checar_alertas():
     checar_cpl()
     checar_sem_lead()
+    checar_resumo_bryan()
 
 def _primeira_vez(chave):
     # Grava a chave em push_alertas_enviados; True so na primeira vez (evita aviso repetido)
@@ -2838,6 +2839,101 @@ def checar_cpl():
         print('CRON ALERTAS: %d aviso(s) de CPL' % enviados)
     except Exception:
         print('CRON ALERTAS ERROR:', traceback.format_exc())
+
+# ── Resumo diario do Bryan (gestor de trafego da IA) para cada gestor ──
+HORA_RESUMO_BRYAN = 8
+
+BRYAN_INSTRUCOES = (
+    'Voce e o Bryan, especialista de trafego pago da agencia Mobilli Digital (trafego imobiliario MCMV, Meta Ads). '
+    'Todo dia de manha voce manda para cada gestor da equipe um resumo das contas de anuncio que ele cuida. '
+    'Voce recebe os numeros de ONTEM de cada conta e a media dos 7 dias anteriores para comparar. '
+    'Resultados = leads + conversas iniciadas. CPL acima de R$ 20 e ruim; ate R$ 15 e bom. '
+    'Conta sem gasto ontem pode estar pausada ou sem saldo: avise para conferir. '
+    'Escreva em portugues, direto, como um colega experiente falando com o gestor pelo nome. Nao invente numeros: use so os dados recebidos. '
+    'FORMATO OBRIGATORIO: a primeira linha e a manchete da notificacao do celular (ate 100 caracteres, sem markdown, '
+    'com o ponto mais importante do dia). Depois uma linha em branco e o resumo: primeiro o que precisa de atencao '
+    '(contas com problema, com os numeros), depois o que esta indo bem, e no fim de 1 a 3 acoes recomendadas para hoje. '
+    'Use **negrito** para nomes de contas e linhas comecando com "• " para listas. Sem tabelas e sem titulos com #. '
+    'Seja curto: no maximo uns 15 itens no total.'
+)
+
+def _dados_resumo_bryan(gestor_id, ontem_dados, semana_dados, mapa):
+    semana = {d['account_name']: d for d in semana_dados}
+    contas, vistas = [], set()
+    for d in ontem_dados:
+        if d.get('gestor_id') != gestor_id:
+            continue
+        vistas.add(d['account_name'])
+        s = semana.get(d['account_name']) or {}
+        contas.append({'conta': d['account_name'], 'cliente': d.get('cliente'), 'prioridade_cliente_novo': d.get('prioridade'),
+                       'ontem': {'gasto': round(d['spend'], 2), 'leads': d['leads'], 'conversas': d['msg'], 'resultados': d['total'], 'cpl': d['cpl']},
+                       'media_7_dias_anteriores': {'gasto_por_dia': round(s.get('spend', 0) / 7, 2), 'resultados_por_dia': round(s.get('total', 0) / 7, 1),
+                                                   'cpl': s.get('cpl')}})
+    sem_gasto = [{'conta': conta, 'cliente': m['cliente']} for conta, m in mapa.items()
+                 if m.get('gestor_id') == gestor_id and conta not in vistas]
+    return contas, sem_gasto
+
+def gerar_resumo_bryan(nome, dia_br, contas, sem_gasto):
+    dados = json.dumps({'gestor': nome, 'dia_analisado': dia_br, 'contas': contas, 'contas_sem_gasto_ontem': sem_gasto}, ensure_ascii=False)
+    resp = ia_cliente().beta.messages.create(
+        model=IA_MODELO, max_tokens=4000,
+        system=BRYAN_INSTRUCOES,
+        messages=[{'role': 'user', 'content': 'Monte o resumo de hoje com estes dados:\n' + dados}],
+        output_config={'effort': 'medium'},
+        betas=['server-side-fallback-2026-07-01'], fallbacks='default')
+    texto = '\n'.join(b.text for b in resp.content if b.type == 'text').strip()
+    manchete, _, corpo = texto.partition('\n')
+    return manchete.strip().strip('*#').strip()[:140], corpo.strip()
+
+def checar_resumo_bryan():
+    # Uma vez por dia, a partir das 8h: resumo das contas de ontem para cada gestor com notificacao ativa
+    try:
+        agora = datetime.utcnow() - timedelta(hours=3)
+        if agora.hour < HORA_RESUMO_BRYAN:
+            return
+        hoje = agora.strftime('%Y-%m-%d')
+        marca = 'resumo-bryan:' + hoje
+        ja = requests.get(SUPABASE_URL + '/rest/v1/push_alertas_enviados', params={'chave': 'eq.' + marca, 'select': 'chave'},
+                          headers=supa_headers(), timeout=10).json()
+        if ja:
+            return
+        ontem = agora - timedelta(days=1)
+        ontem_dados = com_gestor(fetch_ads_data(date_from=ontem.strftime('%Y-%m-%d'), date_to=ontem.strftime('%Y-%m-%d')))
+        semana_dados = fetch_ads_data(date_from=(agora - timedelta(days=8)).strftime('%Y-%m-%d'), date_to=(agora - timedelta(days=2)).strftime('%Y-%m-%d'))
+        mapa = mapa_contas()
+        if not _primeira_vez(marca):
+            return
+        inscritos = _inscritos_push()
+        gestores = requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&role=eq.gestor&select=id,nome', headers=supa_headers(), timeout=10).json()
+        enviados = 0
+        for g in gestores:
+            if g['id'] not in inscritos:
+                continue
+            contas, sem_gasto = _dados_resumo_bryan(g['id'], ontem_dados, semana_dados, mapa)
+            if not contas and not sem_gasto:
+                continue
+            try:
+                manchete, texto = gerar_resumo_bryan(g['nome'], ontem.strftime('%d/%m/%Y'), contas, sem_gasto)
+                if not texto:
+                    continue
+                requests.post(SUPABASE_URL + '/rest/v1/resumos_bryan?on_conflict=usuario_id,dia', timeout=10,
+                              headers={**supa_headers(), 'Prefer': 'resolution=merge-duplicates,return=minimal'},
+                              json={'usuario_id': g['id'], 'dia': hoje, 'manchete': manchete, 'texto': texto}).raise_for_status()
+                notificar([g['id']], '📊 Bryan · resumo das suas contas', manchete, '/painel#resumo')
+                enviados += 1
+            except Exception:
+                print('RESUMO BRYAN ERROR (%s):' % g['nome'], traceback.format_exc())
+        print('CRON ALERTAS: %d resumo(s) do Bryan' % enviados)
+    except Exception:
+        print('CRON ALERTAS ERROR (resumo Bryan):', traceback.format_exc())
+
+@app.route('/api/resumo-bryan', methods=['GET'])
+def api_resumo_bryan():
+    u = current_user()
+    uid = int(request.args.get('usuario_id') or 0) if u.get('role') == 'admin' and request.args.get('usuario_id') else u['id']
+    r = requests.get(SUPABASE_URL + '/rest/v1/resumos_bryan?usuario_id=eq.%d&select=dia,manchete,texto&order=dia.desc&limit=1' % uid,
+                     headers=supa_headers(), timeout=10).json()
+    return jsonify({'ok': True, 'data': r[0] if isinstance(r, list) and r else None})
 
 @app.route('/sw.js')
 def service_worker():

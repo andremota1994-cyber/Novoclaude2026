@@ -80,6 +80,15 @@ td { padding: 10px 8px; border-bottom: 0.5px solid var(--border); }
 .cliente-sub { display: block; font-size: 11px; color: var(--text-muted); }
 .prio-aviso { background: var(--red-bg); border: 0.5px solid var(--red-border); border-radius: 12px; padding: 0.8rem 1rem; font-size: 13px; color: var(--text-primary); margin-bottom: 1.25rem; line-height: 1.5; }
 .prio-aviso strong { color: #ff7a8a; }
+.resumo-bryan { background: var(--card); border: 0.5px solid var(--border); border-radius: 14px; padding: 1rem 1.15rem; margin-bottom: 1.25rem; font-size: 13.5px; line-height: 1.6; color: var(--text-primary); }
+.resumo-bryan .rb-topo { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: .5rem; }
+.resumo-bryan .rb-tit { font-weight: 600; font-size: 14px; }
+.resumo-bryan .rb-dia { font-size: 11px; color: var(--text-muted); }
+.resumo-bryan .rb-manchete { color: var(--amber); font-weight: 500; margin-bottom: .6rem; }
+.resumo-bryan .rb-texto p { margin: 0 0 .45rem; }
+.resumo-bryan .rb-texto .rb-item { padding-left: 1rem; text-indent: -.7rem; }
+.resumo-bryan.recolhido .rb-texto { display: none; }
+.resumo-bryan .rb-toggle { background: none; border: 0; color: var(--text-secondary); font: inherit; font-size: 12px; cursor: pointer; padding: 0; }
 .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
 
 @media (max-width: 900px) {
@@ -111,6 +120,7 @@ td { padding: 10px 8px; border-bottom: 0.5px solid var(--border); }
       <p>Visão geral das contas de anúncio dos seus clientes</p>
     </div>
     <div class="prio-aviso" id="prio-aviso" style="display:none"></div>
+    <div class="resumo-bryan" id="resumo" style="display:none"></div>
 
     <div class="ptabs">
       <button class="ptab" onclick="setPeriod('hoje',this)">Hoje</button>
@@ -225,7 +235,29 @@ function renderTable(){
 }
 
 // Init
+// Resumo diário do Bryan (IA de tráfego), gerado toda manhã com as contas de ontem
+function escR(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+async function loadResumo(){
+  try{
+    const j = await (await fetch('/api/resumo-bryan')).json();
+    const r = j.ok && j.data; if(!r) return;
+    const linhas = r.texto.split('\n').filter(l => l.trim()).map(l => {
+      const t = escR(l.trim()).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      return /^[•\-]/.test(l.trim()) ? '<p class="rb-item">' + t.replace(/^-\s*/, '• ') + '</p>' : '<p>' + t + '</p>';
+    }).join('');
+    const hoje = new Date().toLocaleDateString('sv-SE');
+    const el = document.getElementById('resumo');
+    el.className = 'resumo-bryan' + (r.dia === hoje || location.hash === '#resumo' ? '' : ' recolhido');
+    el.innerHTML = '<div class="rb-topo"><span class="rb-tit">📊 Resumo do Bryan</span><span class="rb-dia">' + r.dia.split('-').reverse().join('/') +
+      ' · <button class="rb-toggle" onclick="this.closest(\'.resumo-bryan\').classList.toggle(\'recolhido\')">mostrar/ocultar</button></span></div>' +
+      '<div class="rb-manchete">' + escR(r.manchete) + '</div><div class="rb-texto">' + linhas + '</div>';
+    el.style.display = '';
+    if(location.hash === '#resumo') el.scrollIntoView({block: 'start'});
+  }catch(e){ console.error(e); }
+}
+
 initAuth();
+loadResumo();
 loadAds();
 
 // Mantém a lista de contas em dia quando o admin troca clientes de gestor.
