@@ -24,6 +24,10 @@ SUPABASE_URL = os.environ.get('SUPABASE_URL', 'https://uhbmbmqoivoxgqnaighr.supa
 SUPABASE_KEY = os.environ.get('SUPABASE_KEY', '')
 
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '')
+# Asaas: chave da API e token do webhook ficam so no ambiente (Render e .env.local)
+ASAAS_API_KEY = os.environ.get('ASAAS_API_KEY', '')
+ASAAS_WEBHOOK_TOKEN = os.environ.get('ASAAS_WEBHOOK_TOKEN', '')
+ASAAS_URL = os.environ.get('ASAAS_URL', 'https://api.asaas.com/v3')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '')
 GOOGLE_REDIRECT_URI = os.environ.get('GOOGLE_REDIRECT_URI', 'https://novoclaude2026-1.onrender.com/api/google/callback')
 
@@ -119,7 +123,7 @@ ADMIN_ONLY_EXACT_API = {'/api/tarefas/resetar', '/api/data'}
 
 @app.before_request
 def require_login():
-    public = ['/login', '/api/login', '/logout', '/sw.js', '/manifest.webmanifest', '/api/cron/alertas']
+    public = ['/login', '/api/login', '/logout', '/sw.js', '/manifest.webmanifest', '/api/cron/alertas', '/api/asaas/webhook']
     if request.path in public or request.path.startswith('/static'):
         return None
     if check_auth() and not session.get('usuario_id'):
@@ -2764,6 +2768,100 @@ def push_teste():
 CPL_ALERTA = 20.0          # CPL do dia acima disso gera aviso
 GASTO_MINIMO_ALERTA = 20.0  # so avalia contas que ja gastaram isso no dia
 
+# ── Asaas: baixa automatica das mensalidades ──
+# Cada cliente do painel guarda o id do cliente no Asaas (clientes.asaas_customer_id).
+# O webhook do Asaas avisa na hora; a cada rodada do cron uma conferencia pega o que o webhook perdeu.
+ASAAS_PAGO = ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')
+ADMIN_ID = 1
+
+def asaas_get(caminho, params=None):
+    r = requests.get(ASAAS_URL + caminho, params=params, headers={'access_token': ASAAS_API_KEY, 'User-Agent': 'painel-mobilli'}, timeout=30)
+    r.raise_for_status()
+    return r.json()
+
+def asaas_cobrancas(params):
+    # Percorre todas as paginas de /payments
+    itens, offset = [], 0
+    while True:
+        j = asaas_get('/payments', {**params, 'limit': 100, 'offset': offset})
+        itens += j.get('data', [])
+        if not j.get('hasMore'):
+            return itens
+        offset += 100
+
+def _cliente_do_asaas(customer_id):
+    r = requests.get(SUPABASE_URL + '/rest/v1/clientes?asaas_customer_id=eq.' + requests.utils.quote(customer_id or '') +
+                     '&select=id,nome,valor', headers=supa_headers(), timeout=10).json()
+    return r[0] if isinstance(r, list) and r else None
+
+def _eh_mensalidade(pag, c):
+    # Assinatura ou cobranca no valor da mensalidade; o resto (venda avulsa etc.) so avisa
+    return bool(pag.get('subscription')) or abs(float(pag.get('value') or 0) - float(c.get('valor') or 0)) < 0.01
+
+def asaas_baixar(pag):
+    # Marca a mensalidade do mes do vencimento como paga. Devolve (cliente, mudou)
+    c = _cliente_do_asaas(pag.get('customer'))
+    if not c or not _eh_mensalidade(pag, c) or not pag.get('dueDate'):
+        return c, False
+    mes = pag['dueDate'][:7]
+    existe = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=eq.%s&cliente_id=eq.%d' % (mes, c['id']), headers=supa_headers(), timeout=10).json()
+    if existe and existe[0].get('pago'):
+        return c, False
+    dados = {'pago': True, 'updated_at': datetime.utcnow().isoformat()}
+    if existe:
+        requests.patch(SUPABASE_URL + '/rest/v1/pagamentos?id=eq.%d' % existe[0]['id'], headers=supa_headers(), json=dados, timeout=10).raise_for_status()
+    else:
+        requests.post(SUPABASE_URL + '/rest/v1/pagamentos', headers=supa_headers(), json={'mes': mes, 'cliente_id': c['id'], **dados}, timeout=10).raise_for_status()
+    registrar('pagamento', 'Mensalidade de %s (%s, %s): marcado como pago (Asaas)' % (c['nome'], _mes_txt(mes), _brl(pag.get('value'))),
+              c['id'], c['nome'], usuario={'id': None, 'nome': 'Asaas'})
+    return c, True
+
+@app.route('/api/asaas/webhook', methods=['POST'])
+def asaas_webhook():
+    if not ASAAS_WEBHOOK_TOKEN or not secrets.compare_digest(request.headers.get('asaas-access-token', ''), ASAAS_WEBHOOK_TOKEN):
+        return jsonify({'ok': False, 'error': 'Nao autorizado'}), 401
+    try:
+        body = request.get_json(silent=True) or {}
+        evento, pag = body.get('event'), body.get('payment') or {}
+        if evento in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'):
+            c, mudou = asaas_baixar(pag)
+            if mudou:
+                notificar([ADMIN_ID], '💰 %s pagou' % c['nome'], '%s · vencimento %s' % (_reais(float(pag.get('value') or 0)), data_br_curta(pag.get('dueDate'))), '/faturamento')
+            elif not c and _primeira_vez('asaas-sem-vinculo:' + str(pag.get('id'))):
+                notificar([ADMIN_ID], '💰 Pagamento no Asaas sem cliente no painel', '%s recebido · vincule o cliente para dar baixa sozinho' % _reais(float(pag.get('value') or 0)), '/faturamento')
+        elif evento == 'PAYMENT_OVERDUE':
+            c = _cliente_do_asaas(pag.get('customer'))
+            if c and _primeira_vez('asaas-vencido:' + str(pag.get('id'))):
+                notificar([ADMIN_ID], '⚠️ %s venceu sem pagar' % c['nome'], '%s · vencimento %s' % (_reais(float(pag.get('value') or 0)), data_br_curta(pag.get('dueDate'))), '/faturamento')
+    except Exception:
+        # Responde 200 mesmo assim: erro aqui nao pode travar a fila de webhooks do Asaas; a conferencia do cron corrige
+        print('ASAAS WEBHOOK ERROR:', traceback.format_exc())
+    return jsonify({'ok': True})
+
+def data_br_curta(iso):
+    try:
+        return datetime.strptime(iso[:10], '%Y-%m-%d').strftime('%d/%m')
+    except (TypeError, ValueError):
+        return '—'
+
+def sincronizar_asaas():
+    # Confere as cobrancas pagas com vencimento do mes passado ao proximo e da baixa no que faltou
+    if not ASAAS_API_KEY:
+        return
+    hoje = datetime.utcnow() - timedelta(hours=3)
+    ini = (hoje.replace(day=1) - timedelta(days=1)).replace(day=1).strftime('%Y-%m-%d')
+    fim = ((hoje.replace(day=28) + timedelta(days=35)).replace(day=1) - timedelta(days=1)).strftime('%Y-%m-%d')
+    baixados = []
+    for status in ASAAS_PAGO:
+        for pag in asaas_cobrancas({'status': status, 'dueDate[ge]': ini, 'dueDate[le]': fim}):
+            c, mudou = asaas_baixar(pag)
+            if mudou:
+                baixados.append(c['nome'])
+    if len(baixados) == 1:
+        notificar([ADMIN_ID], '💰 %s pagou' % baixados[0], 'Baixa automática pelo Asaas', '/faturamento')
+    elif baixados:
+        notificar([ADMIN_ID], '💰 %d pagamentos do Asaas' % len(baixados), ', '.join(baixados), '/faturamento')
+
 @app.route('/api/cron/alertas', methods=['GET', 'POST'])
 def cron_alertas():
     # Chamado pelo agendamento do Supabase (pg_cron) a cada 30 min, com o segredo de push_chaves
@@ -2779,6 +2877,10 @@ def checar_alertas():
         enviar_avisos_fila()
     except Exception:
         print('AVISOS FILA ERROR:', traceback.format_exc())
+    try:
+        sincronizar_asaas()
+    except Exception:
+        print('ASAAS SYNC ERROR:', traceback.format_exc())
     checar_cpl()
     checar_sem_lead()
     checar_resumo_bryan()
