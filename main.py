@@ -2325,6 +2325,14 @@ def add_tarefa():
 #   fixo:              parcelas [{dia, valor}]           (Bruno: 500 dia 10 + 500 dia 20)
 #   por_cliente_pago:  valor por cliente que pagou       (Kelmer: 100, recebe conforme o cliente paga)
 #   por_cliente:       valor por cliente ativo, no dia X (Henrique: 100, todo dia 30)
+#   reajustes:         [{desde: 'AAAA-MM', valor}] troca o valor por cliente a partir do mes (Kelmer 150 e Henrique 200 desde 2026-11)
+def valor_no_mes(regra, mes):
+    valor = regra['valor']
+    for r in sorted(regra.get('reajustes') or [], key=lambda r: r['desde']):
+        if r['desde'] <= mes:
+            valor = r['valor']
+    return valor
+
 def reais(v):
     return 'R$ ' + '{:,.0f}'.format(v).replace(',', '.')
 
@@ -2357,8 +2365,10 @@ def calcular_repasses(gid, regra, mes, hoje):
                           'data': data_no_mes(mes, p['dia']), 'valor': p['valor'], 'status': 'previsto'})
     else:
         clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&gestor_id=eq.' + str(gid) +
-                                '&select=id,nome,dia_pagamento&order=nome.asc', headers=supa_headers(), timeout=10).json()
-        valor = regra['valor']
+                                '&select=id,nome,dia_pagamento,data_inicio&order=nome.asc', headers=supa_headers(), timeout=10).json()
+        # O primeiro pagamento do cliente fica 100% com a agencia: ele so entra no repasse depois do mes de entrada
+        clientes = [c for c in clientes if (c.get('data_inicio') or '')[:7] < mes]
+        valor = valor_no_mes(regra, mes)
         if regra['tipo'] == 'por_cliente':
             texto = reais(valor) + ' por cliente, pago todo dia %d' % regra['dia']
             for c in clientes:
@@ -2384,7 +2394,7 @@ def calcular_repasses(gid, regra, mes, hoje):
                     itens.append({'chave': 'cliente-%d' % c['id'], 'descricao': 'Mensalidade do mês', 'cliente': c['nome'], 'data': venc, 'valor': valor,
                                   'status': 'atrasado' if venc and venc < hoje else 'aguardando', 'vencimento': venc})
                 # Mensalidade do mes anterior: em atraso, ou paga atrasada dentro deste mes
-                pa = por_mes.get((mes_ant, c['id']))
+                pa = por_mes.get((mes_ant, c['id'])) if (c.get('data_inicio') or '')[:7] < mes_ant else None
                 if pa and pa.get('atrasado') and not pa.get('pago'):
                     itens.append({'chave': 'cliente-%d-ant' % c['id'], 'descricao': 'Mensalidade de ' + nome_ant + ' (em atraso)', 'cliente': c['nome'], 'data': None,
                                   'valor': valor, 'status': 'atrasado', 'vencimento': None})
@@ -2765,9 +2775,24 @@ def cron_alertas():
     return jsonify({'ok': True, 'status': 'checando'})
 
 def checar_alertas():
+    try:
+        enviar_avisos_fila()
+    except Exception:
+        print('AVISOS FILA ERROR:', traceback.format_exc())
     checar_cpl()
     checar_sem_lead()
     checar_resumo_bryan()
+
+def enviar_avisos_fila():
+    # Avisos gravados direto no banco (tabela avisos_push) saem na rodada seguinte do cron.
+    # Marca enviado_em antes de mandar, para duas rodadas nunca enviarem o mesmo aviso.
+    pendentes = requests.get(SUPABASE_URL + '/rest/v1/avisos_push?enviado_em=is.null&select=id&order=id.asc',
+                             headers=supa_headers(), timeout=10).json()
+    for a in pendentes if isinstance(pendentes, list) else []:
+        r = requests.patch(SUPABASE_URL + '/rest/v1/avisos_push?id=eq.%d&enviado_em=is.null' % a['id'], json={'enviado_em': datetime.utcnow().isoformat()},
+                           headers={**supa_headers(), 'Prefer': 'return=representation'}, timeout=10)
+        for aviso in (r.json() if r.ok else []):
+            _enviar_push([aviso['usuario_id']], aviso['titulo'], aviso['corpo'], aviso.get('link') or '/')
 
 def _primeira_vez(chave):
     # Grava a chave em push_alertas_enviados; True so na primeira vez (evita aviso repetido)
