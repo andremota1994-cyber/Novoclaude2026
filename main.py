@@ -2772,6 +2772,8 @@ GASTO_MINIMO_ALERTA = 20.0  # so avalia contas que ja gastaram isso no dia
 # Cada cliente do painel guarda o id do cliente no Asaas (clientes.asaas_customer_id).
 # O webhook do Asaas avisa na hora; a cada rodada do cron uma conferencia pega o que o webhook perdeu.
 ASAAS_PAGO = ('RECEIVED', 'CONFIRMED', 'RECEIVED_IN_CASH')
+# So pagamentos a partir do dia em que a integracao entrou; os anteriores foram conferidos a mao
+ASAAS_DESDE = '2026-10-29'
 ADMIN_ID = 1
 
 def asaas_get(caminho, params=None):
@@ -2789,32 +2791,94 @@ def asaas_cobrancas(params):
             return itens
         offset += 100
 
+def _clientes_do_asaas(customer_id):
+    # Um cadastro do Asaas pode pagar por mais de um cliente do painel (ex.: a Sarca paga a Acantis)
+    r = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&asaas_customer_id=eq.' + requests.utils.quote(customer_id or '') +
+                     '&select=id,nome,valor,asaas_parcelas,data_inicio&order=valor.desc', headers=supa_headers(), timeout=10).json()
+    return r if isinstance(r, list) else []
+
 def _cliente_do_asaas(customer_id):
-    r = requests.get(SUPABASE_URL + '/rest/v1/clientes?asaas_customer_id=eq.' + requests.utils.quote(customer_id or '') +
-                     '&select=id,nome,valor', headers=supa_headers(), timeout=10).json()
-    return r[0] if isinstance(r, list) and r else None
+    cs = _clientes_do_asaas(customer_id)
+    return {'nome': ' + '.join(c['nome'] for c in cs)} if cs else None
 
-def _eh_mensalidade(pag, c):
-    # Assinatura ou cobranca no valor da mensalidade; o resto (venda avulsa etc.) so avisa
-    return bool(pag.get('subscription')) or abs(float(pag.get('value') or 0) - float(c.get('valor') or 0)) < 0.01
+def _mes_somar(mes, n):
+    ano, m = int(mes[:4]), int(mes[5:]) - 1 + n
+    return '%d-%02d' % (ano + m // 12, m % 12 + 1)
 
-def asaas_baixar(pag):
-    # Marca a mensalidade do mes do vencimento como paga. Devolve (cliente, mudou)
-    c = _cliente_do_asaas(pag.get('customer'))
-    if not c or not _eh_mensalidade(pag, c) or not pag.get('dueDate'):
-        return c, False
-    mes = pag['dueDate'][:7]
-    existe = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?mes=eq.%s&cliente_id=eq.%d' % (mes, c['id']), headers=supa_headers(), timeout=10).json()
-    if existe and existe[0].get('pago'):
-        return c, False
+def _mes_da_baixa(c, venc):
+    # Quita primeiro o mes anterior em aberto: marcado como atrasado na virada, ou ainda o mes do faturamento antes da virada
+    # (tem cliente que paga sempre um mes atrasado); senao o do vencimento; se ja estiver pago, o seguinte (o vencimento no Asaas nem sempre cai no mesmo mes do painel).
+    # Devolve (mes, linha) ou (None, None)
+    meses = [_mes_somar(venc, -1), venc, _mes_somar(venc, 1)]
+    linhas = requests.get(SUPABASE_URL + '/rest/v1/pagamentos?cliente_id=eq.%d&mes=in.(%s)' % (c['id'], ','.join(meses)), headers=supa_headers(), timeout=10).json()
+    por_mes = {l['mes']: l for l in linhas}
+    ant = por_mes.get(meses[0])
+    em_aberto = (ant or {}).get('atrasado') or (meses[0] == ler_config('mes_atual') and (c.get('data_inicio') or '')[:7] <= meses[0])
+    if em_aberto and not (ant or {}).get('pago'):
+        return meses[0], ant
+    for mes in meses[1:]:
+        if not por_mes.get(mes, {}).get('pago'):
+            return mes, por_mes.get(mes)
+    return None, None
+
+def _marcar_pago(c, mes, linha, valor):
     dados = {'pago': True, 'updated_at': datetime.utcnow().isoformat()}
-    if existe:
-        requests.patch(SUPABASE_URL + '/rest/v1/pagamentos?id=eq.%d' % existe[0]['id'], headers=supa_headers(), json=dados, timeout=10).raise_for_status()
+    if linha:
+        requests.patch(SUPABASE_URL + '/rest/v1/pagamentos?id=eq.%d' % linha['id'], headers=supa_headers(), json=dados, timeout=10).raise_for_status()
     else:
         requests.post(SUPABASE_URL + '/rest/v1/pagamentos', headers=supa_headers(), json={'mes': mes, 'cliente_id': c['id'], **dados}, timeout=10).raise_for_status()
-    registrar('pagamento', 'Mensalidade de %s (%s, %s): marcado como pago (Asaas)' % (c['nome'], _mes_txt(mes), _brl(pag.get('value'))),
+    registrar('pagamento', 'Mensalidade de %s (%s, %s): marcado como pago (Asaas)' % (c['nome'], _mes_txt(mes), _brl(valor)),
               c['id'], c['nome'], usuario={'id': None, 'nome': 'Asaas'})
-    return c, True
+
+def asaas_baixar(pag):
+    # Da baixa nas mensalidades com a cobranca do Asaas. Devolve (cliente, situacao): situacao None, 'pago', 'parcial' ou 'avulso'.
+    # Cadastro que paga por varios clientes: valor = soma das mensalidades da baixa em todos; = mensalidade de um, so nele.
+    # Parcelas so para quem paga parcelado (clientes.asaas_parcelas > 1): somam no mes ate completar o valor.
+    # Para os outros, cobranca menor que a mensalidade e servico avulso (ex.: landing page) e nao da baixa.
+    # Cada cobranca conta uma vez so (asaas_baixas).
+    cs = _clientes_do_asaas(pag.get('customer'))
+    if not cs:
+        return None, None
+    grupo = {'nome': ' + '.join(c['nome'] for c in cs)}
+    pago_em = pag.get('paymentDate') or pag.get('confirmedDate') or pag.get('clientPaymentDate') or ''
+    if not pag.get('dueDate') or pago_em[:10] < ASAAS_DESDE:
+        return grupo, None
+    usado = requests.get(SUPABASE_URL + '/rest/v1/asaas_baixas?payment_id=eq.' + requests.utils.quote(pag['id']) + '&select=payment_id',
+                         headers=supa_headers(), timeout=10).json()
+    if usado:
+        return grupo, None
+    valor = float(pag.get('value') or 0)
+    mens = lambda c: float(c.get('valor') or 0)
+    if len(cs) > 1:
+        if abs(valor - sum(mens(c) for c in cs)) < 0.01:
+            alvo = cs
+        else:
+            alvo = [c for c in cs if abs(valor - mens(c)) < 0.01][:1] or [c for c in cs if valor >= mens(c) - 0.01][:1]
+        if not alvo:
+            return grupo, 'avulso'
+    else:
+        alvo = cs
+        if (cs[0].get('asaas_parcelas') or 1) <= 1 and valor + 0.01 < mens(cs[0]):
+            return grupo, 'avulso'
+    venc = pag['dueDate'][:7]
+    situacao = None
+    for c in alvo:
+        mes, linha = _mes_da_baixa(c, venc)
+        if not mes:
+            continue
+        parte = mens(c) if len(alvo) > 1 else valor
+        requests.post(SUPABASE_URL + '/rest/v1/asaas_baixas', headers=supa_headers(), timeout=10,
+                      json={'payment_id': pag['id'], 'cliente_id': c['id'], 'mes': mes, 'valor': parte}).raise_for_status()
+        somado = sum(float(b['valor']) for b in requests.get(SUPABASE_URL + '/rest/v1/asaas_baixas?cliente_id=eq.%d&mes=eq.%s&select=valor' % (c['id'], mes),
+                                                              headers=supa_headers(), timeout=10).json())
+        if somado + 0.01 < mens(c):
+            registrar('pagamento', 'Mensalidade de %s (%s): parcela de %s recebida no Asaas, somando %s de %s' % (c['nome'], _mes_txt(mes), _brl(parte), _brl(somado), _brl(c.get('valor'))),
+                      c['id'], c['nome'], usuario={'id': None, 'nome': 'Asaas'})
+            situacao = situacao or 'parcial'
+        else:
+            _marcar_pago(c, mes, linha, somado)
+            situacao = 'pago'
+    return {'nome': ' + '.join(c['nome'] for c in alvo)}, situacao
 
 @app.route('/api/asaas/webhook', methods=['POST'])
 def asaas_webhook():
@@ -2824,9 +2888,13 @@ def asaas_webhook():
         body = request.get_json(silent=True) or {}
         evento, pag = body.get('event'), body.get('payment') or {}
         if evento in ('PAYMENT_RECEIVED', 'PAYMENT_CONFIRMED'):
-            c, mudou = asaas_baixar(pag)
-            if mudou:
-                notificar([ADMIN_ID], '💰 %s pagou' % c['nome'], '%s · vencimento %s' % (_reais(float(pag.get('value') or 0)), data_br_curta(pag.get('dueDate'))), '/faturamento')
+            c, situacao = asaas_baixar(pag)
+            if situacao == 'avulso':
+                if _primeira_vez('asaas-avulso:' + str(pag.get('id'))):
+                    notificar([ADMIN_ID], '💰 %s pagou um avulso' % c['nome'], '%s · não bate com a mensalidade, não dei baixa' % _reais(float(pag.get('value') or 0)), '/faturamento')
+            elif situacao:
+                notificar([ADMIN_ID], '💰 %s pagou%s' % (c['nome'], ' uma parcela' if situacao == 'parcial' else ''),
+                          '%s · vencimento %s' % (_reais(float(pag.get('value') or 0)), data_br_curta(pag.get('dueDate'))), '/faturamento')
             elif not c and _primeira_vez('asaas-sem-vinculo:' + str(pag.get('id'))):
                 notificar([ADMIN_ID], '💰 Pagamento no Asaas sem cliente no painel', '%s recebido · vincule o cliente para dar baixa sozinho' % _reais(float(pag.get('value') or 0)), '/faturamento')
         elif evento == 'PAYMENT_OVERDUE':
@@ -2845,7 +2913,7 @@ def data_br_curta(iso):
         return '—'
 
 def sincronizar_asaas():
-    # Confere as cobrancas pagas com vencimento do mes passado ao proximo e da baixa no que faltou
+    # Confere as cobrancas pagas (vencimento do mes passado ao proximo) e da baixa no que faltou
     if not ASAAS_API_KEY:
         return
     hoje = datetime.utcnow() - timedelta(hours=3)
@@ -2854,9 +2922,9 @@ def sincronizar_asaas():
     baixados = []
     for status in ASAAS_PAGO:
         for pag in asaas_cobrancas({'status': status, 'dueDate[ge]': ini, 'dueDate[le]': fim}):
-            c, mudou = asaas_baixar(pag)
-            if mudou:
-                baixados.append(c['nome'])
+            c, situacao = asaas_baixar(pag)
+            if situacao in ('pago', 'parcial'):
+                baixados.append(c['nome'] + (' (parcela)' if situacao == 'parcial' else ''))
     if len(baixados) == 1:
         notificar([ADMIN_ID], '💰 %s pagou' % baixados[0], 'Baixa automática pelo Asaas', '/faturamento')
     elif baixados:
