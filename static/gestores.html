@@ -63,6 +63,7 @@ body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Seg
 
 .board-wrap { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 1rem; align-items: flex-start; }
 .col { flex: 0 0 280px; background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); display: flex; flex-direction: column; max-height: calc(100vh - 220px); transition: border-color .15s, background .15s; }
+.col-equipe { align-self: flex-start; }
 .col.dragover { border-color: var(--blue); background: var(--card2); }
 .col-header { padding: 14px 14px 10px; border-bottom: 0.5px solid var(--border); flex-shrink: 0; }
 .col-title { font-size: 14px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
@@ -206,10 +207,24 @@ function bate(c){
   return [c.nome, c.empresa, ...contasDe(c)].some(v=>(v||'').toLowerCase().includes(busca));
 }
 
+// Quem nao cuida de cliente (designer): coluna sem clientes e sem receber arrastos, so tarefas, financeiro e senha
+function colunaEquipe(u){
+  return `
+      <div class="col col-equipe" id="col-${u.id}">
+        <div class="col-header">
+          <div class="col-title">${escHtml(u.nome)}</div>
+          <div class="col-sub">🎨 Designer · não cuida de clientes</div>
+          ${blocoTarefas(u)}
+          <div class="col-links"><a class="col-fin" href="/meu-financeiro?gestor=${u.id}">💰 Financeiro</a><button class="col-fin col-senha" onclick="novaSenha(${u.id})">🔑 Nova senha</button></div>
+        </div>
+      </div>`;
+}
+
 function render(){
   const wrap = document.getElementById('board-wrap');
   const rolagem = wrap.scrollLeft;
   const cols = usuarios.map(u=>{
+    if(u.role === 'designer') return colunaEquipe(u);
     const meusClientes = clientes.filter(c=>c.gestor_id===u.id);
     const visiveis = meusClientes.filter(bate);
     const total = meusClientes.reduce((s,c)=>s+Number(c.valor||0),0);

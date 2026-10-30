@@ -282,9 +282,10 @@ async function initAuth(){
     const j = await r.json();
     if(!j.ok) return;
     me = j.usuario;
-    if(me.role === 'gestor'){
+    if(me.role !== 'admin'){
+      // Gestor tem Meta Ads; a designer so Tarefas e Financeiro
       document.getElementById('topbar-nav').innerHTML =
-        '<a class="topbar-link" href="/painel">Meta Ads</a>' +
+        (me.role === 'gestor' ? '<a class="topbar-link" href="/painel">Meta Ads</a>' : '') +
         '<a class="topbar-link active" href="/tarefas">Tarefas</a>' +
         '<a class="topbar-link" href="/meu-financeiro">Financeiro</a>';
       document.getElementById('btn-reset-week').style.display = 'none';

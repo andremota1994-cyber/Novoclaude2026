@@ -112,7 +112,7 @@ async function login(){
     });
     const j = await r.json();
     if(j.ok){
-      window.location.href = j.role === 'gestor' ? '/painel' : '/';
+      window.location.href = {gestor: '/painel', designer: '/tarefas'}[j.role] || '/';
     } else {
       err.classList.add('show');
       btn.disabled = false;

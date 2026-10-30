@@ -1,3 +1,4 @@
+import itertools
 import os
 import json
 import re
@@ -112,6 +113,8 @@ def gerar_senha_temp(n=8):
     alfabeto = string.ascii_letters + string.digits
     return ''.join(secrets.choice(alfabeto) for _ in range(n))
 
+# Papeis: admin (Andre), gestor (cuida de clientes e contas) e designer (faz criativos; so Tarefas e Financeiro)
+PAPEIS_EQUIPE = ('gestor', 'designer')
 ADMIN_ONLY_PAGES = {'/', '/faturamento', '/financeiro', '/agenda', '/clientes', '/gestores', '/negociacao', '/dashboards'}
 ADMIN_ONLY_API_PREFIXES = (
     '/api/despesas', '/api/financeiro', '/api/agenda', '/api/google',
@@ -655,6 +658,10 @@ def _chamar(view, caminho='/', *args):
 def _usuarios():
     return requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome,username,role&order=id.asc', headers=supa_headers(), timeout=10).json()
 
+def _nao_cuida_de_cliente(usuario_id):
+    r = requests.get(SUPABASE_URL + '/rest/v1/usuarios?id=eq.%d&select=role' % int(usuario_id), headers=supa_headers(), timeout=10).json()
+    return bool(r) and r[0]['role'] not in ('admin', 'gestor')
+
 def _achar_usuario(nome):
     alvo = _norm(nome)
     us = _usuarios()
@@ -927,6 +934,8 @@ def ia_transferir_cliente(cliente, gestor):
     u = _achar_usuario(gestor)
     if not u:
         return {'erro': 'Gestor nao encontrado: ' + str(gestor)}
+    if u['role'] not in ('admin', 'gestor'):
+        return {'erro': '%s nao cuida de clientes (papel: %s)' % (u['nome'], u['role'])}
     if c.get('gestor_id') == u['id']:
         return {'ok': True, 'aviso': '%s ja e cliente de %s' % (c['nome'], u['nome'])}
     requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.%d' % c['id'], headers=supa_headers(), json={'gestor_id': u['id']}, timeout=10).raise_for_status()
@@ -1967,8 +1976,8 @@ def nova_senha_usuario(id):
         alvo = requests.get(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + str(id) + '&select=id,nome,username,role', headers=supa_headers(), timeout=10).json()
         if not alvo:
             return jsonify({'ok': False, 'error': 'Usuario nao encontrado'}), 404
-        if alvo[0]['role'] != 'gestor':
-            return jsonify({'ok': False, 'error': 'So e possivel gerar senha nova para gestores'}), 400
+        if alvo[0]['role'] not in PAPEIS_EQUIPE:
+            return jsonify({'ok': False, 'error': 'So e possivel gerar senha nova para a equipe'}), 400
         senha = gerar_senha_temp()
         r = requests.patch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + str(id), headers=supa_headers(), json={'senha_hash': hash_senha(senha)}, timeout=10)
         r.raise_for_status()
@@ -2003,6 +2012,8 @@ def update_gestor_cliente(id):
         gestor_id = body.get('gestor_id')
         if not gestor_id:
             return jsonify({'ok': False, 'error': 'gestor_id obrigatorio'}), 400
+        if _nao_cuida_de_cliente(gestor_id):
+            return jsonify({'ok': False, 'error': 'Essa pessoa nao cuida de clientes'}), 400
         r = requests.patch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(id), headers=supa_headers(), json={'gestor_id': gestor_id}, timeout=10)
         r.raise_for_status()
         # Confirma que o cliente realmente mudou de gestor (antes uma falha passava em silencio)
@@ -2286,7 +2297,7 @@ def get_historico():
 def get_tarefas():
     try:
         u = current_user()
-        responsavel_id = u['id'] if u['role'] == 'gestor' else request.args.get('responsavel', 'todos')
+        responsavel_id = u['id'] if u['role'] != 'admin' else request.args.get('responsavel', 'todos')
         url = SUPABASE_URL + '/rest/v1/tarefas?concluida=eq.false&order=created_at.asc&select=*,clientes(nome,data_inicio)'
         if str(responsavel_id) != 'todos':
             url += '&responsavel_id=eq.' + str(responsavel_id)
@@ -2304,13 +2315,13 @@ def add_tarefa():
     try:
         u = current_user()
         body = request.json or {}
-        responsavel_id = u['id'] if u['role'] == 'gestor' else (body.get('responsavel_id') or u['id'])
+        responsavel_id = u['id'] if u['role'] != 'admin' else (body.get('responsavel_id') or u['id'])
         payload = {'titulo': body.get('titulo'), 'prazo': body.get('prazo'), 'responsavel_id': responsavel_id}
         cliente_id = body.get('cliente_id')
         if cliente_id:
             cr = requests.get(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + str(int(cliente_id)) + '&select=gestor_id', headers=supa_headers(), timeout=10).json()
-            # Gestor so vincula tarefa a cliente dele
-            if cr and (u['role'] == 'admin' or cr[0].get('gestor_id') == u['id']):
+            # Gestor so vincula tarefa a cliente dele; a designer faz criativo para qualquer cliente
+            if cr and (u['role'] != 'gestor' or cr[0].get('gestor_id') == u['id']):
                 payload['cliente_id'] = int(cliente_id)
         r = requests.post(SUPABASE_URL + '/rest/v1/tarefas', headers=supa_headers(), json=payload)
         if responsavel_id != u['id']:
@@ -2423,7 +2434,7 @@ def meu_financeiro():
         regras = json.loads(ler_config('remuneracao_gestores') or '{}')
         usuarios = requests.get(SUPABASE_URL + '/rest/v1/usuarios?ativo=eq.true&select=id,nome,role&order=id.asc', headers=supa_headers(), timeout=10).json()
         # Admin escolhe o gestor (para conferir); gestor so ve o proprio
-        gid = u['id'] if u['role'] == 'gestor' else int(request.args.get('gestor_id') or 0)
+        gid = u['id'] if u['role'] != 'admin' else int(request.args.get('gestor_id') or 0)
         gestores = [{'id': x['id'], 'nome': x['nome']} for x in usuarios if str(x['id']) in regras]
         if u['role'] == 'admin' and not gid and gestores:
             gid = gestores[0]['id']
@@ -2483,7 +2494,7 @@ def tarefas_clientes():
 def delete_tarefa(id):
     try:
         u = current_user()
-        if u['role'] == 'gestor':
+        if u['role'] != 'admin':
             check = requests.get(SUPABASE_URL + '/rest/v1/tarefas?id=eq.' + str(id) + '&select=responsavel_id', headers=supa_headers())
             rows = check.json()
             if not rows or rows[0].get('responsavel_id') != u['id']:
@@ -2501,7 +2512,7 @@ def delete_tarefa(id):
 def get_historico_tarefas():
     try:
         u = current_user()
-        responsavel_id = u['id'] if u['role'] == 'gestor' else request.args.get('responsavel', 'todos')
+        responsavel_id = u['id'] if u['role'] != 'admin' else request.args.get('responsavel', 'todos')
         semana = request.args.get('semana', 'atual')
         hoje = datetime.utcnow()
         if semana == 'atual':
@@ -2792,8 +2803,10 @@ def asaas_cobrancas(params):
         offset += 100
 
 def _clientes_do_asaas(customer_id):
-    # Um cadastro do Asaas pode pagar por mais de um cliente do painel (ex.: a Sarca paga a Acantis)
-    r = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&asaas_customer_id=eq.' + requests.utils.quote(customer_id or '') +
+    # Um cadastro do Asaas pode pagar por mais de um cliente do painel (ex.: o Jege paga a Julia), e um cliente pode ter
+    # outros pagadores alem do proprio cadastro (clientes.asaas_pagadores; ex.: a Nathalia paga metade da Deby)
+    cid = requests.utils.quote(customer_id or '')
+    r = requests.get(SUPABASE_URL + '/rest/v1/clientes?ativo=eq.true&or=(asaas_customer_id.eq.%s,asaas_pagadores.cs.{%s})' % (cid, cid) +
                      '&select=id,nome,valor,asaas_parcelas,data_inicio&order=valor.desc', headers=supa_headers(), timeout=10).json()
     return r if isinstance(r, list) else []
 
@@ -2832,9 +2845,10 @@ def _marcar_pago(c, mes, linha, valor):
 
 def asaas_baixar(pag):
     # Da baixa nas mensalidades com a cobranca do Asaas. Devolve (cliente, situacao): situacao None, 'pago', 'parcial' ou 'avulso'.
-    # Cadastro que paga por varios clientes: valor = soma das mensalidades da baixa em todos; = mensalidade de um, so nele.
-    # Parcelas so para quem paga parcelado (clientes.asaas_parcelas > 1): somam no mes ate completar o valor.
-    # Para os outros, cobranca menor que a mensalidade e servico avulso (ex.: landing page) e nao da baixa.
+    # O valor tem que fechar com uma combinacao das mensalidades dos clientes desse pagador (cada um entra inteiro, com uma
+    # parcela se paga parcelado - clientes.asaas_parcelas - ou fica de fora). Sem combinacao exata: valor acima da maior
+    # mensalidade quita ela (ex.: mensalidade + landing page); abaixo e servico avulso e nao da baixa.
+    # Parcelas somam no mes ate completar o valor.
     # Cada cobranca conta uma vez so (asaas_baixas).
     cs = _clientes_do_asaas(pag.get('customer'))
     if not cs:
@@ -2849,24 +2863,23 @@ def asaas_baixar(pag):
         return grupo, None
     valor = float(pag.get('value') or 0)
     mens = lambda c: float(c.get('valor') or 0)
-    if len(cs) > 1:
-        if abs(valor - sum(mens(c) for c in cs)) < 0.01:
-            alvo = cs
-        else:
-            alvo = [c for c in cs if abs(valor - mens(c)) < 0.01][:1] or [c for c in cs if valor >= mens(c) - 0.01][:1]
-        if not alvo:
+    opcoes = [[0.0, mens(c)] + ([mens(c) / c['asaas_parcelas']] if (c.get('asaas_parcelas') or 1) > 1 else []) for c in cs]
+    alvo = None
+    for combo in itertools.product(*opcoes):
+        if any(combo) and abs(sum(combo) - valor) < 0.01:
+            alvo = [(c, v) for c, v in zip(cs, combo) if v]
+            break
+    if not alvo:
+        maior = cs[0]
+        if valor + 0.01 < mens(maior):
             return grupo, 'avulso'
-    else:
-        alvo = cs
-        if (cs[0].get('asaas_parcelas') or 1) <= 1 and valor + 0.01 < mens(cs[0]):
-            return grupo, 'avulso'
+        alvo = [(maior, valor)]
     venc = pag['dueDate'][:7]
     situacao = None
-    for c in alvo:
+    for c, parte in alvo:
         mes, linha = _mes_da_baixa(c, venc)
         if not mes:
             continue
-        parte = mens(c) if len(alvo) > 1 else valor
         requests.post(SUPABASE_URL + '/rest/v1/asaas_baixas', headers=supa_headers(), timeout=10,
                       json={'payment_id': pag['id'], 'cliente_id': c['id'], 'mes': mes, 'valor': parte}).raise_for_status()
         somado = sum(float(b['valor']) for b in requests.get(SUPABASE_URL + '/rest/v1/asaas_baixas?cliente_id=eq.%d&mes=eq.%s&select=valor' % (c['id'], mes),
@@ -2878,7 +2891,7 @@ def asaas_baixar(pag):
         else:
             _marcar_pago(c, mes, linha, somado)
             situacao = 'pago'
-    return {'nome': ' + '.join(c['nome'] for c in alvo)}, situacao
+    return {'nome': ' + '.join(c['nome'] for c, _ in alvo)}, situacao
 
 @app.route('/api/asaas/webhook', methods=['POST'])
 def asaas_webhook():
@@ -3151,6 +3164,8 @@ def meu_financeiro_page():
 def painel_gestor_page():
     if session.get('role') == 'admin':
         return redirect('/')
+    if session.get('role') == 'designer':
+        return redirect('/tarefas')
     return send_from_directory('static', 'painel_gestor.html')
 
 if __name__ == '__main__':

@@ -277,7 +277,7 @@ async function fecharNegocio(){
     try { const j = await (await fetch('/api/usuarios')).json(); usuariosLista = j.ok ? j.data : []; } catch (e) { usuariosLista = []; }
   }
   const sel = document.getElementById('fc-gestor');
-  sel.innerHTML = '<option value="">Selecione o gestor...</option>' + usuariosLista.map(u => '<option value="' + u.id + '">' + esc(u.role === 'admin' ? 'Eu (' + u.nome + ')' : u.nome) + '</option>').join('');
+  sel.innerHTML = '<option value="">Selecione o gestor...</option>' + usuariosLista.filter(u => u.role !== 'designer').map(u => '<option value="' + u.id + '">' + esc(u.role === 'admin' ? 'Eu (' + u.nome + ')' : u.nome) + '</option>').join('');
   document.getElementById('fc-valor').value = Number(document.getElementById('f-valor').value || n.valor_previsto || 0) || '';
   document.getElementById('fc-dia').value = '';
   document.getElementById('fechamento').style.display = 'block';
