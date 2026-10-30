@@ -115,12 +115,13 @@ def gerar_senha_temp(n=8):
 
 # Papeis: admin (Andre), gestor (cuida de clientes e contas) e designer (faz criativos; so Tarefas e Financeiro)
 PAPEIS_EQUIPE = ('gestor', 'designer')
-ADMIN_ONLY_PAGES = {'/', '/faturamento', '/financeiro', '/agenda', '/clientes', '/gestores', '/negociacao', '/dashboards'}
+ADMIN_ONLY_PAGES = {'/', '/faturamento', '/financeiro', '/agenda', '/clientes', '/gestores', '/negociacao', '/dashboards', '/expansao'}
 ADMIN_ONLY_API_PREFIXES = (
     '/api/despesas', '/api/financeiro', '/api/agenda', '/api/google',
     '/api/clientes', '/api/contas-anuncio', '/api/config', '/api/pagamentos',
     '/api/historico', '/api/debug', '/api/briefing', '/api/chat',
-    '/api/usuarios', '/api/gestores', '/api/faturamento', '/api/vendas', '/api/repasses', '/api/negociacoes', '/api/dashboards'
+    '/api/usuarios', '/api/gestores', '/api/faturamento', '/api/vendas', '/api/repasses', '/api/negociacoes', '/api/dashboards',
+    '/api/expansao'
 )
 ADMIN_ONLY_EXACT_API = {'/api/tarefas/resetar', '/api/data'}
 
@@ -336,6 +337,8 @@ def descrever_movimentacao(ep, body, va, antes, res):
         return 'agenda', 'Evento criado na agenda: %s (%s)' % (body.get('titulo'), body.get('inicio')), None, None
     if ep == 'agenda_desconectar':
         return 'agenda', 'Agenda do Google desconectada', None, None
+    if ep == 'salvar_expansao':
+        return 'expansao', 'Expansão: ' + str(body.get('descricao') or 'plano atualizado')[:300], None, None
     return 'outro', '%s %s' % (request.method, request.path), None, None
 
 @app.after_request
@@ -2738,6 +2741,65 @@ def delete_negociacao(id):
 @app.route('/negociacao')
 def negociacao_page():
     return send_from_directory('static', 'negociacao.html')
+
+# ── Expansao da empresa (so admin) ──
+# Plano de nov/dez 2026: metas do mes, metas da semana e itens para marcar.
+# O que foi marcado e o saldo do caixa ficam em config.expansao_plano (JSON);
+# contas, ticket dos novos, recebimento e negociacoes vem do banco na hora.
+EXPANSAO_CHAVE = 'expansao_plano'
+EXPANSAO_MESES = ('2026-11', '2026-12')
+
+def _expansao_estado():
+    try:
+        estado = json.loads(ler_config(EXPANSAO_CHAVE) or '{}')
+    except ValueError:
+        estado = {}
+    estado.setdefault('feitos', {})
+    estado.setdefault('caixa', {})
+    return estado
+
+@app.route('/expansao')
+def expansao_page():
+    return send_from_directory('static', 'expansao.html')
+
+@app.route('/api/expansao', methods=['GET'])
+def get_expansao():
+    try:
+        clientes = requests.get(SUPABASE_URL + '/rest/v1/clientes', headers=supa_headers(), timeout=10, params={
+            'select': 'id,valor,nivel,status,ativo,data_inicio,created_at,inativado_em,pausado_em'}).json()
+        negociacoes = requests.get(SUPABASE_URL + '/rest/v1/negociacoes', headers=supa_headers(), timeout=10, params={
+            'select': 'id,status,criado_em,fechado_em'}).json()
+        pagamentos = requests.get(SUPABASE_URL + '/rest/v1/pagamentos', headers=supa_headers(), timeout=10, params={
+            'select': 'cliente_id,mes,pago', 'mes': 'in.(' + ','.join(EXPANSAO_MESES) + ')'}).json()
+        return jsonify({'ok': True, 'estado': _expansao_estado(), 'clientes': clientes,
+                        'negociacoes': negociacoes, 'pagamentos': pagamentos})
+    except Exception as e:
+        print('EXPANSAO ERROR:', traceback.format_exc())
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+@app.route('/api/expansao', methods=['POST'])
+def salvar_expansao():
+    # Marca/desmarca um item ({item, feito}) ou guarda o saldo do caixa ({mes, caixa})
+    try:
+        body = request.json or {}
+        estado = _expansao_estado()
+        agora = datetime.utcnow().isoformat() + 'Z'
+        if body.get('item'):
+            if body.get('feito'):
+                estado['feitos'][str(body['item'])] = agora
+            else:
+                estado['feitos'].pop(str(body['item']), None)
+        elif body.get('mes') in EXPANSAO_MESES and body.get('caixa') is not None:
+            estado['caixa'][body['mes']] = {'valor': round(float(body['caixa']), 2), 'em': agora}
+        else:
+            return jsonify({'ok': False, 'error': 'Nada para salvar'}), 400
+        gravar_config(EXPANSAO_CHAVE, json.dumps(estado, ensure_ascii=False))
+        return jsonify({'ok': True, 'estado': estado})
+    except (TypeError, ValueError):
+        return jsonify({'ok': False, 'error': 'Valor do caixa inválido'}), 400
+    except Exception as e:
+        print('EXPANSAO ERROR:', traceback.format_exc())
+        return jsonify({'ok': False, 'error': str(e)}), 500
 
 # ── Notificacoes: inscricao do aparelho e alertas automaticos ──
 @app.route('/api/push/chave', methods=['GET'])

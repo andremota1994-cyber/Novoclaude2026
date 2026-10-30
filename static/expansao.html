@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/static/icone-192.png">
+<link rel="apple-touch-icon" href="/static/icone-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Mobilli">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#060504">
+<title>Expansão - Mobilli Digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap">
+<style>
+:root {
+  --bg: #060504; --card: rgba(228,190,110,0.055); --card2: rgba(228,190,110,0.10);
+  --border: rgba(228,190,110,0.16); --border-strong: rgba(228,190,110,0.30);
+  --blue: #d4af37; --blue-bright: #f3d888;
+  --grad: linear-gradient(135deg, #f3d888, #9c7a24);
+  --text-primary: #f7f3ea; --text-secondary: #a89a78; --text-muted: #6b6047;
+  --green: #2fd97f; --amber: #ff9d42;
+  --red: #ff5c72; --red-bg: rgba(255,92,114,0.08); --red-border: rgba(255,92,114,0.28);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text-primary); display: flex; flex-direction: column; position: relative; }
+.bg-ambient { position: fixed; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
+.blob-a, .blob-b { position: absolute; border-radius: 50%; filter: blur(90px); opacity: .32; }
+.blob-a { width: 520px; height: 520px; background: radial-gradient(circle, rgba(212,175,55,.35), transparent 70%); top: -160px; left: -120px; }
+.blob-b { width: 480px; height: 480px; background: radial-gradient(circle, rgba(156,122,36,.28), transparent 70%); bottom: -180px; right: -140px; }
+.topbar, .main { position: relative; z-index: 1; }
+.main { flex: 1; overflow-y: auto; padding: 2rem; display: flex; flex-direction: column; gap: 1.75rem; }
+.page-header { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 14px; }
+.page-header h2 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+.page-header p { font-size: 13px; color: var(--text-secondary); max-width: 70ch; line-height: 1.5; }
+.loading { color: var(--text-muted); font-size: 13px; padding: 2rem 0; }
+.erro { color: var(--red); font-size: 13px; }
+
+.meses { display: inline-flex; background: var(--card); border: 0.5px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+.meses button { height: 34px; padding: 0 16px; border-radius: 8px; border: none; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.meses button.ativo { background: var(--grad); color: #171206; }
+.meses button:focus-visible, .chk:focus-within, .btn:focus-visible { outline: 2px solid var(--blue-bright); outline-offset: 2px; }
+
+.secao-tit { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .6px; font-weight: 600; margin-bottom: 10px; display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.secao-tit span { text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--text-muted); }
+
+.metas { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.meta { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.meta .lbl { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .5px; display: flex; justify-content: space-between; gap: 8px; }
+.meta .val { font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.meta .alvo { font-size: 12px; color: var(--text-muted); }
+.meta .alvo b { color: var(--text-secondary); font-weight: 600; }
+.barra { height: 5px; border-radius: 3px; background: rgba(228,190,110,.1); overflow: hidden; }
+.barra i { display: block; height: 100%; background: var(--grad); }
+.meta.ok .barra i { background: var(--green); }
+.meta.atencao .barra i { background: var(--amber); }
+.meta .sub { font-size: 11.5px; color: var(--text-muted); line-height: 1.4; }
+.chip { font-size: 10px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; text-transform: none; letter-spacing: 0; border: .5px solid var(--border); color: var(--text-muted); }
+.chip.ok { background: rgba(47,217,127,.10); color: var(--green); border-color: rgba(47,217,127,.3); }
+.chip.atencao { background: rgba(255,157,66,.10); color: var(--amber); border-color: rgba(255,157,66,.3); }
+.chip.ruim { background: var(--red-bg); color: var(--red); border-color: var(--red-border); }
+.caixa-form { display: flex; gap: 6px; }
+.caixa-form input { flex: 1; min-width: 0; height: 32px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 0 10px; font-size: 13px; color: var(--text-primary); font-family: inherit; outline: none; }
+.caixa-form input:focus { border-color: var(--border-strong); }
+.btn { height: 32px; padding: 0 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: inherit; border: none; background: var(--grad); color: #171206; }
+
+.semanas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; align-items: start; }
+.semana { background: var(--card); border: 0.5px solid var(--border); border-radius: 14px; display: flex; flex-direction: column; min-width: 0; }
+.semana.atual { border: 1px solid var(--border-strong); background: var(--card2); }
+.semana-head { padding: 14px 14px 10px; border-bottom: 0.5px solid var(--border); display: flex; flex-direction: column; gap: 8px; }
+.semana-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.semana-tit { font-size: 14px; font-weight: 600; }
+.semana-foco { font-size: 12px; color: var(--text-secondary); line-height: 1.4; }
+.semana-nums { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11.5px; color: var(--text-muted); }
+.semana-nums b { color: var(--text-primary); font-weight: 600; font-variant-numeric: tabular-nums; }
+.semana-prog { font-size: 11px; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+.semana-prog .barra { flex: 1; }
+.itens { list-style: none; padding: 8px 10px 12px; display: flex; flex-direction: column; gap: 2px; }
+.chk { display: flex; gap: 10px; align-items: flex-start; padding: 7px 6px; border-radius: 8px; cursor: pointer; font-size: 13px; line-height: 1.4; }
+.chk:hover { background: rgba(228,190,110,.06); }
+.chk input { appearance: none; -webkit-appearance: none; width: 17px; height: 17px; border-radius: 5px; border: 1.5px solid var(--border-strong); flex-shrink: 0; margin-top: 1px; cursor: pointer; display: grid; place-content: center; background: transparent; }
+.chk input:checked { background: var(--green); border-color: var(--green); }
+.chk input:checked::after { content: ''; width: 9px; height: 5px; border: 2px solid #06140c; border-top: 0; border-right: 0; transform: rotate(-45deg) translate(1px, -1px); }
+.chk.feito .txt { color: var(--text-muted); text-decoration: line-through; }
+.chk .txt small { display: block; color: var(--text-muted); font-size: 11.5px; margin-top: 2px; text-decoration: none; }
+.chk.checkpoint .txt { font-weight: 600; color: var(--blue-bright); }
+.chk.checkpoint.feito .txt { color: var(--text-muted); }
+
+.regras { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+.regra { background: var(--card); border: 0.5px solid var(--border); border-radius: 12px; padding: 14px; min-width: 0; }
+.regra h4 { font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--blue-bright); }
+.regra ol, .regra ul { padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--text-secondary); line-height: 1.45; }
+
+@media (max-width: 560px) { .main { padding: 1.1rem; } }
+</style>
+</head>
+<body>
+<div class="bg-ambient"><div class="blob-a"></div><div class="blob-b"></div></div>
+<div class="topbar" id="menu-principal"></div>
+<script src="/static/menu.js"></script>
+<div class="main">
+  <div class="page-header">
+    <div>
+      <h2>Expansão da empresa</h2>
+      <p>Novembro e dezembro de 2026. Chegar em janeiro com R$ 30 mil de caixa, cerca de 60 contas, 2 gestores júnior e salário fixo de R$ 35 mil.</p>
+    </div>
+    <div class="meses" id="meses" role="tablist"></div>
+  </div>
+  <section>
+    <div class="secao-tit">Metas do mês <span id="metas-sub"></span></div>
+    <div class="metas" id="metas"><div class="loading">Carregando...</div></div>
+  </section>
+  <section>
+    <div class="secao-tit">Semana a semana <span>marque cada item quando concluir</span></div>
+    <div class="semanas" id="semanas"></div>
+  </section>
+  <section>
+    <div class="secao-tit">Regras do plano</div>
+    <div class="regras">
+      <div class="regra"><h4>Ordem do dinheiro em cada pagamento</h4><ol>
+        <li>Gestor por cliente (Henrique R$ 200, Kelmer R$ 150) ou a parte fixa do LUCASSI</li>
+        <li>Operação 10%: Bruno, ferramentas e Andressa</li>
+        <li>Caixa mínimo 5%</li>
+        <li>Salário até R$ 25 mil (R$ 12.500 nos dias 15 e 30)</li>
+        <li>O que passar vai para o caixa</li>
+        <li>Imposto de 6% entra a partir de janeiro</li>
+      </ol></div>
+      <div class="regra"><h4>Venda</h4><ul>
+        <li>Mensalidade mínima de R$ 1.000 para cliente novo</li>
+        <li>Mais de R$ 15 mil de mídia por mês: R$ 2.000 ou mais</li>
+        <li>Bronze só se cair direto para Bruno ou Kelmer, fora da meta de ticket</li>
+        <li>Marcar a origem de toda negociação</li>
+        <li>R$ 500 por indicação que virar ouro ou prata</li>
+      </ul></div>
+      <div class="regra"><h4>Salário de R$ 35 mil em janeiro (31/12)</h4><ul>
+        <li>Caixa com R$ 30 mil, pelo menos 58 contas e recebimento de dezembro de 90% ou mais</li>
+        <li>Faltou uma: R$ 30 mil em janeiro, nova conferência em 31/01</li>
+        <li>Faltaram duas: continua R$ 25 mil</li>
+        <li>Coordenação e tráfego saem do aporte, em conta separada</li>
+      </ul></div>
+      <div class="regra"><h4>Se atrasar (30/11)</h4><ul>
+        <li>Abaixo de 48 contas: só 1 júnior, foco em reativação e indicação</li>
+        <li>Recebimento abaixo de 85%: a semana de 01/12 é só cobrança</li>
+        <li>Caixa abaixo de R$ 8 mil: salário de janeiro fica em R$ 25 mil e a meta de R$ 30 mil passa para fevereiro</li>
+      </ul></div>
+    </div>
+  </section>
+</div>
+
+<script>
+// Plano de nov/dez 2026. Os ids dos itens são fixos: o que foi marcado fica salvo por id.
+const PLANO = {
+  '2026-11': {
+    nome: 'Novembro',
+    metas: { contas: 51, ticket: 1200, recebimento: 90, caixa: 11000, saidas: 0, salario: 25000 },
+    semanas: [
+      { id: 'n1', de: '2026-11-03', ate: '2026-11-07', contas: 45, foco: 'Separar o dinheiro e destravar o que está parado', itens: [
+        ['n1-caixa', 'Separar o caixa e a conta do aporte no Asaas', 'Operação, caixa e aporte não se misturam'],
+        ['n1-asaas', 'Colocar todos os clientes no Asaas', 'Renato, Josias, Lucas Padre, Pedro Porte e Funari, com lembrete automático'],
+        ['n1-bm', 'Destravar as 4 BMs pendentes', 'Khalena, Deby, Nick e Hercules'],
+        ['n1-indicacao', 'Avisar a carteira do prêmio por indicação', 'R$ 500 por indicação que virar ouro ou prata'],
+        ['n1-henrique', 'Conversa com o Henrique sobre a coordenação', 'R$ 1.500 fixos + bônus de R$ 500, por cliente pago, teto de 18 contas'],
+      ]},
+      { id: 'n2', de: '2026-11-10', ate: '2026-11-14', contas: 47, foco: 'Ir atrás de cliente e fechar o aporte', itens: [
+        ['n2-trafego', 'Tráfego próprio no ar', 'R$ 2.000/mês para gerentes e donos de imobiliária'],
+        ['n2-ex', 'Contato com ex-clientes ouro e prata', 'Bahamondes (2), Guto, Mineira, ZAP, Roger e Lais'],
+        ['n2-pausados', 'Contato com os pausados', 'B&G, Rojo, Diogo, Thais, Queline e Vaz. Meta: 3 de volta até 30/11'],
+        ['n2-inadimplencia', 'Limpar a inadimplência de agosto e setembro', 'Marcar o que foi pago e cobrar quem deve'],
+        ['n2-lancar', 'Lançar no Financeiro o repasse do Lucas Padre e o salário de R$ 25 mil', ''],
+        ['n2-aporte', 'Fechar o aporte de R$ 30 mil por 5%', 'Contrato com contador e advogado: salário antes do lucro, LUCASSI fora dos 5%, recompra'],
+      ]},
+      { id: 'n3', de: '2026-11-17', ate: '2026-11-21', contas: 49, foco: 'Sair das contas e fechar as negociações abertas', itens: [
+        ['n3-salario', 'Saque do salário (15/11)', 'R$ 12.500'],
+        ['n3-carteira', 'Passar 7 dos seus 11 clientes para Henrique e Kelmer', 'Você fica com o relacionamento das contas de R$ 2.000'],
+        ['n3-negociacoes', 'Fechar ou descartar as 9 negociações abertas', 'R$ 10.850 de mensalidade prevista'],
+      ]},
+      { id: 'n4', de: '2026-11-24', ate: '2026-11-30', contas: 51, foco: 'Combinar o papel do Lucas e fechar o mês', itens: [
+        ['n4-lucas', 'Conversa com o Lucas', 'Frente do cliente a partir de janeiro e pagamento da coordenação'],
+        ['n4-salario', 'Saque do salário (30/11)', 'R$ 12.500'],
+        ['n4-checkpoint', 'Checkpoint de 30/11', '51 contas, R$ 11 mil de caixa e 90% recebido. Abaixo de 50 contas: só 1 júnior', true],
+      ]},
+    ],
+  },
+  '2026-12': {
+    nome: 'Dezembro',
+    metas: { contas: 60, ticket: 1200, recebimento: 90, caixa: 30000, saidas: 1, salario: 25000, junior: 2 },
+    semanas: [
+      { id: 'd1', de: '2026-12-01', ate: '2026-12-05', contas: 53, foco: 'Fechar novembro e abrir as vagas', itens: [
+        ['d1-fechamento', 'Fechar novembro (dia 1)', 'Conferir caixa e mandar a sobra da operação para o caixa'],
+        ['d1-vagas', 'Abrir as vagas de gestor júnior', 'R$ 150 por cliente pago, como o Kelmer'],
+        ['d1-precos', 'Propostas de mensalidade maior para quem tem mais de R$ 15 mil de mídia', 'Começar por Nathalia e Betina'],
+      ]},
+      { id: 'd2', de: '2026-12-08', ate: '2026-12-12', contas: 55, foco: 'Entrevistas e segunda rodada de indicação', itens: [
+        ['d2-entrevistas', 'Entrevistas dos júnior', ''],
+        ['d2-indicacao', 'Segunda rodada de indicação', ''],
+      ]},
+      { id: 'd3', de: '2026-12-15', ate: '2026-12-19', contas: 58, foco: 'Escolher os júnior e começar o treino', itens: [
+        ['d3-escolha', 'Escolher os 2 júnior (15/12)', ''],
+        ['d3-treino', 'Início do treino com o Henrique', 'Acompanhando contas reais, começando pelos prata'],
+        ['d3-salario', 'Saque do salário (15/12)', 'R$ 12.500'],
+        ['d3-imposto', 'Alíquota do imposto com o contador', 'Para valer em janeiro'],
+        ['d3-seguranca', 'Segurança do painel e rotinas no servidor', 'Com o Claude: RLS no banco e rotinas sem depender do Mac'],
+      ]},
+      { id: 'd4', de: '2026-12-22', ate: '2026-12-31', contas: 60, foco: 'Fechar as vendas do ano e decidir o salário', itens: [
+        ['d4-treino', 'Treino dos júnior concluído', 'Assumem clientes em 02/01'],
+        ['d4-vendas', 'Fechar as vendas de dezembro', ''],
+        ['d4-salario', 'Saque do salário (30/12)', 'R$ 12.500'],
+        ['d4-checkpoint', 'Checkpoint de 31/12', '60 contas, R$ 30 mil de caixa e 90% recebido: salário de R$ 35 mil em janeiro', true],
+      ]},
+    ],
+  },
+};
+const NEGOCIACOES_SEMANA = 5;
+
+let dados = null, mesAtual = null;
+
+const brl = v => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 0 });
+const dia = s => s.slice(8, 10) + '/' + s.slice(5, 7);
+const hojeStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+// Datas do banco em UTC -> dia em Brasília
+const diaBR = iso => { if (!iso) return null; if (iso.length <= 10) return iso; const d = new Date(new Date(iso.endsWith('Z') || iso.includes('+') ? iso : iso + 'Z').getTime() - 3 * 3600 * 1000); return d.toISOString().slice(0, 10); };
+const ativo = c => c.ativo && (c.status || 'ativo') === 'ativo';
+const pagante = c => Number(c.valor) > 100;
+const entrada = c => c.data_inicio || diaBR(c.created_at);
+
+function chip(estado, txt) { return `<span class="chip ${estado}">${txt}</span>`; }
+
+function calcularMes(mes) {
+  const cl = dados.clientes;
+  const ativos = cl.filter(c => ativo(c) && pagante(c));
+  const novos = cl.filter(c => pagante(c) && (entrada(c) || '').startsWith(mes));
+  const ticket = novos.length ? novos.reduce((s, c) => s + Number(c.valor), 0) / novos.length : 0;
+  const saidas = cl.filter(c => ['ouro', 'prata'].includes(c.nivel) &&
+    ((diaBR(c.inativado_em) || '').startsWith(mes) || (diaBR(c.pausado_em) || '').startsWith(mes)));
+  const pagos = new Set(dados.pagamentos.filter(p => p.mes === mes && p.pago).map(p => p.cliente_id));
+  const esperado = ativos.reduce((s, c) => s + Number(c.valor), 0);
+  const recebido = ativos.filter(c => pagos.has(c.id)).reduce((s, c) => s + Number(c.valor), 0);
+  return { contas: ativos.length, novos, ticket, saidas, esperado, recebido, pct: esperado ? recebido / esperado * 100 : 0 };
+}
+
+function cardMeta({ lbl, val, alvo, pct, estado, chipTxt, sub, extra }) {
+  return `<div class="meta ${estado || ''}">
+    <div class="lbl">${lbl}${chipTxt ? chip(estado || '', chipTxt) : ''}</div>
+    <div class="val">${val}</div>
+    <div class="alvo">${alvo}</div>
+    ${pct !== undefined ? `<div class="barra"><i style="width:${Math.max(0, Math.min(100, pct))}%"></i></div>` : ''}
+    ${sub ? `<div class="sub">${sub}</div>` : ''}${extra || ''}
+  </div>`;
+}
+
+function renderMetas() {
+  const p = PLANO[mesAtual], m = p.metas, r = calcularMes(mesAtual);
+  const hoje = hojeStr(), comecou = hoje >= mesAtual + '-01';
+  const fimMes = p.semanas[p.semanas.length - 1].ate, acabou = hoje > fimMes;
+  const est = (ok, perto) => ok ? 'ok' : (perto ? 'atencao' : '');
+  const caixa = dados.estado.caixa[mesAtual];
+  const cards = [];
+
+  cards.push(cardMeta({ lbl: 'Contas ativas', val: r.contas, alvo: `meta <b>${m.contas}</b> em ${dia(fimMes)} · faltam ${Math.max(0, m.contas - r.contas)}`,
+    pct: r.contas / m.contas * 100, estado: est(r.contas >= m.contas, r.contas >= m.contas - 3), chipTxt: r.contas >= m.contas ? 'batida' : '',
+    sub: 'Sem cortesias e testes (mensalidade acima de R$ 100)' }));
+
+  const ouroPrata = r.novos.filter(c => ['ouro', 'prata'].includes(c.nivel)).length;
+  cards.push(cardMeta({ lbl: 'Ticket dos novos', val: r.novos.length ? `<span class="tem-valor">${brl(r.ticket)}</span>` : '—',
+    alvo: `meta <b class="tem-valor">${brl(m.ticket)}</b> · ${r.novos.length} ${r.novos.length === 1 ? 'novo' : 'novos'} no mês (${ouroPrata} ouro/prata)`,
+    pct: r.novos.length ? r.ticket / m.ticket * 100 : 0, estado: r.novos.length ? est(r.ticket >= m.ticket, r.ticket >= m.ticket * .85) : '',
+    chipTxt: r.novos.length && r.ticket >= m.ticket ? 'batida' : '' }));
+
+  cards.push(cardMeta({ lbl: 'Recebimento', val: comecou ? r.pct.toFixed(0) + '%' : '—',
+    alvo: `meta <b>${m.recebimento}%</b> · <span class="tem-valor">${brl(r.recebido)} de ${brl(r.esperado)}</span>`,
+    pct: comecou ? r.pct / m.recebimento * 100 : 0, estado: comecou ? est(r.pct >= m.recebimento, r.pct >= 85) : '',
+    chipTxt: comecou && r.pct >= m.recebimento ? 'batida' : '', sub: 'Pagamentos marcados no Faturamento do mês' }));
+
+  const vCaixa = caixa ? caixa.valor : null;
+  cards.push(cardMeta({ lbl: 'Caixa', val: vCaixa !== null ? `<span class="tem-valor">${brl(vCaixa)}</span>` : '—',
+    alvo: `meta <b class="tem-valor">${brl(m.caixa)}</b> em ${dia(fimMes)}${caixa ? ' · atualizado em ' + dia(diaBR(caixa.em)) : ''}`,
+    pct: vCaixa !== null ? vCaixa / m.caixa * 100 : 0, estado: vCaixa !== null ? est(vCaixa >= m.caixa, vCaixa >= m.caixa * .75) : '',
+    chipTxt: vCaixa !== null && vCaixa >= m.caixa ? 'batida' : '',
+    extra: `<form class="caixa-form" onsubmit="salvarCaixa(event)"><input id="caixa-input" class="valor-input" type="number" inputmode="decimal" min="0" step="0.01" placeholder="Saldo do caixa hoje" aria-label="Saldo do caixa hoje"><button class="btn" type="submit">Salvar</button></form>` }));
+
+  const nSaidas = r.saidas.length;
+  cards.push(cardMeta({ lbl: 'Saídas ouro e prata', val: nSaidas,
+    alvo: m.saidas ? `no máximo <b>${m.saidas}</b> no mês` : 'meta <b>nenhuma</b> no mês',
+    estado: nSaidas > m.saidas ? 'atencao' : (comecou ? 'ok' : ''), chipTxt: nSaidas > m.saidas ? 'passou' : (comecou ? 'dentro' : ''),
+    sub: 'Clientes ouro ou prata inativados ou pausados no mês' }));
+
+  if (m.junior) {
+    const f = dados.estado.feitos;
+    const passo = f['d4-treino'] ? 'treinados' : f['d3-escolha'] ? 'escolhidos' : f['d2-entrevistas'] ? 'entrevistas feitas' : f['d1-vagas'] ? 'vagas abertas' : 'vagas a abrir';
+    const n = f['d4-treino'] ? 4 : f['d3-escolha'] ? 3 : f['d2-entrevistas'] ? 2 : f['d1-vagas'] ? 1 : 0;
+    cards.push(cardMeta({ lbl: 'Gestores júnior', val: passo, alvo: `meta <b>${m.junior} treinados</b> até ${dia(fimMes)}`,
+      pct: n / 4 * 100, estado: n === 4 ? 'ok' : '', chipTxt: n === 4 ? 'batida' : '' }));
+  }
+
+  cards.push(cardMeta({ lbl: 'Seu salário', val: `<span class="tem-valor">${brl(m.salario)}</span>`,
+    alvo: mesAtual === '2026-12' ? 'R$ 35 mil a partir de janeiro, se o checkpoint de 31/12 bater' : 'R$ 12.500 nos dias 15 e 30' }));
+
+  document.getElementById('metas').innerHTML = cards.join('');
+  document.getElementById('metas-sub').textContent = acabou ? 'mês encerrado' : (comecou ? 'números atualizados agora' : 'o mês ainda não começou');
+}
+
+function renderSemanas() {
+  const p = PLANO[mesAtual], hoje = hojeStr(), f = dados.estado.feitos;
+  const contasHoje = calcularMes(mesAtual).contas;
+  document.getElementById('semanas').innerHTML = p.semanas.map((s, i) => {
+    const feitos = s.itens.filter(it => f[it[0]]).length, total = s.itens.length;
+    const atual = hoje >= s.de && hoje <= s.ate, passou = hoje > s.ate;
+    let estado = '';
+    if (feitos === total) estado = chip('ok', 'concluída');
+    else if (atual) estado = chip('atencao', 'esta semana');
+    else if (passou) estado = chip('ruim', 'ficou pendente');
+    else estado = chip('', 'próxima');
+    const negs = dados.negociacoes.filter(n => { const d = diaBR(n.criado_em); return d && d >= s.de && d <= s.ate; }).length;
+    const novos = dados.clientes.filter(c => pagante(c) && (entrada(c) || '') >= s.de && (entrada(c) || '') <= s.ate).length;
+    const comecou = hoje >= s.de;
+    const nums = `<div class="semana-nums">
+      <span>Contas no fim: meta <b>${s.contas}</b>${atual ? ` · hoje <b>${contasHoje}</b>` : ''}</span>
+      <span>Negociações novas: ${comecou ? `<b>${negs}</b> de ` : 'meta '}<b>${NEGOCIACOES_SEMANA}</b></span>
+      ${comecou ? `<span>Clientes que entraram: <b>${novos}</b></span>` : ''}
+    </div>`;
+    const itens = s.itens.map(([id, txt, det, cp]) => `<li><label class="chk${f[id] ? ' feito' : ''}${cp ? ' checkpoint' : ''}">
+      <input type="checkbox" id="item-${id}" ${f[id] ? 'checked' : ''} onchange="marcar('${id}', this)">
+      <span class="txt">${txt}${det ? `<small>${det}</small>` : ''}</span></label></li>`).join('');
+    return `<div class="semana${atual ? ' atual' : ''}">
+      <div class="semana-head">
+        <div class="semana-top"><span class="semana-tit">Semana ${i + 1} · ${dia(s.de)} a ${dia(s.ate)}</span>${estado}</div>
+        <div class="semana-foco">${s.foco}</div>
+        ${nums}
+        <div class="semana-prog"><div class="barra"><i style="width:${feitos / total * 100}%"></i></div>${feitos} de ${total}</div>
+      </div>
+      <ul class="itens">${itens}</ul>
+    </div>`;
+  }).join('');
+}
+
+function renderMeses() {
+  document.getElementById('meses').innerHTML = Object.entries(PLANO).map(([k, v]) =>
+    `<button role="tab" type="button" class="${k === mesAtual ? 'ativo' : ''}" aria-selected="${k === mesAtual}" onclick="trocarMes('${k}')">${v.nome}</button>`).join('');
+}
+
+function render() { renderMeses(); renderMetas(); renderSemanas(); }
+function trocarMes(m) { mesAtual = m; render(); }
+
+async function salvar(corpo) {
+  const r = await fetch('/api/expansao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || !j.ok) throw new Error(j.error || 'Não foi possível salvar');
+  dados.estado = j.estado;
+}
+
+function textoItem(id) {
+  for (const p of Object.values(PLANO)) for (const s of p.semanas) for (const it of s.itens) if (it[0] === id) return it[1];
+  return id;
+}
+
+async function marcar(id, el) {
+  const feito = el.checked;
+  el.disabled = true;
+  try {
+    await salvar({ item: id, feito, descricao: (feito ? 'concluído: ' : 'desmarcado: ') + textoItem(id) });
+    render();
+  } catch (e) {
+    el.checked = !feito;
+    el.disabled = false;
+    alert(e.message + '. Tente de novo.');
+  }
+}
+
+async function salvarCaixa(ev) {
+  ev.preventDefault();
+  const v = document.getElementById('caixa-input').value;
+  if (v === '') return;
+  try {
+    await salvar({ mes: mesAtual, caixa: Number(v), descricao: 'saldo do caixa de ' + PLANO[mesAtual].nome.toLowerCase() + ' atualizado para ' + brl(v) });
+    render();
+  } catch (e) { alert(e.message + '. Confira o valor e tente de novo.'); }
+}
+
+async function carregar() {
+  try {
+    const r = await fetch('/api/expansao');
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Erro ao carregar');
+    dados = j;
+    mesAtual = hojeStr() >= '2026-12-01' ? '2026-12' : '2026-11';
+    render();
+  } catch (e) {
+    document.getElementById('metas').innerHTML = `<div class="erro">Não foi possível carregar o plano (${e.message}). Recarregue a página.</div>`;
+  }
+}
+carregar();
+</script>
+</body>
+</html>
